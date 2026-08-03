@@ -25,7 +25,10 @@ export function ConfigPanel() {
     config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON,
     clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
   } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad } = useUIStore()
+  const {
+    mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
+    setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad,
+  } = useUIStore()
 
   const transicion = config.fechas_clave.transicion_susana_toyota
   const rojos = violaciones.filter(v => v.severidad === 'rojo').length
@@ -117,6 +120,9 @@ export function ConfigPanel() {
 
       {/* Toggles de visualización */}
       <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={toggleConflictos} style={{ ...pillBtn, ...(mostrarConflictos ? activePill : {}) }} title={mostrarConflictos ? 'Ocultar el resaltado de conflictos (barras rojas y anillos) del timeline' : 'Mostrar el resaltado de conflictos en el timeline'}>
+          {mostrarConflictos ? 'Conflictos' : 'Conflictos (oculto)'}
+        </button>
         <button onClick={toggleCarga} style={{ ...pillBtn, ...(mostrarCarga ? activePill : {}) }} title="Pintar carga semanal en las celdas">Carga semanal</button>
         <button onClick={toggleDep} style={{ ...pillBtn, ...(mostrarDep ? activePill : {}) }} title="Mostrar flechas de dependencia de la cuenta seleccionada">Dependencias</button>
         <button onClick={toggleTimelineFull} style={{ ...pillBtn, ...(timelineFull ? activePill : {}) }} title={timelineFull ? 'Volver a mostrar los paneles laterales' : 'Expandir timeline al 100% (oculta cuentas y detalle)'}>

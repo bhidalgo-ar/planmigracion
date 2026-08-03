@@ -157,6 +157,16 @@ function FaseCard({ tipo, asignacion, personas, violaciones, onUpdate, onCreate 
                 {formatFechaCorta(asignacion.fin)}
               </div>
             </Campo>
+            <Campo label="Dedicación">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button onClick={() => onUpdate({ dedicacion_pct: Math.max(0.05, Math.round((asignacion.dedicacion_pct - 0.05) * 100) / 100) })} style={stepBtn}>−</button>
+                <span style={{ minWidth: 54, textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{Math.round(asignacion.dedicacion_pct * 100)}%</span>
+                <button onClick={() => onUpdate({ dedicacion_pct: Math.min(2, Math.round((asignacion.dedicacion_pct + 0.05) * 100) / 100) })} style={stepBtn}>+</button>
+              </div>
+            </Campo>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
+            Bajá la dedicación si esta persona solo destina una parte de su semana a esta fase: la Regla 2 (sobreasignación) suma la dedicación de todo lo que se pisa el mismo día para la misma persona.
           </div>
           {violaciones.length > 0 && (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>

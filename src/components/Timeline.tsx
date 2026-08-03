@@ -125,7 +125,7 @@ export function Timeline() {
     personas, proyectos, asignaciones, config, violaciones,
     clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente,
   } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, zoom, irHoyToken, modoMovimiento, densidad } = useUIStore()
+  const { mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad } = useUIStore()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowsRef   = useRef<HTMLDivElement>(null)
@@ -153,12 +153,14 @@ export function Timeline() {
   // barras que se pintan enteras de rojo: dependencia rota (R3) o acantilado Susana (R1)
   const barRojo = useMemo(() => {
     const s = new Set<string>()
+    if (!mostrarConflictos) return s
     for (const v of violaciones)
       if (v.severidad === 'rojo' && (v.tipo === 'R3' || v.tipo === 'R1')) s.add(v.asignacion_id)
     return s
-  }, [violaciones])
+  }, [violaciones, mostrarConflictos])
 
-  // carga R2: (personaId|lunesISO) → severidad
+  // carga R2: (personaId|lunesISO) → severidad. Alimenta tanto el tinte semanal
+  // ("Carga semanal") como el anillo de las barras (parte del toggle "Conflictos").
   const cargaCelda = useMemo(() => {
     const m = new Map<string, 'rojo' | 'ambar'>()
     for (const v of violaciones) {
@@ -587,7 +589,7 @@ export function Timeline() {
                 <div key={p.id} style={{ position: 'absolute', top: i * ROW_H, left: 0, width: NAME_W, height: ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 3, padding: compacta ? '0 10px 0 12px' : '0 10px 0 14px', background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: compacta ? 13 : 15, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.alias}</span>
-                    {st && st.semRojas > 0 && (
+                    {mostrarConflictos && st && st.semRojas > 0 && (
                       <span title={`${st.semRojas} semana${st.semRojas !== 1 ? 's' : ''} sobreasignada${st.semRojas !== 1 ? 's' : ''}`}
                         style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#fff', background: 'var(--error)', borderRadius: 9999, padding: '1px 6px' }}>
                         ⚠ {st.semRojas}
@@ -626,7 +628,7 @@ export function Timeline() {
             const proyecto    = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null
             const esRojo      = barRojo.has(a.id)
             const fill        = esRojo ? 'var(--error)' : TIPO_COLOR[a.tipo as TipoFase]
-            const ring        = a.es_bloqueo ? null : ringDe(a)
+            const ring        = (a.es_bloqueo || !mostrarConflictos) ? null : ringDe(a)
             const seleccionada = !!clienteSeleccionado && a.proyecto_id === clienteSeleccionado
             const atenuada    = !!clienteSeleccionado && a.proyecto_id !== clienteSeleccionado
             const boxShadow   = ring === 'rojo'
