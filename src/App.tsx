@@ -4,6 +4,7 @@ import { Timeline } from './components/Timeline'
 import { DetailPanel } from './components/DetailPanel'
 import { ConfigPanel } from './components/ConfigPanel'
 import { Insights } from './components/Insights'
+import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
@@ -76,10 +77,13 @@ export default function App() {
       {/* Contenido */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--lienzo)' }}>
         {vista === 'timeline' ? (
-          <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-            {!timelineFull && <AccountRail />}
-            <div style={{ flex: 1, overflow: 'hidden' }}><Timeline /></div>
-            {!timelineFull && <DetailPanel />}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+              {!timelineFull && <AccountRail />}
+              <div style={{ flex: 1, overflow: 'hidden' }}><Timeline /></div>
+              {!timelineFull && <DetailPanel />}
+            </div>
+            <PanelInsights />
           </div>
         ) : (
           <Insights />

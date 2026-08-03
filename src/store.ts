@@ -61,6 +61,50 @@ const DUR_DEFAULT: Record<'Relevamiento' | 'Configuracion' | 'Pruebas', number> 
   Relevamiento: 10, Configuracion: 15, Pruebas: 8,
 }
 
+/** Orden canónico de fases dentro de una cuenta (para el respaldo de la cascada). */
+const ORDEN_TIPO: Record<string, number> = {
+  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Vacaciones: 3,
+}
+
+/**
+ * Fases que se mueven junto con `id` en modo estricto: la fase arrastrada + todas
+ * las POSTERIORES de la misma cuenta. Nunca las anteriores (mover Configuración
+ * arrastra Pruebas, pero deja Relevamiento donde está).
+ *
+ * Primero sigue el grafo de dependencias (predecesoras); además, como respaldo,
+ * suma las fases de la misma cuenta con orden de fase mayor, para que también
+ * funcione en cuentas cuyas fases se crearon sueltas (sin predecesoras).
+ */
+export function cascadaIds(asignaciones: Asignacion[], id: string): Set<string> {
+  const out = new Set<string>([id])
+  const base = asignaciones.find(a => a.id === id)
+  if (!base) return out
+
+  const mismaCuenta = asignaciones.filter(
+    a => !a.es_bloqueo && a.proyecto_id != null && a.proyecto_id === base.proyecto_id,
+  )
+
+  // 1) sucesoras por dependencias declaradas (transitivas)
+  let cambio = true
+  while (cambio) {
+    cambio = false
+    for (const a of mismaCuenta) {
+      if (out.has(a.id)) continue
+      if (a.predecesoras.some(p => out.has(p))) { out.add(a.id); cambio = true }
+    }
+  }
+
+  // 2) respaldo por orden de fase
+  const ordenBase = ORDEN_TIPO[base.tipo] ?? 0
+  for (const a of mismaCuenta) {
+    if (out.has(a.id)) continue
+    const orden = ORDEN_TIPO[a.tipo] ?? 0
+    if (orden > ordenBase || (orden === ordenBase && a.inicio > base.inicio)) out.add(a.id)
+  }
+
+  return out
+}
+
 interface SimuladorState {
   personas: Persona[]
   proyectos: Proyecto[]
@@ -82,6 +126,7 @@ interface SimuladorState {
   renameProyecto: (id: string, nombre: string) => void
   clearAsignaciones: () => void
   shiftAccountDias: (proyectoId: string, dias: number) => void
+  shiftCascadaDias: (asignacionId: string, dias: number, nuevaPersona?: string) => void
   resetToSeed: () => void
   exportarJSON: () => string
   importarJSON: (json: string) => void
@@ -418,6 +463,38 @@ export const useSimuladorStore = create<SimuladorState>()(
         })
       },
 
+      // Modo estricto: mueve la fase arrastrada + las fases POSTERIORES de la misma
+      // cuenta (nunca las anteriores). Opcionalmente reasigna la persona de la fase
+      // arrastrada, que es la única que cambia de fila al arrastrar en vertical.
+      shiftCascadaDias(asignacionId, dias, nuevaPersona) {
+        set(state => {
+          const ids = cascadaIds(state.asignaciones, asignacionId)
+          const afectadas = state.asignaciones.filter(a => ids.has(a.id))
+          if (afectadas.length === 0) return {}
+          const horizonStart = parseISO(state.config.horizonte.desde)
+          const earliest = afectadas.reduce((m, a) => (a.inicio < m ? a.inicio : m), afectadas[0].inicio)
+          const clamped = Math.max(dias, -differenceInDays(parseISO(earliest), horizonStart))
+          const cambiaPersona = !!nuevaPersona &&
+            nuevaPersona !== state.asignaciones.find(a => a.id === asignacionId)?.persona_id
+          if (clamped === 0 && !cambiaPersona) return {}
+
+          const asignaciones = state.asignaciones.map(a => {
+            if (!ids.has(a.id)) return a
+            let next = a
+            if (clamped !== 0) {
+              const inicio = toISO(addDays(parseISO(a.inicio), clamped))
+              next = { ...next, inicio, fin: calcularFin(inicio, a.duracion_dias) }
+            }
+            if (a.id === asignacionId && cambiaPersona) next = { ...next, persona_id: nuevaPersona! }
+            return next
+          })
+          return {
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config),
+          }
+        })
+      },
+
       // Vacía todas las asignaciones (las cuentas y el equipo quedan; pasan a "sin planificar").
       clearAsignaciones() {
         set(state => ({
@@ -460,6 +537,20 @@ export const useSimuladorStore = create<SimuladorState>()(
     }),
     {
       name: 'simulador-ha-v2',
+      version: 3,
+      // Los planes ya guardados en localStorage no tienen la fila de Axton: se la
+      // agregamos una sola vez (si después la borrás a mano, no vuelve a aparecer).
+      migrate: (persisted, version) => {
+        const estado = persisted as { personas?: Persona[] } | undefined
+        if (estado && version < 3) {
+          const personas = estado.personas ?? seedPersonas
+          if (!personas.some(p => p.id === 'axton')) {
+            const axton = seedPersonas.find(p => p.id === 'axton')
+            if (axton) estado.personas = [...personas, axton]
+          }
+        }
+        return persisted
+      },
       partialize: state => ({
         personas: state.personas,
         proyectos: state.proyectos,

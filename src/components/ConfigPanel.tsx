@@ -1,6 +1,12 @@
 import type { CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
-import { useUIStore, type ZoomLevel } from '../uiStore'
+import { useUIStore, type Densidad, type ZoomLevel } from '../uiStore'
+
+const DENSIDAD_OPTS: { value: Densidad; label: string }[] = [
+  { value: 'compacta', label: 'S' },
+  { value: 'comoda',   label: 'M' },
+  { value: 'amplia',   label: 'L' },
+]
 
 const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
   { value: 'dias',       label: 'Días' },
@@ -16,7 +22,7 @@ const PRESETS: { label: string; fecha: string }[] = [
 
 export function ConfigPanel() {
   const { config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON, clearAsignaciones, asignaciones } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento } = useUIStore()
+  const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad } = useUIStore()
 
   const transicion = config.fechas_clave.transicion_susana_toyota
   const rojos = violaciones.filter(v => v.severidad === 'rojo').length
@@ -76,16 +82,28 @@ export function ConfigPanel() {
         📍 Hoy
       </button>
 
+      {/* Alto de las filas de persona */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', whiteSpace: 'nowrap' }}>Filas</span>
+        <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden' }}>
+          {DENSIDAD_OPTS.map(d => (
+            <button key={d.value} onClick={() => setDensidad(d.value)}
+              style={{ padding: '4px 11px', border: 'none', background: densidad === d.value ? 'var(--celeste)' : 'var(--white)', color: densidad === d.value ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              title={`Alto de fila ${d.value}`}>{d.label}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Modo de movimiento al arrastrar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', whiteSpace: 'nowrap' }}>Al mover</span>
         <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden' }}>
           <button onClick={() => setModoMovimiento('flexible')}
             style={{ padding: '4px 11px', border: 'none', background: modoMovimiento === 'flexible' ? 'var(--celeste)' : 'var(--white)', color: modoMovimiento === 'flexible' ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            title="Arrastrar mueve solo la tarea (Shift = proyecto entero)">⚡ Flexible</button>
+            title="Arrastrar mueve solo la tarea (Shift = esta fase y las siguientes)">⚡ Flexible</button>
           <button onClick={() => setModoMovimiento('estricto')}
             style={{ padding: '4px 11px', border: 'none', background: modoMovimiento === 'estricto' ? 'var(--celeste)' : 'var(--white)', color: modoMovimiento === 'estricto' ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            title="Arrastrar mueve las 3 fases del proyecto juntas (Shift = solo esta tarea)">🔗 Estricto</button>
+            title="Arrastrar mueve esta fase y las siguientes de la cuenta; las anteriores no se tocan (Shift = solo esta tarea)">🔗 Estricto</button>
         </div>
       </div>
 

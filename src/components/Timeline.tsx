@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { format, addDays, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useSimuladorStore } from '../store'
-import { useUIStore, type ZoomLevel } from '../uiStore'
+import { cascadaIds, useSimuladorStore } from '../store'
+import { DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, TipoFase } from '../types'
 import { TIPO_COLOR } from '../theme/fases'
-import { getMondayOfWeek, parseDate, toISO, diasHabiles } from '../utils/dates'
+import { getMondayOfWeek, parseDate, toISO, diasHabiles, formatFechaCorta } from '../utils/dates'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -20,13 +20,12 @@ const SNAP_DAYS: Record<ZoomLevel, number> = {
   dias: 1, semanas: 7, meses: 7, trimestres: 7,
 }
 
-const ROW_H   = 44
-const BAR_H   = 26
-const NAME_W  = 140
+const NAME_W  = 176
 const HEADER_H = 48
 const MIN_BAR_W = 8
 
-type DragMode = 'phase' | 'account' | 'resize'
+/** 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto). */
+type DragMode = 'phase' | 'cascade' | 'resize'
 interface DragState {
   id: string
   mode: DragMode
@@ -36,9 +35,10 @@ interface DragState {
   origFin: string
   origDur: number
   origPersona: string
-  minDay?: number   // días mínimos desde horizonStart de la fase más temprana de la cuenta
+  minDay?: number   // días mínimos desde horizonStart de la fase más temprana afectada
   dd: number        // días desplazados (snapshot; múltiplo de snapDays)
   persona: string
+  cascada?: Set<string>   // ids que se mueven en bloque (solo en mode 'cascade')
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -123,12 +123,14 @@ function getPeriodLabel(
 export function Timeline() {
   const {
     personas, proyectos, asignaciones, config, violaciones,
-    clienteSeleccionado, updateAsignacion, shiftAccountDias, seleccionarCliente,
+    clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente,
   } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, zoom, irHoyToken, modoMovimiento } = useUIStore()
+  const { mostrarCarga, mostrarDep, zoom, irHoyToken, modoMovimiento, densidad } = useUIStore()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowsRef   = useRef<HTMLDivElement>(null)
+
+  const { row: ROW_H, bar: BAR_H } = DENSIDAD_PX[densidad]
 
   const horizonStart = useMemo(() => parseDate(config.horizonte.desde), [config.horizonte.desde])
   const horizonEnd   = useMemo(() => parseDate(config.horizonte.hasta), [config.horizonte.hasta])
@@ -194,7 +196,9 @@ export function Timeline() {
     function onMove(e: MouseEvent) {
       const rawDd = Math.round((e.clientX - startX) / (pxPerDay * snapDays)) * snapDays
       let persona = dragRef.current?.persona ?? drag!.persona
-      if (drag!.mode === 'phase' && rowsRef.current) {
+      // Vertical = reasignar persona. En cascada solo cambia de fila la fase arrastrada;
+      // las siguientes se mueven en el tiempo pero conservan su asignado.
+      if (drag!.mode !== 'resize' && rowsRef.current) {
         const rect = rowsRef.current.getBoundingClientRect()
         const idx = Math.max(0, Math.min(personas.length - 1, Math.floor((e.clientY - rect.top) / ROW_H)))
         persona = personas[idx].id
@@ -217,13 +221,13 @@ export function Timeline() {
       document.body.style.userSelect = ''
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag?.id, personas, pxPerDay, snapDays])
+  }, [drag?.id, personas, pxPerDay, snapDays, ROW_H])
 
   function commitDrag(d: DragState) {
-    if (d.mode === 'account') {
+    if (d.mode === 'cascade') {
       const ddc = Math.max(d.dd, -(d.minDay ?? 0))
-      if (ddc === 0) seleccionarCliente(d.proyectoId)
-      else if (d.proyectoId) shiftAccountDias(d.proyectoId, ddc)
+      if (ddc === 0 && d.persona === d.origPersona) { seleccionarCliente(d.proyectoId); return }
+      shiftCascadaDias(d.id, ddc, d.persona !== d.origPersona ? d.persona : undefined)
       return
     }
     if (d.mode === 'resize') {
@@ -246,25 +250,89 @@ export function Timeline() {
 
   function onBarDown(e: React.MouseEvent, a: Asignacion, mode: DragMode) {
     if (a.es_bloqueo) return
+    if (e.button !== 0) return   // botón medio → deja pasar el pan del fondo
     e.preventDefault(); e.stopPropagation()
-    // Modo estricto = mover el proyecto entero; Shift invierte el modo puntualmente.
+    // Modo estricto = arrastra esta fase y las SIGUIENTES de la cuenta (no las anteriores).
+    // Shift invierte el modo puntualmente.
     const estricto = modoMovimiento === 'estricto'
-    const mueveProyecto = estricto ? !e.shiftKey : e.shiftKey
-    const accountMode = mode !== 'resize' && mueveProyecto && !!a.proyecto_id
+    const enCascada = estricto ? !e.shiftKey : e.shiftKey
+    const cascadeMode = mode !== 'resize' && enCascada && !!a.proyecto_id
+    let cascada: Set<string> | undefined
     let minDay: number | undefined
-    if (accountMode && a.proyecto_id) {
+    if (cascadeMode) {
+      cascada = cascadaIds(asignaciones, a.id)
       const days = asignaciones
-        .filter(x => x.proyecto_id === a.proyecto_id)
+        .filter(x => cascada!.has(x.id))
         .map(x => differenceInDays(parseISO(x.inicio), horizonStart))
       minDay = days.length ? Math.max(0, Math.min(...days)) : 0
     }
     setDrag({
-      id: a.id, mode: accountMode ? 'account' : mode,
+      id: a.id, mode: cascadeMode ? 'cascade' : mode,
       proyectoId: a.proyecto_id,
       startX: e.clientX,
       origInicio: a.inicio, origFin: a.fin, origDur: a.duracion_dias,
       origPersona: a.persona_id, minDay, dd: 0, persona: a.persona_id,
+      cascada,
     })
+  }
+
+  // ── pan: agarrar el fondo con el mouse y desplazar ─────────────────────────
+
+  const [paneando, setPaneando] = useState(false)
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
+
+  // Las barras cortan la propagación: si el mousedown llega acá, fue en el fondo.
+  // El botón del medio pana siempre, incluso arrancando sobre una barra.
+  function onFondoDown(e: React.MouseEvent) {
+    if (e.button !== 0 && e.button !== 1) return
+    const el = scrollRef.current
+    if (!el) return
+    panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop }
+    setPaneando(true)
+    e.preventDefault()
+  }
+
+  useEffect(() => {
+    if (!paneando) return
+    let movido = false
+
+    function onMove(e: MouseEvent) {
+      const p = panRef.current, el = scrollRef.current
+      if (!p || !el) return
+      const dx = e.clientX - p.x, dy = e.clientY - p.y
+      // Umbral: un clic con temblor de mano sigue siendo un clic.
+      if (!movido && Math.abs(dx) + Math.abs(dy) < 4) return
+      movido = true
+      el.scrollLeft = p.left - dx
+      el.scrollTop  = p.top - dy
+    }
+
+    function onUp() {
+      // Clic seco en el fondo = deseleccionar la cuenta.
+      if (!movido && clienteSeleccionado) seleccionarCliente(null)
+      setPaneando(false)
+      panRef.current = null
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'grabbing'
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paneando, clienteSeleccionado])
+
+  // Rueda: si no hay scroll vertical (equipo chico), la rueda desplaza en horizontal.
+  function onWheel(e: React.WheelEvent) {
+    const el = scrollRef.current
+    if (!el || e.deltaY === 0) return
+    const sinVertical = el.scrollHeight <= el.clientHeight + 1
+    if (sinVertical || e.shiftKey) el.scrollLeft += e.deltaY
   }
 
   // scroll al seleccionar cuenta
@@ -315,10 +383,11 @@ export function Timeline() {
       } else if (drag.mode === 'resize' && drag.id === a.id) {
         finISO = toISO(addDays(parseISO(drag.origFin), drag.dd))
         if (finISO < drag.origInicio) finISO = drag.origInicio
-      } else if (drag.mode === 'account' && drag.proyectoId && a.proyecto_id === drag.proyectoId) {
+      } else if (drag.mode === 'cascade' && drag.cascada?.has(a.id)) {
         const ddc = Math.max(drag.dd, -(drag.minDay ?? 0))
         inicioISO = toISO(addDays(parseISO(a.inicio), ddc))
         finISO    = toISO(addDays(parseISO(a.fin), ddc))
+        if (drag.id === a.id) row = filaDe.get(drag.persona) ?? row
       }
     }
 
@@ -353,7 +422,7 @@ export function Timeline() {
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay])
+  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H])
 
   const bodyH = personas.length * ROW_H
 
@@ -380,10 +449,38 @@ export function Timeline() {
 
   const hoy = new Date()
 
+  // ── métricas por persona para la columna izquierda ──────────────────────────
+
+  const statsPersona = useMemo(() => {
+    const m = new Map<string, { fases: number; cuentas: number; semRojas: number }>()
+    for (const p of personas) {
+      const suyas = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+      const semRojas = violaciones.filter(
+        v => v.tipo === 'R2' && v.severidad === 'rojo' && v.persona_id === p.id,
+      ).length
+      m.set(p.id, {
+        fases: suyas.length,
+        cuentas: new Set(suyas.map(a => a.proyecto_id)).size,
+        semRojas,
+      })
+    }
+    return m
+  }, [personas, asignaciones, violaciones])
+
   // ── render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div ref={scrollRef} style={{ overflow: 'auto', height: '100%', background: 'var(--white)' }}>
+    <div
+      ref={scrollRef}
+      className="timeline-scroll"
+      onMouseDown={onFondoDown}
+      onWheel={onWheel}
+      title="Arrastrá el fondo (o el botón del medio) para desplazar el timeline"
+      style={{
+        overflowY: 'auto', height: '100%', background: 'var(--white)',
+        cursor: paneando ? 'grabbing' : 'grab',
+      }}
+    >
       <div style={{ position: 'relative', width: bodyW, minWidth: bodyW }}>
 
         {/* HEADER */}
@@ -482,12 +579,38 @@ export function Timeline() {
 
           {/* Columna de nombres (sticky left) */}
           <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, height: bodyH, zIndex: 20, pointerEvents: 'none' }}>
-            {personas.map((p, i) => (
-              <div key={p.id} style={{ position: 'absolute', top: i * ROW_H, left: 0, width: NAME_W, height: ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 12, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', lineHeight: 1.1 }}>{p.alias}</span>
-                {p.rol && <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t3)' }}>{ROL_LABEL[p.rol]}</span>}
-              </div>
-            ))}
+            {personas.map((p, i) => {
+              const st = statsPersona.get(p.id)
+              const compacta = densidad === 'compacta'
+              return (
+                <div key={p.id} style={{ position: 'absolute', top: i * ROW_H, left: 0, width: NAME_W, height: ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 3, padding: compacta ? '0 10px 0 12px' : '0 10px 0 14px', background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: compacta ? 13 : 15, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.alias}</span>
+                    {st && st.semRojas > 0 && (
+                      <span title={`${st.semRojas} semana${st.semRojas !== 1 ? 's' : ''} sobreasignada${st.semRojas !== 1 ? 's' : ''}`}
+                        style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#fff', background: 'var(--error)', borderRadius: 9999, padding: '1px 6px' }}>
+                        ⚠ {st.semRojas}
+                      </span>
+                    )}
+                  </div>
+                  {p.rol && (
+                    <span style={{ fontSize: compacta ? 8.5 : 9.5, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--celeste-dark)' }}>{ROL_LABEL[p.rol]}</span>
+                  )}
+                  {!compacta && (
+                    <span style={{ fontSize: 10.5, color: 'var(--t3)', whiteSpace: 'nowrap' }}>
+                      {st && st.fases > 0
+                        ? `${st.fases} fase${st.fases !== 1 ? 's' : ''} · ${st.cuentas} cuenta${st.cuentas !== 1 ? 's' : ''}`
+                        : 'sin carga'}
+                    </span>
+                  )}
+                  {densidad === 'amplia' && (
+                    <span style={{ fontSize: 10, color: 'var(--t3)', whiteSpace: 'nowrap' }}>
+                      {p.capacidad_horas_semana} hs/sem
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {/* Barras de fase */}
@@ -518,24 +641,31 @@ export function Timeline() {
               <div key={a.id}
                 onMouseDown={e => onBarDown(e, a, 'phase')}
                 title={`${label}\n${a.inicio} → ${a.fin} · ${a.duracion_dias} días hábiles${a.es_bloqueo ? '' : (modoMovimiento === 'estricto'
-                  ? '\nModo estricto: arrastrar mueve las 3 fases del proyecto · Shift = solo esta tarea · borde derecho = estirar'
-                  : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = proyecto entero · borde derecho = estirar')}`}
+                  ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
+                  : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`}
                 style={{
                   position: 'absolute', left, top, width, height: BAR_H,
-                  background: fill, borderRadius: 6, display: 'flex', alignItems: 'center', paddingLeft: 7, paddingRight: 6,
-                  overflow: 'hidden', fontSize: 10, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
+                  background: fill, borderRadius: BAR_H > 34 ? 8 : 6, display: 'flex',
+                  flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1,
+                  paddingLeft: 9, paddingRight: 10,
+                  overflow: 'hidden', fontSize: BAR_H > 34 ? 11.5 : 10, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: a.es_bloqueo ? 'default' : 'grab',
                   opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55) : (atenuada ? 0.38 : 1),
                   zIndex: arrastrando ? 15 : 10,
                   transition: arrastrando ? 'none' : 'left var(--t-fast) var(--ease), top var(--t-fast) var(--ease), width var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease)',
                   userSelect: 'none',
                 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
                   {proyecto ? `${proyecto.nombre} · ${tipoCorto}` : label}
                 </span>
+                {BAR_H > 34 && width > 130 && (
+                  <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 9.5, fontWeight: 500, opacity: 0.85 }}>
+                    {formatFechaCorta(a.inicio)} → {formatFechaCorta(a.fin)} · {a.duracion_dias}d
+                  </span>
+                )}
                 {!a.es_bloqueo && (
                   <div onMouseDown={e => onBarDown(e, a, 'resize')}
-                    style={{ position: 'absolute', right: 0, top: 0, width: 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
+                    style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
                 )}
               </div>
             )
