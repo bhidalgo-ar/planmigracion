@@ -325,9 +325,7 @@
    "fin": "2027-03-12",
    "duracion_dias": 88,
    "dedicacion_pct": 0.12,
-   "predecesoras": [
-    "tasa-relev"
-   ],
+   "predecesoras": [],
    "es_bloqueo": true
   },
   {

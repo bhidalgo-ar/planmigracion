@@ -42,14 +42,19 @@ export function ConfigPanel() {
 
   function handleRecalcular() {
     if (!asignaciones.length) return
-    if (!confirm('¿Recalcular la duración de todas las fases con las horas de cada fase y la disponibilidad de cada persona?\n\nNo cambia quién hace qué: solo las duraciones y el encadenado. Se puede deshacer.')) return
-    const { recalculadas, movidas, intactas } = recalcularDuraciones()
-    const peor = movidas.reduce((m, x) => (Math.abs(x.diasHabiles) > Math.abs(m) ? x.diasHabiles : m), 0)
-    const L = [`${recalculadas} fases recalculadas.`]
+    if (!confirm('¿Recalcular la duración de todas las fases con las horas de cada fase y la disponibilidad de cada persona?\n\nNo cambia quién hace qué ni las fechas de inicio: solo cuánto dura cada fase. Se puede deshacer.')) return
+    const { recalculadas, cambiadas, intactas, conflictos } = recalcularDuraciones()
+    const estiradas = cambiadas.filter(c => c.diasDespues > c.diasAntes)
+    const L = [`${recalculadas} fases recalculadas, ${cambiadas.length} cambiaron de duración.`]
+    if (estiradas.length) {
+      const peor = estiradas.reduce((m, c) => (c.diasDespues - c.diasAntes > m.diasDespues - m.diasAntes ? c : m), estiradas[0])
+      L.push(`${estiradas.length} se estiraron (la que más: ${peor.id}, ${peor.diasAntes} → ${peor.diasDespues} días).`)
+    }
     if (intactas) L.push(`${intactas} sin tocar (bloqueos y cuentas especiales).`)
-    L.push(movidas.length
-      ? `${movidas.length} cambiaron de fecha de inicio (corrimiento máximo: ${peor > 0 ? '+' : ''}${peor} días hábiles).`
-      : 'Ninguna cambió de fecha de inicio.')
+    L.push('', 'Las fechas de inicio no se movieron.')
+    L.push(conflictos
+      ? `Quedan ${conflictos} conflicto${conflictos !== 1 ? 's' : ''} en rojo por resolver: acomodá las barras en el timeline.`
+      : 'El plan cierra sin conflictos.')
     alert(L.join('\n'))
   }
 

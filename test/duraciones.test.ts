@@ -198,8 +198,7 @@ titulo('Eval 5 — Recalcular duraciones')
 useSimuladorStore.getState().importarJSON(JSON.stringify(planFixture))
 const personasPre = new Map(useSimuladorStore.getState().asignaciones.map(a => [a.id, a.persona_id]))
 const idsPre = useSimuladorStore.getState().asignaciones.map(a => a.id).join('|')
-// Violaciones que YA trae el plan importado: el recálculo no debe agregar ninguna.
-const r3Pre = checkRule3(useSimuladorStore.getState().asignaciones)
+const iniciosPre = useSimuladorStore.getState().asignaciones.map(a => `${a.id}=${a.inicio}`).join('|')
 const reporte = useSimuladorStore.getState().recalcularDuraciones()
 const post = useSimuladorStore.getState()
 
@@ -210,16 +209,12 @@ check('ningún persona_id cambia al recalcular',
 check('el bloqueo queda intacto',
   post.asignaciones.find(a => a.id === 'tasa-config')?.duracion_dias === 88)
 
-// La única R3 que sobrevive es del bloqueo de supervisión de TASA, que ya venía en el plan:
-// TASA es `especial: true` (fuera del recálculo) y la Regla 3 no se toca en este cambio.
-const r3 = checkRule3(post.asignaciones)
-eq('el recálculo no agrega violaciones de Regla 3', r3.length, r3Pre.length)
-eq('cero violaciones de Regla 3 fuera de TASA', r3.filter(v => !v.asignacion_id.startsWith('tasa-')).length, 0)
-for (const v of r3.slice(0, 8)) console.log(`       R3 preexistente: ${v.mensaje}`)
-
-const r2rojo = checkRule2(post.asignaciones, post.personas, post.config).filter(v => v.severidad === 'rojo')
-eq('cero violaciones de Regla 2 en rojo', r2rojo.length, 0)
-if (r2rojo.length) for (const v of r2rojo.slice(0, 8)) console.log(`       R2: ${v.mensaje}`)
+eq('las fechas de inicio no se mueven',
+  post.asignaciones.map(a => `${a.id}=${a.inicio}`).join('|'), iniciosPre)
+check('los bloqueos no arrastran predecesoras (no rompen la Regla 3)',
+  post.asignaciones.filter(a => a.es_bloqueo).every(a => a.predecesoras.length === 0))
+eq('el bloqueo de supervisión de TASA ya no dispara Regla 3',
+  checkRule3(post.asignaciones).filter(v => v.asignacion_id === 'tasa-config').length, 0)
 
 check('deshacer devuelve el plan anterior al recálculo', (() => {
   const antes = post.asignaciones.map(a => a.fin).join('|')
@@ -228,23 +223,23 @@ check('deshacer devuelve el plan anterior al recálculo', (() => {
   return vuelto !== antes && useSimuladorStore.getState().asignaciones.length === 52
 })())
 
-check('el recálculo nunca corre una fase hacia atrás',
-  reporte.movidas.every(m => m.diasHabiles > 0),
-  `hacia atrás: ${reporte.movidas.filter(m => m.diasHabiles < 0).length}`)
-
-// Guardrail de la spec (§5): si una fase se corre más de 30 días hábiles hay que consultar
-// antes de dar el recálculo por bueno. No es una regresión del código: es la señal de que
-// el plan no cierra con las horas reales. Se lista para revisarlo a ojo.
-const peor = reporte.movidas.reduce((m, x) => (Math.abs(x.diasHabiles) > Math.abs(m.diasHabiles) ? x : m),
-  { id: '—', antes: '', despues: '', diasHabiles: 0 })
-console.log(`\n  Recálculo: ${reporte.recalculadas} fases, ${reporte.intactas} intactas, ${reporte.movidas.length} movidas.`)
-console.log(`  Corrimiento máximo: ${peor.diasHabiles} días hábiles (${peor.id} ${peor.antes} → ${peor.despues})`)
-for (const m of [...reporte.movidas].sort((a, b) => Math.abs(b.diasHabiles) - Math.abs(a.diasHabiles)).slice(0, 12)) {
-  console.log(`    ${m.diasHabiles > 0 ? '+' : ''}${m.diasHabiles} d.h.  ${m.id}  ${m.antes} → ${m.despues}`)
+// El recálculo no reacomoda nada: al estirarse las duraciones quedan choques de carga.
+// Se listan para resolverlos a mano en el timeline (condición de salida de la spec §6).
+console.log(`\n  Recálculo: ${reporte.recalculadas} fases, ${reporte.intactas} intactas, ${reporte.cambiadas.length} cambiaron de duración.`)
+for (const c of [...reporte.cambiadas].sort((a, b) => (b.diasDespues - b.diasAntes) - (a.diasDespues - a.diasAntes)).slice(0, 10)) {
+  console.log(`    ${c.id}: ${c.diasAntes} → ${c.diasDespues} días`)
 }
-const pasadas = reporte.movidas.filter(m => Math.abs(m.diasHabiles) > 30)
-aviso('ninguna fase se corre más de 30 días hábiles', pasadas.length === 0,
-  pasadas.length ? `${pasadas.length} pasan el umbral: ${pasadas.map(m => `${m.id} ${m.diasHabiles > 0 ? '+' : ''}${m.diasHabiles}`).join(', ')} — REVISAR` : '')
+const r2rojo = checkRule2(post.asignaciones, post.personas, post.config).filter(v => v.severidad === 'rojo')
+const r3post = checkRule3(post.asignaciones)
+const enRojo = [...new Set(r2rojo.map(v => v.persona_id))]
+console.log(`\n  A resolver a mano en el timeline:`)
+console.log(`    Regla 2 — ${r2rojo.length} semanas sobreasignadas (${enRojo.join(', ') || 'ninguna'})`)
+console.log(`    Regla 3 — ${r3post.length} fases que arrancan antes de que termine su predecesora`)
+for (const v of r3post.slice(0, 6)) console.log(`      ${v.mensaje}`)
+eq('el reporte del recálculo cuenta los conflictos que quedan',
+  reporte.conflictos, r2rojo.length + r3post.length)
+aviso('el plan cierra sin conflictos', r2rojo.length + r3post.length === 0,
+  `${r2rojo.length + r3post.length} conflictos — hay que acomodar barras (esperado: el recálculo no mueve fechas)`)
 
 // ── Seed limpio: Reset → planificar pendientes ───────────────────────────────────
 titulo('Seed limpio — Reset y planificación automática')

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { addDays, addWeeks, differenceInDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, RolPersona, TipoFase, Violacion } from './types'
 import {
-  calcularFin, calcularFinPorHoras, diasHabiles, feriadosDeConfig, getMondayOfWeek,
+  calcularFin, calcularFinPorHoras, feriadosDeConfig, getMondayOfWeek,
   seSuperponen, siguienteDiaHabil, toISO,
 } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
@@ -231,10 +231,12 @@ function pickPersona(
 export interface RecalculoReporte {
   /** Fases cuya duración se recalculó. */
   recalculadas: number
-  /** Fases que además cambiaron de fecha de inicio, con el corrimiento en días hábiles. */
-  movidas: Array<{ id: string; antes: string; despues: string; diasHabiles: number }>
+  /** Fases cuya duración efectivamente cambió, con los días de antes y de después. */
+  cambiadas: Array<{ id: string; diasAntes: number; diasDespues: number }>
   /** Fases que quedaron afuera: bloqueos y proyectos especiales (TASA). */
   intactas: number
+  /** Conflictos en rojo que quedan para resolver a mano moviendo barras. */
+  conflictos: number
 }
 
 interface HistorySnapshot {
@@ -770,99 +772,52 @@ export const useSimuladorStore = create<SimuladorState>()(
 
       // Pasa el plan existente al cálculo por horas: cada fase dura lo que le lleva a SU
       // persona con su disponibilidad de ese año, en vez de los 10/15/8 días fijos de antes.
-      // Preserva id, cuenta, tipo, persona y dependencias; reencadena Configuración (día
-      // hábil siguiente al inicio del Relevamiento) y Pruebas (día hábil siguiente al fin
-      // de Configuración), y corre hacia adelante lo que haga falta para que la persona no
-      // se pise. Quedan afuera los bloqueos y las cuentas especiales (TASA), que no salen
-      // del template estándar.
+      //
+      // NO mueve fechas: el inicio de cada fase queda tal cual está y solo cambian fin,
+      // duracion_dias y dedicacion_pct. Es una decisión explícita: reencadenar y correr las
+      // fases hacia adelante para que nadie se pise desplazaba la cola de trabajo hasta 50
+      // días hábiles y dejaba el timeline irreconocible contra el tablero real. Los choques
+      // que aparecen al estirarse las duraciones quedan a la vista en rojo (Reglas 2 y 3) y
+      // se resuelven a mano moviendo barras, que es de lo que se trata la mesa de
+      // planificación. El encadenado con solapamiento sí se aplica a las fases NUEVAS
+      // (planificar pendientes / alta de cuenta).
+      //
+      // Quedan afuera los bloqueos y las cuentas especiales (TASA), que no salen del
+      // template estándar: aplicarles la tabla estándar convertiría un relevamiento de
+      // 88 días en uno de 7.
       recalcularDuraciones() {
-        let reporte: RecalculoReporte = { recalculadas: 0, movidas: [], intactas: 0 }
+        let reporte: RecalculoReporte = { recalculadas: 0, cambiadas: [], intactas: 0, conflictos: 0 }
         set(state => {
           const feriados = feriadosDeConfig(state.config)
           const proyectoPorId = new Map(state.proyectos.map(p => [p.id, p]))
           const esRecalculable = (a: Asignacion) =>
             !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial
 
-          const intactas = state.asignaciones.filter(a => !esRecalculable(a))
-          const aRecalcular = state.asignaciones.filter(esRecalculable)
-          if (aRecalcular.length === 0) return {}
+          const cambiadas: RecalculoReporte['cambiadas'] = []
+          let recalculadas = 0
+          let intactas = 0
 
-          // Las cuentas se procesan en el orden cronológico que ya tienen: no se reordenan.
-          const grupos = new Map<string, Asignacion[]>()
-          for (const a of aRecalcular) {
-            const key = a.proyecto_id as string
-            grupos.set(key, [...(grupos.get(key) ?? []), a])
-          }
-          const ordenGrupos = [...grupos.entries()].sort((g1, g2) => {
-            const min = (fases: Asignacion[]) => fases.reduce((m, a) => (a.inicio < m ? a.inicio : m), fases[0].inicio)
-            return min(g1[1]) < min(g2[1]) ? -1 : 1
+          const asignaciones = state.asignaciones.map(a => {
+            if (!esRecalculable(a)) { intactas++; return a }
+            const proyecto = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) ?? null : null
+            const horas = horasDeFase(state.config, proyecto, a.tipo)
+            const medida = medirFase(a.inicio, horas, a.persona_id, state.config, feriados)
+            recalculadas++
+            if (medida.duracion_dias !== a.duracion_dias) {
+              cambiadas.push({ id: a.id, diasAntes: a.duracion_dias, diasDespues: medida.duracion_dias })
+            }
+            // Preserva id, proyecto_id, tipo, persona_id, inicio y predecesoras.
+            return { ...a, fin: medida.fin, duracion_dias: medida.duracion_dias, dedicacion_pct: medida.dedicacion_pct }
           })
 
-          const movidas: RecalculoReporte['movidas'] = []
-          let recalculadas: Asignacion[] = []
-
-          for (const [pid, fasesGrupo] of ordenGrupos) {
-            const proyecto = proyectoPorId.get(pid) ?? null
-            const enOrden = [...fasesGrupo].sort((a, b) =>
-              (ORDEN_TIPO[a.tipo] ?? 0) - (ORDEN_TIPO[b.tipo] ?? 0) || (a.inicio < b.inicio ? -1 : 1))
-            // Primera fase de cada tipo: es la que encadena. Si una cuenta tiene dos fases
-            // del mismo tipo, la repetida se ancla en su propia fecha (no se apila).
-            const primeraDeTipo = new Set<string>()
-            const nuevasDelGrupo = new Map<TipoFase, Asignacion>()
-
-            for (const a of enOrden) {
-              const encadena = !primeraDeTipo.has(a.tipo)
-              primeraDeTipo.add(a.tipo)
-              const predTipo: Partial<Record<TipoFase, TipoFase>> = {
-                Configuracion: 'Relevamiento', Pruebas: 'Configuracion',
-              }
-              const predT = predTipo[a.tipo]
-              const pred = encadena && predT ? nuevasDelGrupo.get(predT) ?? null : null
-
-              const horas = horasDeFase(state.config, proyecto, a.tipo)
-              // La fecha actual es el piso: el recálculo corre hacia adelante, nunca hacia
-              // atrás. El encadenado empuja una fase si arrancaba demasiado pronto, pero no
-              // adelanta lo que el equipo ya ubicó más tarde a propósito.
-              const encadenado = inicioDeFase(a.tipo, pred, a.persona_id, feriados)
-              const minInicio = encadenado && encadenado > a.inicio ? encadenado : a.inicio
-              const ocupadas = [...intactas, ...recalculadas]
-              const hueco = buscarHueco(
-                ocupadas, a.persona_id, a.proyecto_id, minInicio, horas, state.config, feriados,
-              )
-
-              const nueva: Asignacion = {
-                ...a,                       // preserva id, proyecto_id, tipo, persona_id, predecesoras
-                inicio: hueco.inicio,
-                fin: hueco.fin,
-                duracion_dias: hueco.duracion_dias,
-                dedicacion_pct: hueco.dedicacion_pct,
-              }
-              if (nueva.inicio !== a.inicio) {
-                const [desde, hasta] = a.inicio < nueva.inicio ? [a.inicio, nueva.inicio] : [nueva.inicio, a.inicio]
-                const magnitud = diasHabiles(desde, hasta, feriados) - 1
-                movidas.push({
-                  id: a.id,
-                  antes: a.inicio,
-                  despues: nueva.inicio,
-                  diasHabiles: nueva.inicio > a.inicio ? magnitud : -magnitud,
-                })
-              }
-              recalculadas = [...recalculadas, nueva]
-              if (encadena) nuevasDelGrupo.set(a.tipo, nueva)
-            }
+          if (recalculadas === 0) return {}
+          const violaciones = recompute(asignaciones, state.personas, state.config, state.proyectos)
+          reporte = {
+            recalculadas, cambiadas, intactas,
+            conflictos: violaciones.filter(v => v.severidad === 'rojo').length,
           }
 
-          // Mantiene el orden original del array (la UI y el export no dependen de él, pero
-          // así un export antes/después se puede comparar línea a línea).
-          const porId = new Map(recalculadas.map(a => [a.id, a]))
-          const asignaciones = state.asignaciones.map(a => porId.get(a.id) ?? a)
-          reporte = { recalculadas: recalculadas.length, movidas, intactas: intactas.length }
-
-          return {
-            ...conHistorial(state),
-            asignaciones,
-            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
-          }
+          return { ...conHistorial(state), asignaciones, violaciones }
         })
         return reporte
       },
@@ -898,6 +853,12 @@ export const useSimuladorStore = create<SimuladorState>()(
         const personas = (data.personas as Persona[]) ?? seedPersonas
         const proyectos = (data.proyectos as Proyecto[]) ?? seedProyectos
         const asignaciones = (data.asignaciones as Asignacion[]) ?? seedAsignaciones
+        // Un bloqueo es tiempo reservado, no una fase que deba esperar a su predecesora:
+        // el bloqueo de supervisión de TASA corre a propósito por debajo del relevamiento.
+        // Con la predecesora declarada, la Regla 3 lo marcaba como dependencia rota. Se le
+        // saca la predecesora al importar (el resto de la asignación entra tal cual).
+        const asignacionesNorm = asignaciones.map(a =>
+          a.es_bloqueo && a.predecesoras?.length ? { ...a, predecesoras: [] } : a)
         // Los planes exportados antes de las tablas de horas/disponibilidad no las traen:
         // se completan con las del seed para que el cálculo por horas siga andando. Las
         // asignaciones entran tal cual vienen (misma cantidad, mismas personas).
@@ -912,9 +873,9 @@ export const useSimuladorStore = create<SimuladorState>()(
           ...conHistorial(state),
           personas,
           proyectos,
-          asignaciones,
+          asignaciones: asignacionesNorm,
           config,
-          violaciones: recompute(asignaciones, personas, config, proyectos),
+          violaciones: recompute(asignacionesNorm, personas, config, proyectos),
           clienteSeleccionado: null,
         }))
       },
