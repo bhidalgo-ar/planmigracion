@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AccountRail } from './components/AccountRail'
 import { Timeline } from './components/Timeline'
 import { DetailPanel } from './components/DetailPanel'
 import { ConfigPanel } from './components/ConfigPanel'
 import { Insights } from './components/Insights'
+import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
+import { useSimuladorStore } from './store'
 import { useUIStore, type Vista } from './uiStore'
 import logoUrl from './assets/logo-ha.png'
+
+const CAMPOS_EDITABLES = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 const TABS: { v: Vista; label: string }[] = [
   { v: 'timeline', label: '📅 Timeline' },
@@ -25,6 +29,21 @@ export default function App() {
     localStorage.setItem('theme', next)
     setDarkMode(!darkMode)
   }
+
+  // Ctrl+Z / Cmd+Z deshace el último cambio del plan. Si el foco está en un campo
+  // editable, se deja pasar: que el navegador maneje el undo nativo de ese texto.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const esDeshacer = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z'
+      if (!esDeshacer) return
+      const target = e.target as HTMLElement | null
+      if (target && CAMPOS_EDITABLES.has(target.tagName)) return
+      e.preventDefault()
+      useSimuladorStore.getState().undo()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'var(--font)', color: 'var(--t1)' }}>
@@ -76,10 +95,13 @@ export default function App() {
       {/* Contenido */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--lienzo)' }}>
         {vista === 'timeline' ? (
-          <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-            {!timelineFull && <AccountRail />}
-            <div style={{ flex: 1, overflow: 'hidden' }}><Timeline /></div>
-            {!timelineFull && <DetailPanel />}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+              {!timelineFull && <AccountRail />}
+              <div style={{ flex: 1, overflow: 'hidden' }}><Timeline /></div>
+              {!timelineFull && <DetailPanel />}
+            </div>
+            <PanelInsights />
           </div>
         ) : (
           <Insights />

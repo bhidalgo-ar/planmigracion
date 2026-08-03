@@ -49,7 +49,7 @@ export function DetailPanel() {
         <div style={{ color: 'var(--t3)', textAlign: 'center', marginTop: 60, fontSize: 14, lineHeight: 1.6, padding: '0 12px' }}>
           Seleccioná una cuenta del panel izquierdo para ver y editar sus fases.
           <div style={{ marginTop: 16, fontSize: 12, color: 'var(--t3)' }}>
-            En el timeline: arrastrá una barra para moverla · vertical reasigna persona · borde derecho estira. Con el toggle "Al mover" elegís si arrastrar mueve solo la tarea (Flexible) o las 3 fases del proyecto juntas (Estricto); Shift invierte el modo puntualmente.
+            En el timeline: arrastrá una barra para moverla · vertical reasigna persona · borde derecho estira. Arrastrá el fondo (o usá el botón del medio del mouse) para desplazarte. Con el toggle "Al mover" elegís si arrastrar mueve solo la tarea (Flexible) o también las fases siguientes de la cuenta (Estricto, nunca las anteriores); Shift invierte el modo puntualmente.
           </div>
         </div>
       ) : (

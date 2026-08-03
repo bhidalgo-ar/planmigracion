@@ -124,10 +124,37 @@ button, input, select {
 .cuenta-fila:hover .cuenta-borrar { opacity: 1; }
 .cuenta-borrar:hover { color: var(--error) !important; }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--line-soft); }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--t3); }
+/* ── Barras de desplazamiento ──────────────────────────────────────────────
+   Grandes y con contraste: la horizontal del timeline es un control de
+   navegación real, no un adorno. */
+* { scrollbar-width: auto; scrollbar-color: var(--t3) var(--paper); }
+
+::-webkit-scrollbar { width: 14px; height: 16px; }
+::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb {
+  background: var(--t3);
+  border-radius: 9999px;
+  border: 3px solid var(--paper);   /* aire alrededor del pulgar */
+  min-height: 44px;
+  min-width: 44px;
+}
+::-webkit-scrollbar-thumb:hover  { background: var(--celeste-dark); }
+::-webkit-scrollbar-thumb:active { background: var(--celeste); }
+::-webkit-scrollbar-corner { background: var(--paper); }
+
+/* Scroll del timeline: horizontal más gruesa, siempre visible y agarrable. */
+.timeline-scroll { overflow-x: scroll; }
+.timeline-scroll::-webkit-scrollbar { height: 22px; width: 14px; }
+.timeline-scroll::-webkit-scrollbar-track {
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: var(--t2);
+  border: 5px solid var(--paper);
+  min-width: 64px;
+}
+.timeline-scroll::-webkit-scrollbar-thumb:hover { background: var(--celeste-dark); }
 
 /* Impresión: solo la hoja del Resumen ejecutivo */
 @media print {

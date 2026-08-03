@@ -1,6 +1,43 @@
 import { addDays } from 'date-fns'
-import type { Asignacion, Config, Persona, Violacion } from './types'
+import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
 import { getSemanas, seSuperponen, toISO } from './utils/dates'
+
+/**
+ * Regla 1 · Acantilado Susana → Toyota. Toda fase de Configuración asignada a `susi`
+ * que cruce o sea posterior a la fecha de pase a Toyota (perilla `transicion_susana_toyota`)
+ * se marca en rojo, excepto en el proyecto especial TASA/Toyota (ella sigue ahí después
+ * de pasar). Sin fecha definida, la regla no corre (nada que evaluar todavía).
+ */
+export function checkRule1(
+  asignaciones: Asignacion[],
+  proyectos: Proyecto[],
+  config: Config,
+): Violacion[] {
+  const transicion = config.fechas_clave.transicion_susana_toyota
+  if (!transicion) return []
+  const proyectoPorId = new Map(proyectos.map(p => [p.id, p]))
+  const violations: Violacion[] = []
+
+  for (const a of asignaciones) {
+    if (a.es_bloqueo || a.tipo !== 'Configuracion' || a.persona_id !== 'susi') continue
+    const proyecto = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null
+    if (proyecto?.especial) continue // TASA/Toyota: ahí es donde Susi sigue trabajando
+
+    if (a.fin >= transicion) {
+      const yaEnToyota = a.inicio >= transicion
+      violations.push({
+        tipo: 'R1',
+        asignacion_id: a.id,
+        persona_id: a.persona_id,
+        mensaje: yaEnToyota
+          ? `Susi configura ${proyecto?.nombre ?? a.id} después de pasar a Toyota (desde ${transicion})`
+          : `Susi configura ${proyecto?.nombre ?? a.id} y la fase cruza su pase a Toyota (${transicion})`,
+        severidad: 'rojo',
+      })
+    }
+  }
+  return violations
+}
 
 export function checkRule2(
   asignaciones: Asignacion[],
@@ -83,8 +120,10 @@ export function computeViolaciones(
   asignaciones: Asignacion[],
   personas: Persona[],
   config: Config,
+  proyectos: Proyecto[],
 ): Violacion[] {
   return [
+    ...checkRule1(asignaciones, proyectos, config),
     ...checkRule2(asignaciones, personas, config),
     ...checkRule3(asignaciones),
   ]

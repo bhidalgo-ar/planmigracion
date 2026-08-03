@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { addDays, addWeeks, differenceInDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, RolPersona, TipoFase, Violacion } from './types'
-import { calcularFin, getMondayOfWeek, toISO } from './utils/dates'
+import { calcularFin, feriadosDeConfig, getMondayOfWeek, seSuperponen, toISO } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
+import { ORDEN_FASES } from './theme/fases'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
 import asignacionesRaw from '../data/asignaciones.json'
@@ -61,6 +62,89 @@ const DUR_DEFAULT: Record<'Relevamiento' | 'Configuracion' | 'Pruebas', number> 
   Relevamiento: 10, Configuracion: 15, Pruebas: 8,
 }
 
+/** Orden canónico de fases dentro de una cuenta (para el respaldo de la cascada). */
+const ORDEN_TIPO: Record<string, number> = {
+  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Vacaciones: 3,
+}
+
+/**
+ * Fases que se mueven junto con `id` en modo estricto: la fase arrastrada + todas
+ * las POSTERIORES de la misma cuenta. Nunca las anteriores (mover Configuración
+ * arrastra Pruebas, pero deja Relevamiento donde está).
+ *
+ * Primero sigue el grafo de dependencias (predecesoras); además, como respaldo,
+ * suma las fases de la misma cuenta con orden de fase mayor, para que también
+ * funcione en cuentas cuyas fases se crearon sueltas (sin predecesoras).
+ */
+export function cascadaIds(asignaciones: Asignacion[], id: string): Set<string> {
+  const out = new Set<string>([id])
+  const base = asignaciones.find(a => a.id === id)
+  if (!base) return out
+
+  const mismaCuenta = asignaciones.filter(
+    a => !a.es_bloqueo && a.proyecto_id != null && a.proyecto_id === base.proyecto_id,
+  )
+
+  // 1) sucesoras por dependencias declaradas (transitivas)
+  let cambio = true
+  while (cambio) {
+    cambio = false
+    for (const a of mismaCuenta) {
+      if (out.has(a.id)) continue
+      if (a.predecesoras.some(p => out.has(p))) { out.add(a.id); cambio = true }
+    }
+  }
+
+  // 2) respaldo por orden de fase
+  const ordenBase = ORDEN_TIPO[base.tipo] ?? 0
+  for (const a of mismaCuenta) {
+    if (out.has(a.id)) continue
+    const orden = ORDEN_TIPO[a.tipo] ?? 0
+    if (orden > ordenBase || (orden === ordenBase && a.inicio > base.inicio)) out.add(a.id)
+  }
+
+  return out
+}
+
+/** Primer hueco (lunes) desde `inicioMinISO` donde `personaId` no choca con OTRA cuenta. */
+function buscarHueco(
+  ocupadas: Asignacion[],
+  personaId: string,
+  proyectoId: string,
+  inicioMinISO: string,
+  dur: number,
+  feriados: ReadonlySet<string>,
+): { inicio: string; fin: string } {
+  let inicio = inicioMinISO
+  for (let i = 0; i < 200; i++) {
+    const fin = calcularFin(inicio, dur, feriados)
+    const conflicto = ocupadas.find(a =>
+      a.persona_id === personaId && a.proyecto_id !== proyectoId && !a.es_bloqueo &&
+      seSuperponen(a.inicio, a.fin, inicio, fin),
+    )
+    if (!conflicto) return { inicio, fin }
+    inicio = siguienteLunes(conflicto.fin)
+  }
+  return { inicio, fin: calcularFin(inicio, dur, feriados) }
+}
+
+interface HistorySnapshot {
+  personas: Persona[]
+  proyectos: Proyecto[]
+  asignaciones: Asignacion[]
+  config: Config
+}
+const MAX_HISTORIAL = 50
+
+/** Snapshot previo al cambio, para poder deshacer (Ctrl+Z). Se calcula ANTES de mutar. */
+function conHistorial(state: SimuladorState): Pick<SimuladorState, 'historial'> {
+  const snap: HistorySnapshot = {
+    personas: state.personas, proyectos: state.proyectos,
+    asignaciones: state.asignaciones, config: state.config,
+  }
+  return { historial: [...state.historial.slice(-(MAX_HISTORIAL - 1)), snap] }
+}
+
 interface SimuladorState {
   personas: Persona[]
   proyectos: Proyecto[]
@@ -68,6 +152,8 @@ interface SimuladorState {
   config: Config
   violaciones: Violacion[]
   clienteSeleccionado: string | null
+  /** Snapshots previos para Ctrl+Z. No se persiste (se pierde al recargar la página). */
+  historial: HistorySnapshot[]
 
   updateAsignacion: (id: string, patch: Partial<Asignacion>) => void
   addFase: (proyectoId: string, tipo: TipoFase, personaId: string) => void
@@ -82,6 +168,16 @@ interface SimuladorState {
   renameProyecto: (id: string, nombre: string) => void
   clearAsignaciones: () => void
   shiftAccountDias: (proyectoId: string, dias: number) => void
+  shiftCascadaDias: (asignacionId: string, dias: number, nuevaPersona?: string) => void
+  /** Deshace el último cambio de datos (no las acciones de solo-UI como seleccionar cuenta). */
+  undo: () => void
+  /**
+   * Completa las cuentas sin ninguna fase (o a las que les falta alguna) encadenando
+   * Relevamiento → Configuración → Pruebas con la persona de rol/skill correspondiente,
+   * buscando el primer hueco libre para que no dispare Regla 2. No toca cuentas ya completas
+   * ni TASA/Toyota (esa se planifica con la perilla "Inicio Toyota").
+   */
+  autoPlanificarPendientes: () => { creadas: number }
   resetToSeed: () => void
   exportarJSON: () => string
   importarJSON: (json: string) => void
@@ -91,8 +187,9 @@ function recompute(
   asignaciones: Asignacion[],
   personas: Persona[],
   config: Config,
+  proyectos: Proyecto[],
 ): Violacion[] {
-  return _computeViolaciones(asignaciones, personas, config)
+  return _computeViolaciones(asignaciones, personas, config, proyectos)
 }
 
 export const useSimuladorStore = create<SimuladorState>()(
@@ -102,22 +199,25 @@ export const useSimuladorStore = create<SimuladorState>()(
       proyectos: seedProyectos,
       asignaciones: seedAsignaciones,
       config: seedConfig,
-      violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig),
+      violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig, seedProyectos),
       clienteSeleccionado: null,
+      historial: [],
 
       updateAsignacion(id, patch) {
         set(state => {
+          const feriados = feriadosDeConfig(state.config)
           const asignaciones = state.asignaciones.map(a => {
             if (a.id !== id) return a
             const updated = { ...a, ...patch }
             if ('duracion_dias' in patch || 'inicio' in patch) {
-              updated.fin = calcularFin(updated.inicio, updated.duracion_dias)
+              updated.fin = calcularFin(updated.inicio, updated.duracion_dias, feriados)
             }
             return updated
           })
           return {
+            ...conHistorial(state),
             asignaciones,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
         })
       },
@@ -129,6 +229,7 @@ export const useSimuladorStore = create<SimuladorState>()(
         set(state => {
           const existing = state.asignaciones.filter(a => a.proyecto_id === proyectoId && !a.es_bloqueo)
           if (existing.some(a => a.tipo === tipo)) return {} // ya planificada
+          const feriados = feriadosDeConfig(state.config)
           const dur = DUR_DEFAULT[tipo as keyof typeof DUR_DEFAULT] ?? 10
 
           const predTipo: Record<string, TipoFase | null> = {
@@ -157,7 +258,7 @@ export const useSimuladorStore = create<SimuladorState>()(
             tipo,
             persona_id: personaId,
             inicio,
-            fin: calcularFin(inicio, dur),
+            fin: calcularFin(inicio, dur, feriados),
             duracion_dias: dur,
             dedicacion_pct: 1,
             predecesoras: pred ? [pred.id] : [],
@@ -165,14 +266,16 @@ export const useSimuladorStore = create<SimuladorState>()(
           }
           const asignaciones = [...state.asignaciones, nueva]
           return {
+            ...conHistorial(state),
             asignaciones,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
         })
       },
 
       updateConfigFecha(key, value) {
         set(state => {
+          const feriados = feriadosDeConfig(state.config)
           const config: Config = {
             ...state.config,
             fechas_clave: { ...state.config.fechas_clave, [key]: value },
@@ -189,11 +292,11 @@ export const useSimuladorStore = create<SimuladorState>()(
 
             if (tasaFases.length === 0) {
               const relevInicio = targetInicio
-              const relevFin    = calcularFin(relevInicio, 88)
+              const relevFin    = calcularFin(relevInicio, 88, feriados)
               const configInicio = siguienteLunes(relevFin)
-              const configFin   = calcularFin(configInicio, 88)
+              const configFin   = calcularFin(configInicio, 88, feriados)
               const pruebasInicio = siguienteLunes(configFin)
-              const pruebasFin  = calcularFin(pruebasInicio, 44)
+              const pruebasFin  = calcularFin(pruebasInicio, 44, feriados)
 
               const mk = (
                 sufijo: string, tipo: TipoFase, ini: string, fin: string, dur: number, preds: string[],
@@ -220,16 +323,17 @@ export const useSimuladorStore = create<SimuladorState>()(
                 asignaciones = state.asignaciones.map(a => {
                   if (a.proyecto_id !== 'tasa') return a
                   const inicio = toISO(addDays(parseISO(a.inicio), delta))
-                  return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias) }
+                  return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias, feriados) }
                 })
               }
             }
           }
 
           return {
+            ...conHistorial(state),
             config,
             asignaciones,
-            violaciones: recompute(asignaciones, state.personas, config),
+            violaciones: recompute(asignaciones, state.personas, config, state.proyectos),
           }
         })
       },
@@ -255,14 +359,16 @@ export const useSimuladorStore = create<SimuladorState>()(
             dias = Math.max(dias, maxLeftDias) // no pasar de la semana 0
           }
           if (dias === 0) return {}
+          const feriados = feriadosDeConfig(state.config)
           const asignaciones = state.asignaciones.map(a => {
             if (a.proyecto_id !== proyectoId) return a
             const inicio = toISO(addDays(parseISO(a.inicio), dias))
-            return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias) }
+            return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias, feriados) }
           })
           return {
+            ...conHistorial(state),
             asignaciones,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
         })
       },
@@ -282,7 +388,7 @@ export const useSimuladorStore = create<SimuladorState>()(
             buffer_pct: 0,
             custom: true,
           }
-          return { personas: [...state.personas, persona] }
+          return { ...conHistorial(state), personas: [...state.personas, persona] }
         })
       },
 
@@ -295,9 +401,10 @@ export const useSimuladorStore = create<SimuladorState>()(
           const personas = state.personas.filter(p => p.id !== id)
           const asignaciones = force ? state.asignaciones.filter(a => a.persona_id !== id) : state.asignaciones
           return {
+            ...conHistorial(state),
             personas,
             asignaciones,
-            violaciones: recompute(asignaciones, personas, state.config),
+            violaciones: recompute(asignaciones, personas, state.config, state.proyectos),
           }
         })
         return { ok: true }
@@ -308,6 +415,7 @@ export const useSimuladorStore = create<SimuladorState>()(
         const aliasLimpio = alias.trim()
         if (!aliasLimpio) return
         set(state => ({
+          ...conHistorial(state),
           personas: state.personas.map(p => (p.id === id ? { ...p, alias: aliasLimpio } : p)),
         }))
       },
@@ -319,6 +427,7 @@ export const useSimuladorStore = create<SimuladorState>()(
         const inicioMonday = toISO(getMondayOfWeek(parseISO(inicio)))
         let nuevoId = ''
         set(state => {
+          const feriados = feriadosDeConfig(state.config)
           const idsP = new Set(state.proyectos.map(p => p.id))
           const pid = slugUnico(nombreLimpio || 'cuenta', idsP)
           nuevoId = pid
@@ -334,11 +443,11 @@ export const useSimuladorStore = create<SimuladorState>()(
           }
 
           const relevInicio = inicioMonday
-          const relevFin = calcularFin(relevInicio, DUR_DEFAULT.Relevamiento)
+          const relevFin = calcularFin(relevInicio, DUR_DEFAULT.Relevamiento, feriados)
           const configInicio = siguienteLunes(relevFin)
-          const configFin = calcularFin(configInicio, DUR_DEFAULT.Configuracion)
+          const configFin = calcularFin(configInicio, DUR_DEFAULT.Configuracion, feriados)
           const pruebasInicio = siguienteLunes(configFin)
-          const pruebasFin = calcularFin(pruebasInicio, DUR_DEFAULT.Pruebas)
+          const pruebasFin = calcularFin(pruebasInicio, DUR_DEFAULT.Pruebas, feriados)
 
           const mk = (
             sufijo: string, tipo: TipoFase, ini: string, fin: string, dur: number, preds: string[],
@@ -364,10 +473,11 @@ export const useSimuladorStore = create<SimuladorState>()(
           const proyectos = [...state.proyectos, proyecto]
           const asignaciones = [...state.asignaciones, ...nuevas]
           return {
+            ...conHistorial(state),
             proyectos,
             asignaciones,
             clienteSeleccionado: pid,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, proyectos),
           }
         })
         return nuevoId
@@ -379,10 +489,11 @@ export const useSimuladorStore = create<SimuladorState>()(
           const proyectos = state.proyectos.filter(p => p.id !== id)
           const asignaciones = state.asignaciones.filter(a => a.proyecto_id !== id)
           return {
+            ...conHistorial(state),
             proyectos,
             asignaciones,
             clienteSeleccionado: state.clienteSeleccionado === id ? null : state.clienteSeleccionado,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, proyectos),
           }
         })
       },
@@ -392,6 +503,7 @@ export const useSimuladorStore = create<SimuladorState>()(
         const nombreLimpio = nombre.trim()
         if (!nombreLimpio) return
         set(state => ({
+          ...conHistorial(state),
           proyectos: state.proyectos.map(p => (p.id === id ? { ...p, nombre: nombreLimpio } : p)),
         }))
       },
@@ -406,35 +518,148 @@ export const useSimuladorStore = create<SimuladorState>()(
           const daysFromHorizon = differenceInDays(parseISO(earliest), horizonStart)
           const clamped = Math.max(dias, -daysFromHorizon)
           if (clamped === 0) return {}
+          const feriados = feriadosDeConfig(state.config)
           const asignaciones = state.asignaciones.map(a => {
             if (a.proyecto_id !== proyectoId) return a
             const inicio = toISO(addDays(parseISO(a.inicio), clamped))
-            return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias) }
+            return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias, feriados) }
           })
           return {
+            ...conHistorial(state),
             asignaciones,
-            violaciones: recompute(asignaciones, state.personas, state.config),
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
         })
+      },
+
+      // Modo estricto: mueve la fase arrastrada + las fases POSTERIORES de la misma
+      // cuenta (nunca las anteriores). Opcionalmente reasigna la persona de la fase
+      // arrastrada, que es la única que cambia de fila al arrastrar en vertical.
+      shiftCascadaDias(asignacionId, dias, nuevaPersona) {
+        set(state => {
+          const ids = cascadaIds(state.asignaciones, asignacionId)
+          const afectadas = state.asignaciones.filter(a => ids.has(a.id))
+          if (afectadas.length === 0) return {}
+          const horizonStart = parseISO(state.config.horizonte.desde)
+          const earliest = afectadas.reduce((m, a) => (a.inicio < m ? a.inicio : m), afectadas[0].inicio)
+          const clamped = Math.max(dias, -differenceInDays(parseISO(earliest), horizonStart))
+          const cambiaPersona = !!nuevaPersona &&
+            nuevaPersona !== state.asignaciones.find(a => a.id === asignacionId)?.persona_id
+          if (clamped === 0 && !cambiaPersona) return {}
+
+          const feriados = feriadosDeConfig(state.config)
+          const asignaciones = state.asignaciones.map(a => {
+            if (!ids.has(a.id)) return a
+            let next = a
+            if (clamped !== 0) {
+              const inicio = toISO(addDays(parseISO(a.inicio), clamped))
+              next = { ...next, inicio, fin: calcularFin(inicio, a.duracion_dias, feriados) }
+            }
+            if (a.id === asignacionId && cambiaPersona) next = { ...next, persona_id: nuevaPersona! }
+            return next
+          })
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+      },
+
+      // Deshace el último cambio de datos. No hay "rehacer": es un historial lineal simple.
+      undo() {
+        set(state => {
+          if (state.historial.length === 0) return {}
+          const prev = state.historial[state.historial.length - 1]
+          const historial = state.historial.slice(0, -1)
+          return {
+            historial,
+            personas: prev.personas,
+            proyectos: prev.proyectos,
+            asignaciones: prev.asignaciones,
+            config: prev.config,
+            violaciones: recompute(prev.asignaciones, prev.personas, prev.config, prev.proyectos),
+          }
+        })
+      },
+
+      // Completa cuentas sin planificar (o con alguna fase faltante) encadenando
+      // Relev→Config→Pruebas con la persona de rol/skill correspondiente, buscando
+      // el primer hueco libre de esa persona para no generar Regla 2.
+      autoPlanificarPendientes() {
+        let creadas = 0
+        set(state => {
+          const feriados = feriadosDeConfig(state.config)
+          const horizMonday = getMondayOfWeek(parseISO(state.config.horizonte.desde))
+          const hoyMonday = getMondayOfWeek(new Date())
+          const baseInicio = toISO(hoyMonday > horizMonday ? hoyMonday : horizMonday)
+          const sufijo: Record<string, string> = { Relevamiento: 'relev', Configuracion: 'config', Pruebas: 'pruebas' }
+
+          let asignaciones = state.asignaciones
+          const idsExist = new Set(asignaciones.map(a => a.id))
+
+          for (const proyecto of state.proyectos) {
+            // TASA/Toyota tiene su propio alta (4m/4m/2m con Susi/Lau) atada a la perilla
+            // "Inicio Toyota"; no generarle fases genéricas acá o esa perilla deja de crearlas.
+            if (proyecto.especial) continue
+            let propias = asignaciones.filter(a => a.proyecto_id === proyecto.id && !a.es_bloqueo)
+
+            for (let idx = 0; idx < ORDEN_FASES.length; idx++) {
+              const tipo = ORDEN_FASES[idx]
+              if (propias.some(a => a.tipo === tipo)) continue // ya planificada
+
+              const predTipo = idx > 0 ? ORDEN_FASES[idx - 1] : null
+              const pred = predTipo ? propias.find(a => a.tipo === predTipo) ?? null : null
+              const personaId = pickPersona(state.personas, tipo)
+              const dur = DUR_DEFAULT[tipo as keyof typeof DUR_DEFAULT] ?? 10
+              const minInicio = pred ? siguienteLunes(pred.fin) : baseInicio
+              const { inicio, fin } = buscarHueco(asignaciones, personaId, proyecto.id, minInicio, dur, feriados)
+
+              let id = `${proyecto.id}-${sufijo[tipo] ?? 'fase'}`
+              let n = 2
+              while (idsExist.has(id)) id = `${proyecto.id}-${sufijo[tipo] ?? 'fase'}_${n++}`
+              idsExist.add(id)
+
+              const nueva: Asignacion = {
+                id, proyecto_id: proyecto.id, tipo, persona_id: personaId,
+                inicio, fin, duracion_dias: dur, dedicacion_pct: 1,
+                predecesoras: pred ? [pred.id] : [], es_bloqueo: false,
+              }
+              asignaciones = [...asignaciones, nueva]
+              propias = [...propias, nueva]
+              creadas++
+            }
+          }
+
+          if (creadas === 0) return {}
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return { creadas }
       },
 
       // Vacía todas las asignaciones (las cuentas y el equipo quedan; pasan a "sin planificar").
       clearAsignaciones() {
         set(state => ({
+          ...conHistorial(state),
           asignaciones: [],
-          violaciones: recompute([], state.personas, state.config),
+          violaciones: recompute([], state.personas, state.config, state.proyectos),
         }))
       },
 
       resetToSeed() {
-        set({
+        set(state => ({
+          ...conHistorial(state),
           personas: seedPersonas,
           proyectos: seedProyectos,
           asignaciones: seedAsignaciones,
           config: seedConfig,
-          violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig),
+          violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig, seedProyectos),
           clienteSeleccionado: null,
-        })
+        }))
       },
 
       exportarJSON() {
@@ -448,18 +673,33 @@ export const useSimuladorStore = create<SimuladorState>()(
         const proyectos = (data.proyectos as Proyecto[]) ?? seedProyectos
         const asignaciones = (data.asignaciones as Asignacion[]) ?? seedAsignaciones
         const config = (data.config as Config) ?? seedConfig
-        set({
+        set(state => ({
+          ...conHistorial(state),
           personas,
           proyectos,
           asignaciones,
           config,
-          violaciones: recompute(asignaciones, personas, config),
+          violaciones: recompute(asignaciones, personas, config, proyectos),
           clienteSeleccionado: null,
-        })
+        }))
       },
     }),
     {
       name: 'simulador-ha-v2',
+      version: 3,
+      // Los planes ya guardados en localStorage no tienen la fila de Axton: se la
+      // agregamos una sola vez (si después la borrás a mano, no vuelve a aparecer).
+      migrate: (persisted, version) => {
+        const estado = persisted as { personas?: Persona[] } | undefined
+        if (estado && version < 3) {
+          const personas = estado.personas ?? seedPersonas
+          if (!personas.some(p => p.id === 'axton')) {
+            const axton = seedPersonas.find(p => p.id === 'axton')
+            if (axton) estado.personas = [...personas, axton]
+          }
+        }
+        return persisted
+      },
       partialize: state => ({
         personas: state.personas,
         proyectos: state.proyectos,
@@ -468,7 +708,7 @@ export const useSimuladorStore = create<SimuladorState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.violaciones = recompute(state.asignaciones, state.personas, state.config)
+          state.violaciones = recompute(state.asignaciones, state.personas, state.config, state.proyectos)
         }
       },
     },

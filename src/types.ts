@@ -51,6 +51,8 @@ export interface Config {
   }
   pisos_soporte_horas_semana: Record<string, number | null>
   feriados_nacionales_2026: Array<{ fecha: string; nombre: string }>
+  /** Estimado (no oficial): confirmar contra el decreto del Poder Ejecutivo. Ver `_nota` en config.json. */
+  feriados_nacionales_2027?: Array<{ fecha: string; nombre: string }>
   horizonte: {
     desde: string
     hasta: string
@@ -58,7 +60,7 @@ export interface Config {
 }
 
 export type SeveridadViolacion = 'rojo' | 'ambar'
-export type TipoRegla = 'R2' | 'R3'
+export type TipoRegla = 'R1' | 'R2' | 'R3'
 
 export interface Violacion {
   tipo: TipoRegla

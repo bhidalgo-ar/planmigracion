@@ -1,6 +1,12 @@
 import type { CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
-import { useUIStore, type ZoomLevel } from '../uiStore'
+import { useUIStore, type Densidad, type ZoomLevel } from '../uiStore'
+
+const DENSIDAD_OPTS: { value: Densidad; label: string }[] = [
+  { value: 'compacta', label: 'S' },
+  { value: 'comoda',   label: 'M' },
+  { value: 'amplia',   label: 'L' },
+]
 
 const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
   { value: 'dias',       label: 'Días' },
@@ -15,12 +21,20 @@ const PRESETS: { label: string; fecha: string }[] = [
 ]
 
 export function ConfigPanel() {
-  const { config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON, clearAsignaciones, asignaciones } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento } = useUIStore()
+  const {
+    config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON,
+    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
+  } = useSimuladorStore()
+  const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad } = useUIStore()
 
   const transicion = config.fechas_clave.transicion_susana_toyota
   const rojos = violaciones.filter(v => v.severidad === 'rojo').length
   const ambar = violaciones.filter(v => v.severidad === 'ambar').length
+
+  function handleAutoPlanificar() {
+    const { creadas } = autoPlanificarPendientes()
+    if (creadas === 0) alert('No hay fases pendientes: todas las cuentas ya tienen Relevamiento, Configuración y Pruebas.')
+  }
 
   function handleImport() {
     const input = document.createElement('input')
@@ -76,16 +90,28 @@ export function ConfigPanel() {
         📍 Hoy
       </button>
 
+      {/* Alto de las filas de persona */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', whiteSpace: 'nowrap' }}>Filas</span>
+        <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden' }}>
+          {DENSIDAD_OPTS.map(d => (
+            <button key={d.value} onClick={() => setDensidad(d.value)}
+              style={{ padding: '4px 11px', border: 'none', background: densidad === d.value ? 'var(--celeste)' : 'var(--white)', color: densidad === d.value ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              title={`Alto de fila ${d.value}`}>{d.label}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Modo de movimiento al arrastrar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', whiteSpace: 'nowrap' }}>Al mover</span>
         <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden' }}>
           <button onClick={() => setModoMovimiento('flexible')}
             style={{ padding: '4px 11px', border: 'none', background: modoMovimiento === 'flexible' ? 'var(--celeste)' : 'var(--white)', color: modoMovimiento === 'flexible' ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            title="Arrastrar mueve solo la tarea (Shift = proyecto entero)">⚡ Flexible</button>
+            title="Arrastrar mueve solo la tarea (Shift = esta fase y las siguientes)">⚡ Flexible</button>
           <button onClick={() => setModoMovimiento('estricto')}
             style={{ padding: '4px 11px', border: 'none', background: modoMovimiento === 'estricto' ? 'var(--celeste)' : 'var(--white)', color: modoMovimiento === 'estricto' ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            title="Arrastrar mueve las 3 fases del proyecto juntas (Shift = solo esta tarea)">🔗 Estricto</button>
+            title="Arrastrar mueve esta fase y las siguientes de la cuenta; las anteriores no se tocan (Shift = solo esta tarea)">🔗 Estricto</button>
         </div>
       </div>
 
@@ -107,6 +133,10 @@ export function ConfigPanel() {
 
       {/* Acciones */}
       <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={undo} disabled={!historial.length}
+          style={{ ...actionBtn, opacity: historial.length ? 1 : 0.45, cursor: historial.length ? 'pointer' : 'default' }}
+          title="Deshacer el último cambio (Ctrl+Z)">↩ Deshacer</button>
+        <button onClick={handleAutoPlanificar} style={actionBtn} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin tareas (o con alguna fase faltante), buscando un hueco libre para no generar sobreasignación. No toca TASA/Toyota: esa se planifica con la perilla 'Inicio Toyota'.">🪄 Planificar pendientes</button>
         <button onClick={() => setResumen(true)} style={{ ...actionBtn, background: 'var(--celeste)', color: '#fff', border: 'none' }} title="Resumen ejecutivo imprimible">📄 Resumen</button>
         <button onClick={handleExport} style={actionBtn} title="Exportar plan como JSON">↓ Exportar</button>
         <button onClick={handleImport} style={actionBtn} title="Importar plan desde JSON">↑ Importar</button>

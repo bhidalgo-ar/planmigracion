@@ -1,5 +1,6 @@
 import { parseISO, addDays, startOfWeek, format, addWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
+import type { Config } from '../types'
 
 export function parseDate(s: string): Date {
   return parseISO(s)
@@ -27,32 +28,47 @@ function isWeekend(d: Date): boolean {
   return d.getDay() === 0 || d.getDay() === 6
 }
 
-function nextWorkingDay(d: Date): Date {
+/** Set de feriados vacío, para los call-sites que no reciben `config` (hábil = solo lun-vie). */
+const SIN_FERIADOS: ReadonlySet<string> = new Set()
+
+/** Feriados nacionales configurados (todos los años cargados) como Set de fechas ISO. */
+export function feriadosDeConfig(config: Config): Set<string> {
+  return new Set([
+    ...config.feriados_nacionales_2026,
+    ...(config.feriados_nacionales_2027 ?? []),
+  ].map(f => f.fecha))
+}
+
+function esHabil(d: Date, feriados: ReadonlySet<string>): boolean {
+  return !isWeekend(d) && !feriados.has(toISO(d))
+}
+
+function nextWorkingDay(d: Date, feriados: ReadonlySet<string>): Date {
   let result = new Date(d)
-  while (isWeekend(result)) {
+  while (!esHabil(result, feriados)) {
     result = addDays(result, 1)
   }
   return result
 }
 
-/** Calcula la fecha fin dado un inicio (ISO) y duración en días hábiles (inclusivo). */
-export function calcularFin(inicio: string, duracionDias: number): string {
-  let d = nextWorkingDay(parseISO(inicio))
+/** Calcula la fecha fin dado un inicio (ISO) y duración en días hábiles (inclusivo). Saltea fines de semana y feriados nacionales si se pasa `feriados`. */
+export function calcularFin(inicio: string, duracionDias: number, feriados: ReadonlySet<string> = SIN_FERIADOS): string {
+  let d = nextWorkingDay(parseISO(inicio), feriados)
   let count = 1
   while (count < duracionDias) {
     d = addDays(d, 1)
-    if (!isWeekend(d)) count++
+    if (esHabil(d, feriados)) count++
   }
   return toISO(d)
 }
 
-/** Cuenta días hábiles (lun-vie) inclusive entre dos fechas ISO. Mínimo 1. Inverso de calcularFin. */
-export function diasHabiles(inicioISO: string, finISO: string): number {
+/** Cuenta días hábiles (lun-vie, sin feriados) inclusive entre dos fechas ISO. Mínimo 1. Inverso de calcularFin. */
+export function diasHabiles(inicioISO: string, finISO: string, feriados: ReadonlySet<string> = SIN_FERIADOS): number {
   let d = parseISO(inicioISO)
   const end = parseISO(finISO)
   let count = 0
   while (d <= end) {
-    if (!isWeekend(d)) count++
+    if (esHabil(d, feriados)) count++
     d = addDays(d, 1)
   }
   return Math.max(1, count)

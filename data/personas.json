@@ -40,6 +40,15 @@
       "capacidad_horas_semana": 40,
       "buffer_pct": 0,
       "_nota": "Recurso del equipo. Confirmar skills, rol y capacidad real (se cargo solo con alias por la regla de privacidad)."
+    },
+    {
+      "id": "axton",
+      "alias": "Axton",
+      "skills": ["configuracion", "axton"],
+      "rol": "configuracion",
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "_nota": "Proveedor (no es una persona): fila para las configuraciones que ejecuta Axton. Al tener rol 'configuracion' es el asignado por defecto cuando se crea una cuenta nueva. Capacidad 40 hs/sem = un frente de configuracion en paralelo; si Axton puede tomar mas de una cuenta a la vez, subir la capacidad o bajar la dedicacion de sus fases."
     }
   ]
 }
