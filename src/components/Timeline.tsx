@@ -150,12 +150,12 @@ export function Timeline() {
   const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
   const filaDe        = useMemo(() => new Map(personas.map((p, i) => [p.id, i])), [personas])
 
-  // barras que se pintan enteras de rojo: dependencia rota (R3) o acantilado Susana (R1)
+  // barras que se pintan enteras de rojo: dependencia rota (R3)
   const barRojo = useMemo(() => {
     const s = new Set<string>()
     if (!mostrarConflictos) return s
     for (const v of violaciones)
-      if (v.severidad === 'rojo' && (v.tipo === 'R3' || v.tipo === 'R1')) s.add(v.asignacion_id)
+      if (v.severidad === 'rojo' && v.tipo === 'R3') s.add(v.asignacion_id)
     return s
   }, [violaciones, mostrarConflictos])
 

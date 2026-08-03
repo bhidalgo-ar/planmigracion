@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "esbuild test/duraciones.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test.mjs --log-level=warning && node dist/.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

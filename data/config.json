@@ -8,7 +8,7 @@
   "fechas_clave": {
     "transicion_susana_toyota": null,
     "retro_ready_axton": null,
-    "_nota": "transicion_susana_toyota: PERILLA principal (Inicio Toyota). Al definirla se auto-crean las 3 fases de TASA (Relev Lau 4m, Config Susi 4m, Pruebas Lau 2m). retro_ready_axton: roadmap."
+    "_nota": "transicion_susana_toyota: PERILLA principal (Inicio Toyota). Al definirla se auto-crean las 3 fases de TASA (Relev Lau, Config Axton, Pruebas Lau). retro_ready_axton: roadmap."
   },
   "pisos_soporte_horas_semana": {
     "moni": null,
@@ -57,5 +57,52 @@
     "desde": "2026-06-01",
     "hasta": "2028-06-30",
     "_nota": "Horizonte completo: jun 2026 – jun 2028 (dos años de planificación)."
+  },
+  "horas_por_fase": {
+    "_doc": "Horas de esfuerzo por fase. Fuente: tablero Monday 18420861674 (EMPRESA - MMAAAA), columna de horas.",
+    "estandar": { "Relevamiento": 55.5, "Configuracion": 71.0, "Pruebas": 88.0 },
+    "chica": { "Relevamiento": 37.1, "Configuracion": 67.1, "Pruebas": 45.2 },
+    "_chica_nota": "Cuentas de <10 empleados. Fijo + 0.25 x variable. HIPOTESIS sin medir.",
+    "_criterio_chica": "proyecto.complejidad === 'baja'"
+  },
+  "disponibilidad": {
+    "_doc": "Fraccion de la jornada de 8 hs que cada persona dedica a migracion, por ano. Perilla.",
+    "por_persona_ano": {
+      "leo": { "2026": 0.70, "2027": 0.90 },
+      "susi": { "2026": 0.70, "2027": 0.90 },
+      "moni": { "2026": 0.80, "2027": 0.60 },
+      "gaby_f": { "2026": 0.50, "2027": 0.50 },
+      "lau": { "2026": 1.00, "2027": 1.00 },
+      "axton": { "2026": 1.00, "2027": 1.00 }
+    },
+    "default": 1.00,
+    "_nota": "Moni BAJA en 2027: su soporte Axton crece a medida que las cuentas salen en vivo. Gaby no sube: son 20 hs/sem contractuales, no disponibilidad variable."
+  },
+  "template_estandar": {
+    "_doc": "Baseline derivado del tablero Monday EMPRESA - MMAAAA (board 18420861674). Cuenta estandar de 1 entidad. Aplica al ~80% de las cuentas. Sportline y TASA quedan fuera por complejidad.",
+    "fuente": "Monday board 18420861674 / subitems 18420861681, columna de horas",
+    "horas_relevador": 55.5,
+    "horas_configurador": 159,
+    "horas_axton_externo": 18,
+    "dias_habiles_span": 23,
+    "solapamiento_relev_config_dias": 6,
+    "fases": {
+      "Relevamiento": { "dias": 7, "horas": 55.5, "offset": 0, "ded": 1 },
+      "Configuracion": { "dias": 10, "horas": 71, "offset": 1, "ded": 0.89 },
+      "Pruebas": { "dias": 12, "horas": 88, "offset": 11, "ded": 0.92 }
+    },
+    "_supuestos_a_confirmar": [
+      "4 hs de TRACK/TEST de entregables Axton dentro de Configuracion (estimacion, no medido)",
+      "BP2 Formato asiento (16 hs): sin definir si lo hace Axton o Gaby+Manager en Claude. Hoy contabilizado como Axton (externo).",
+      "1 sola ronda de paralelo (decision explicita del Manager: si se posterga, se posterga)",
+      "Sin multiplicador por complejidad ni por entidad extra (Carrier 2, Lowsedo 3)"
+    ],
+    "_reparto_axton": {
+      "BP2 Recibos de sueldo": "Axton (1 h)",
+      "BP2 Acreditacion bancaria": "Axton (1 h)",
+      "BP2 Formato asiento": "SIN DEFINIR - Axton o H&A (16 h)",
+      "BP2 Redefinicion de cuentas": "Moni (16 h)",
+      "BP2 Archivos sindicato": "Moni (2 h)"
+    }
   }
 }

@@ -3,43 +3,6 @@ import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
 import { getSemanas, toISO } from './utils/dates'
 
 /**
- * Regla 1 · Acantilado Susana → Toyota. Toda fase de Configuración asignada a `susi`
- * que cruce o sea posterior a la fecha de pase a Toyota (perilla `transicion_susana_toyota`)
- * se marca en rojo, excepto en el proyecto especial TASA/Toyota (ella sigue ahí después
- * de pasar). Sin fecha definida, la regla no corre (nada que evaluar todavía).
- */
-export function checkRule1(
-  asignaciones: Asignacion[],
-  proyectos: Proyecto[],
-  config: Config,
-): Violacion[] {
-  const transicion = config.fechas_clave.transicion_susana_toyota
-  if (!transicion) return []
-  const proyectoPorId = new Map(proyectos.map(p => [p.id, p]))
-  const violations: Violacion[] = []
-
-  for (const a of asignaciones) {
-    if (a.es_bloqueo || a.tipo !== 'Configuracion' || a.persona_id !== 'susi') continue
-    const proyecto = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null
-    if (proyecto?.especial) continue // TASA/Toyota: ahí es donde Susi sigue trabajando
-
-    if (a.fin >= transicion) {
-      const yaEnToyota = a.inicio >= transicion
-      violations.push({
-        tipo: 'R1',
-        asignacion_id: a.id,
-        persona_id: a.persona_id,
-        mensaje: yaEnToyota
-          ? `Susi configura ${proyecto?.nombre ?? a.id} después de pasar a Toyota (desde ${transicion})`
-          : `Susi configura ${proyecto?.nombre ?? a.id} y la fase cruza su pase a Toyota (${transicion})`,
-        severidad: 'rojo',
-      })
-    }
-  }
-  return violations
-}
-
-/**
  * Regla 2 · Sobreasignación por persona/DÍA. Se evalúa día por día (lun-vie): si ese
  * día concreto tiene tareas de más de un proyecto activas para la misma persona y la
  * suma de dedicación supera el límite, es colapso. Evaluar por "semana completa" (como
@@ -47,7 +10,21 @@ export function checkRule1(
  * semana calendario pero en días que no se tocan (ej. una termina el martes, la otra
  * empieza el jueves) NO son un choque real. Se agrupa por semana solo para no listar
  * una violación por cada día (la línea de la semana con el peor día encontrado).
+ *
+ * El límite es la capacidad REAL de la persona, no 1.0: media jornada (20 hs/sem) tiene
+ * límite 0,5, así que dos fases al 0,5 el mismo día ya la desbordan. Con el 1.0 fijo de
+ * antes, a media jornada nunca le saltaba nada.
  */
+/**
+ * Cuánta carga simultánea aguanta una persona: 1.0 = jornada completa sin buffer.
+ * Media jornada (20 de 40 hs/sem) = 0,5. El buffer_pct le descuenta una reserva.
+ */
+export function limiteDeCarga(persona: Persona): number {
+  const jornadas = (persona.capacidad_horas_semana || 40) / 40
+  const buffer = persona.buffer_pct || 0
+  return Math.max(0.01, jornadas * (1 - buffer))
+}
+
 export function checkRule2(
   asignaciones: Asignacion[],
   personas: Persona[],
@@ -59,6 +36,9 @@ export function checkRule2(
   for (const persona of personas) {
     const propias = asignaciones.filter(a => a.persona_id === persona.id)
     if (propias.length < 2) continue
+
+    const limite = limiteDeCarga(persona)
+    const limiteAmbar = limite * 0.8
 
     for (const lunes of semanas) {
       const lunesISO = toISO(lunes)
@@ -76,8 +56,8 @@ export function checkRule2(
         if (proyectosDistintos <= 1) continue
 
         const carga = activasHoy.reduce((sum, a) => sum + a.dedicacion_pct, 0)
-        if (carga > 1.0) { peor = 'rojo'; asigRef = activasHoy[0].id; break }
-        if (carga > 0.8) { peor = 'ambar'; asigRef = activasHoy[0].id }
+        if (carga > limite) { peor = 'rojo'; asigRef = activasHoy[0].id; break }
+        if (carga > limiteAmbar) { peor = 'ambar'; asigRef = activasHoy[0].id }
       }
 
       if (peor && asigRef) {
@@ -124,10 +104,9 @@ export function computeViolaciones(
   asignaciones: Asignacion[],
   personas: Persona[],
   config: Config,
-  proyectos: Proyecto[],
+  _proyectos: Proyecto[],
 ): Violacion[] {
   return [
-    ...checkRule1(asignaciones, proyectos, config),
     ...checkRule2(asignaciones, personas, config),
     ...checkRule3(asignaciones),
   ]

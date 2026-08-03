@@ -40,6 +40,19 @@ export interface Asignacion {
   _nombre?: string // nombre libre para bloques especiales
 }
 
+/** Horas de esfuerzo por fase, por tipo de cuenta. Tabla de datos (`config.horas_por_fase`). */
+export interface HorasPorFase {
+  estandar: Record<string, number>
+  /** Cuentas de <10 empleados (`proyecto.complejidad === 'baja'`). */
+  chica: Record<string, number>
+}
+
+/** Fracción de la jornada que cada persona dedica a migración, por año. Perilla. */
+export interface Disponibilidad {
+  por_persona_ano: Record<string, Record<string, number>>
+  default: number
+}
+
 export interface Config {
   unidades: {
     horas_por_dia: number
@@ -57,10 +70,18 @@ export interface Config {
     desde: string
     hasta: string
   }
+  /**
+   * Opcionales porque hay planes exportados en circulación que no las traen: al importar
+   * uno viejo se completan con las del seed (ver `importarJSON`).
+   */
+  horas_por_fase?: HorasPorFase
+  disponibilidad?: Disponibilidad
+  /** Baseline medido del tablero Monday. Informativo: el cálculo usa `horas_por_fase`. */
+  template_estandar?: Record<string, unknown>
 }
 
 export type SeveridadViolacion = 'rojo' | 'ambar'
-export type TipoRegla = 'R1' | 'R2' | 'R3'
+export type TipoRegla = 'R2' | 'R3'
 
 export interface Violacion {
   tipo: TipoRegla

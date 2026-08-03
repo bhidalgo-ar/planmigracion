@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { addDays, addWeeks, differenceInDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, RolPersona, TipoFase, Violacion } from './types'
-import { calcularFin, feriadosDeConfig, getMondayOfWeek, seSuperponen, toISO } from './utils/dates'
+import {
+  calcularFin, calcularFinPorHoras, diasHabiles, feriadosDeConfig, getMondayOfWeek,
+  seSuperponen, siguienteDiaHabil, toISO,
+} from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
 import { ORDEN_FASES } from './theme/fases'
 import personasRaw from '../data/personas.json'
@@ -33,33 +36,75 @@ function slugUnico(texto: string, existentes: Set<string>): string {
 }
 
 /**
- * Elige una persona para una fase: primero por rol explícito; si no hay, por skill real
- * (NO inventa clasificación: usa lo que el dataset ya tiene). Cae a la primera persona
- * solo si no encuentra candidato.
+ * Candidatos para una fase: los que la tienen como rol explícito MÁS los que la tienen
+ * como skill (NO inventa clasificación: usa lo que el dataset ya tiene). Antes se cortaba
+ * en el primer match de rol, y como Axton es el único con `rol: 'configuracion'`, toda
+ * cuenta nueva le caía a él. Ahora compiten y gana el que termina antes (ver `pickPersona`).
  */
-function pickPersona(personas: Persona[], tipo: TipoFase): string {
+function candidatosPara(personas: Persona[], tipo: TipoFase): Persona[] {
   const rolDe: Partial<Record<TipoFase, RolPersona>> = {
     Relevamiento: 'relevamiento', Configuracion: 'configuracion', Pruebas: 'pruebas',
   }
   const skillDe: Partial<Record<TipoFase, string[]>> = {
     Relevamiento: ['relevamiento'], Configuracion: ['configuracion'], Pruebas: ['pruebas', 'testeo'],
   }
-  const porRol = personas.find(p => p.rol && p.rol === rolDe[tipo])
-  if (porRol) return porRol.id
   const skills = skillDe[tipo] ?? []
-  const porSkill = personas.find(p => p.skills?.some(s => skills.includes(s)))
-  if (porSkill) return porSkill.id
-  return personas[0]?.id ?? ''
+  const out: Persona[] = personas.filter(p => p.rol && p.rol === rolDe[tipo])
+  for (const p of personas) {
+    if (out.some(q => q.id === p.id)) continue
+    if (p.skills?.some(s => skills.includes(s))) out.push(p)
+  }
+  return out.length ? out : personas.slice(0, 1)
 }
 
-/** Lunes de la semana siguiente al fin de una fase (ISO). Encadena fases sin violar R3. */
+/**
+ * Lunes de la semana siguiente al fin de una fase (ISO). Solo lo usa el alta de TASA:
+ * es un proyecto especial cuyo encadenado no se toca. Las cuentas estándar encadenan con
+ * `siguienteDiaHabil` (ver `inicioDeFase`).
+ */
 function siguienteLunes(finISO: string): string {
   return toISO(addWeeks(getMondayOfWeek(parseISO(finISO)), 1))
 }
 
-// Duración por defecto (días hábiles) de las 3 fases de una cuenta nueva.
-const DUR_DEFAULT: Record<'Relevamiento' | 'Configuracion' | 'Pruebas', number> = {
-  Relevamiento: 10, Configuracion: 15, Pruebas: 8,
+/** Horas de esfuerzo de una fase según el tipo de cuenta. null = fase sin horas en la tabla. */
+function horasDeFase(config: Config, proyecto: Proyecto | null | undefined, tipo: TipoFase): number | null {
+  const tabla = config.horas_por_fase ?? seedConfig.horas_por_fase
+  if (!tabla) return null
+  // Cuenta chica = <10 empleados. Criterio del dato, no del código: complejidad 'baja'.
+  const esChica = (proyecto?.complejidad as unknown) === 'baja'
+  const horas = (esChica ? tabla.chica : tabla.estandar)?.[tipo]
+  return typeof horas === 'number' ? horas : null
+}
+
+/** Duración/fin/dedicación de una fase: por horas si la fase tiene horas, si no por días. */
+function medirFase(
+  inicio: string, horas: number | null, personaId: string, config: Config, feriados: ReadonlySet<string>,
+): { fin: string; duracion_dias: number; dedicacion_pct: number } {
+  if (horas == null) {
+    const dur = DIAS_SIN_HORAS
+    return { fin: calcularFin(inicio, dur, feriados), duracion_dias: dur, dedicacion_pct: 1 }
+  }
+  const r = calcularFinPorHoras(inicio, horas, personaId, config, feriados)
+  return { fin: r.fin, duracion_dias: r.duracion_dias, dedicacion_pct: r.dedicacion_promedio }
+}
+
+/** Días de una fase que no está en la tabla de horas (ej. Vacaciones). */
+const DIAS_SIN_HORAS = 10
+
+/**
+ * Inicio de una fase encadenada detrás de su predecesora.
+ *
+ * Configuración arranca al día hábil siguiente del INICIO del Relevamiento (el solapamiento
+ * de 6 días medido en el tablero: BP1 estructural solo necesita el Checklist Inicial), pero
+ * solo si las hace gente distinta. Si es la misma persona no puede estar en las dos a la vez:
+ * arranca al día hábil siguiente del FIN. Pruebas siempre va después del fin de Configuración.
+ */
+function inicioDeFase(
+  tipo: TipoFase, pred: Asignacion | null, personaId: string, feriados: ReadonlySet<string>,
+): string | null {
+  if (!pred) return null
+  const solapa = tipo === 'Configuracion' && pred.tipo === 'Relevamiento' && pred.persona_id !== personaId
+  return siguienteDiaHabil(solapa ? pred.inicio : pred.fin, feriados)
 }
 
 /** Orden canónico de fases dentro de una cuenta (para el respaldo de la cascada). */
@@ -106,26 +151,90 @@ export function cascadaIds(asignaciones: Asignacion[], id: string): Set<string> 
   return out
 }
 
-/** Primer hueco (lunes) desde `inicioMinISO` donde `personaId` no choca con OTRA cuenta. */
+interface Hueco {
+  inicio: string
+  fin: string
+  duracion_dias: number
+  dedicacion_pct: number
+}
+
+/**
+ * Primer hueco desde `inicioMinISO` donde `personaId` no choca con otra ocupación.
+ *
+ * Cuenta como ocupación cualquier fase de OTRA cuenta y también los BLOQUEOS (aunque sean
+ * de la misma cuenta): un bloqueo es tiempo reservado, no una fase que pueda solaparse. Sin
+ * eso, el bloqueo de supervisión de TASA no bloqueaba nada. Las fases de la MISMA cuenta sí
+ * pueden solaparse: es el solapamiento relevamiento/configuración que existe en el tablero.
+ *
+ * La duración se recalcula en cada intento porque depende de la fecha: al correr el inicio
+ * puede cruzar el fin de año y cambiar la disponibilidad de la persona.
+ */
 function buscarHueco(
   ocupadas: Asignacion[],
   personaId: string,
-  proyectoId: string,
+  proyectoId: string | null,
   inicioMinISO: string,
-  dur: number,
+  horas: number | null,
+  config: Config,
   feriados: ReadonlySet<string>,
-): { inicio: string; fin: string } {
+): Hueco {
   let inicio = inicioMinISO
   for (let i = 0; i < 200; i++) {
-    const fin = calcularFin(inicio, dur, feriados)
+    const medida = medirFase(inicio, horas, personaId, config, feriados)
     const conflicto = ocupadas.find(a =>
-      a.persona_id === personaId && a.proyecto_id !== proyectoId && !a.es_bloqueo &&
-      seSuperponen(a.inicio, a.fin, inicio, fin),
+      a.persona_id === personaId && (a.es_bloqueo || a.proyecto_id !== proyectoId) &&
+      seSuperponen(a.inicio, a.fin, inicio, medida.fin),
     )
-    if (!conflicto) return { inicio, fin }
-    inicio = siguienteLunes(conflicto.fin)
+    if (!conflicto) return { inicio, ...medida }
+    inicio = siguienteDiaHabil(conflicto.fin, feriados)
   }
-  return { inicio, fin: calcularFin(inicio, dur, feriados) }
+  return { inicio, ...medirFase(inicio, horas, personaId, config, feriados) }
+}
+
+/**
+ * Elige quién hace una fase: entre los candidatos por rol o skill, el que la TERMINA ANTES
+ * con su propia disponibilidad y sus propios huecos. Empate: el que tiene menos días
+ * asignados. `minInicioDe` se evalúa por candidato porque el encadenado depende de quién
+ * sea (una Configuración puede solapar el Relevamiento solo si la hace otra persona).
+ */
+function pickPersona(
+  personas: Persona[],
+  tipo: TipoFase,
+  ocupadas: Asignacion[],
+  proyectoId: string | null,
+  minInicioDe: (personaId: string) => string,
+  horas: number | null,
+  config: Config,
+  feriados: ReadonlySet<string>,
+): { persona_id: string } & Hueco {
+  const candidatos = candidatosPara(personas, tipo)
+  const diasAsignados = (id: string) => ocupadas
+    .filter(a => a.persona_id === id && !a.es_bloqueo)
+    .reduce((s, a) => s + a.duracion_dias, 0)
+
+  let mejor: ({ persona_id: string } & Hueco) | null = null
+  let mejorDias = 0
+  for (const p of candidatos) {
+    const hueco = buscarHueco(ocupadas, p.id, proyectoId, minInicioDe(p.id), horas, config, feriados)
+    const dias = diasAsignados(p.id)
+    if (!mejor || hueco.fin < mejor.fin || (hueco.fin === mejor.fin && dias < mejorDias)) {
+      mejor = { persona_id: p.id, ...hueco }
+      mejorDias = dias
+    }
+  }
+  return mejor ?? {
+    persona_id: personas[0]?.id ?? '',
+    ...buscarHueco(ocupadas, personas[0]?.id ?? '', proyectoId, minInicioDe(personas[0]?.id ?? ''), horas, config, feriados),
+  }
+}
+
+export interface RecalculoReporte {
+  /** Fases cuya duración se recalculó. */
+  recalculadas: number
+  /** Fases que además cambiaron de fecha de inicio, con el corrimiento en días hábiles. */
+  movidas: Array<{ id: string; antes: string; despues: string; diasHabiles: number }>
+  /** Fases que quedaron afuera: bloqueos y proyectos especiales (TASA). */
+  intactas: number
 }
 
 interface HistorySnapshot {
@@ -178,6 +287,12 @@ interface SimuladorState {
    * ni TASA/Toyota (esa se planifica con la perilla "Inicio Toyota").
    */
   autoPlanificarPendientes: () => { creadas: number }
+  /**
+   * Recalcula duración y fin de TODAS las fases ya planificadas con las horas de la fase
+   * y la disponibilidad de la persona que la tiene asignada. NO reasigna personas ni
+   * reordena cuentas: el reparto manual se respeta tal cual está.
+   */
+  recalcularDuraciones: () => RecalculoReporte
   resetToSeed: () => void
   exportarJSON: () => string
   importarJSON: (json: string) => void
@@ -230,7 +345,8 @@ export const useSimuladorStore = create<SimuladorState>()(
           const existing = state.asignaciones.filter(a => a.proyecto_id === proyectoId && !a.es_bloqueo)
           if (existing.some(a => a.tipo === tipo)) return {} // ya planificada
           const feriados = feriadosDeConfig(state.config)
-          const dur = DUR_DEFAULT[tipo as keyof typeof DUR_DEFAULT] ?? 10
+          const proyecto = state.proyectos.find(p => p.id === proyectoId) ?? null
+          const horas = horasDeFase(state.config, proyecto, tipo)
 
           const predTipo: Record<string, TipoFase | null> = {
             Relevamiento: null, Configuracion: 'Relevamiento', Pruebas: 'Configuracion',
@@ -238,13 +354,15 @@ export const useSimuladorStore = create<SimuladorState>()(
           const pred = predTipo[tipo] ? existing.find(a => a.tipo === predTipo[tipo]) ?? null : null
 
           let inicio: string
-          if (pred) {
-            inicio = siguienteLunes(pred.fin)
+          const encadenado = inicioDeFase(tipo, pred, personaId, feriados)
+          if (encadenado) {
+            inicio = encadenado
           } else {
             const hoyMonday = getMondayOfWeek(new Date())
             const horizMonday = getMondayOfWeek(parseISO(state.config.horizonte.desde))
             inicio = toISO(hoyMonday > horizMonday ? hoyMonday : horizMonday)
           }
+          const medida = medirFase(inicio, horas, personaId, state.config, feriados)
 
           const sufijo: Record<string, string> = { Relevamiento: 'relev', Configuracion: 'config', Pruebas: 'pruebas' }
           const idsExist = new Set(state.asignaciones.map(a => a.id))
@@ -258,9 +376,9 @@ export const useSimuladorStore = create<SimuladorState>()(
             tipo,
             persona_id: personaId,
             inicio,
-            fin: calcularFin(inicio, dur, feriados),
-            duracion_dias: dur,
-            dedicacion_pct: 1,
+            fin: medida.fin,
+            duracion_dias: medida.duracion_dias,
+            dedicacion_pct: medida.dedicacion_pct,
             predecesoras: pred ? [pred.id] : [],
             es_bloqueo: false,
           }
@@ -284,7 +402,7 @@ export const useSimuladorStore = create<SimuladorState>()(
           let asignaciones = state.asignaciones
 
           // "Inicio Toyota" gobierna las fases de TASA:
-          //  - TASA sin fases  → auto-crear Relev(lau 4m) → Config(susi 4m) → Pruebas(lau 2m)
+          //  - TASA sin fases  → auto-crear Relev(lau 4m) → Config(axton 4m) → Pruebas(lau 2m)
           //  - TASA ya planificada → mover el bloque entero para que arranque en la nueva fecha
           if (key === 'transicion_susana_toyota' && value) {
             const targetInicio = toISO(getMondayOfWeek(parseISO(value)))
@@ -304,7 +422,8 @@ export const useSimuladorStore = create<SimuladorState>()(
                 id: `tasa-${sufijo}`,
                 proyecto_id: 'tasa',
                 tipo,
-                persona_id: sufijo === 'config' ? 'susi' : 'lau',
+                // Configuración de TASA la ejecuta Axton; Lau releva y prueba.
+                persona_id: sufijo === 'config' ? 'axton' : 'lau',
                 inicio: ini, fin, duracion_dias: dur,
                 dedicacion_pct: 1, predecesoras: preds, es_bloqueo: false,
               })
@@ -442,33 +561,38 @@ export const useSimuladorStore = create<SimuladorState>()(
             custom: true,
           }
 
-          const relevInicio = inicioMonday
-          const relevFin = calcularFin(relevInicio, DUR_DEFAULT.Relevamiento, feriados)
-          const configInicio = siguienteLunes(relevFin)
-          const configFin = calcularFin(configInicio, DUR_DEFAULT.Configuracion, feriados)
-          const pruebasInicio = siguienteLunes(configFin)
-          const pruebasFin = calcularFin(pruebasInicio, DUR_DEFAULT.Pruebas, feriados)
-
-          const mk = (
-            sufijo: string, tipo: TipoFase, ini: string, fin: string, dur: number, preds: string[],
-          ): Asignacion => ({
-            id: `${pid}-${sufijo}`,
-            proyecto_id: pid,
-            tipo,
-            persona_id: pickPersona(state.personas, tipo),
-            inicio: ini,
-            fin,
-            duracion_dias: dur,
-            dedicacion_pct: 1,
-            predecesoras: preds,
-            es_bloqueo: false,
-          })
-
-          const nuevas: Asignacion[] = [
-            mk('relev', 'Relevamiento', relevInicio, relevFin, DUR_DEFAULT.Relevamiento, []),
-            mk('config', 'Configuracion', configInicio, configFin, DUR_DEFAULT.Configuracion, [`${pid}-relev`]),
-            mk('pruebas', 'Pruebas', pruebasInicio, pruebasFin, DUR_DEFAULT.Pruebas, [`${pid}-config`]),
+          // Cada fase: quién la hace (el que termine antes) y cuánto le lleva con SU
+          // disponibilidad. Configuración solapa el arranque del Relevamiento si la hace
+          // otra persona; Pruebas siempre después del fin de Configuración.
+          const sufijos: Array<[string, TipoFase]> = [
+            ['relev', 'Relevamiento'], ['config', 'Configuracion'], ['pruebas', 'Pruebas'],
           ]
+          const nuevas: Asignacion[] = []
+          let pred: Asignacion | null = null
+          for (const [sufijo, tipo] of sufijos) {
+            const horas = horasDeFase(state.config, proyecto, tipo)
+            const ocupadas = [...state.asignaciones, ...nuevas]
+            const predFijo = pred
+            const elegido = pickPersona(
+              state.personas, tipo, ocupadas, pid,
+              personaId => inicioDeFase(tipo, predFijo, personaId, feriados) ?? inicioMonday,
+              horas, state.config, feriados,
+            )
+            const nueva: Asignacion = {
+              id: `${pid}-${sufijo}`,
+              proyecto_id: pid,
+              tipo,
+              persona_id: elegido.persona_id,
+              inicio: elegido.inicio,
+              fin: elegido.fin,
+              duracion_dias: elegido.duracion_dias,
+              dedicacion_pct: elegido.dedicacion_pct,
+              predecesoras: pred ? [pred.id] : [],
+              es_bloqueo: false,
+            }
+            nuevas.push(nueva)
+            pred = nueva
+          }
 
           const proyectos = [...state.proyectos, proyecto]
           const asignaciones = [...state.asignaciones, ...nuevas]
@@ -610,10 +734,12 @@ export const useSimuladorStore = create<SimuladorState>()(
 
               const predTipo = idx > 0 ? ORDEN_FASES[idx - 1] : null
               const pred = predTipo ? propias.find(a => a.tipo === predTipo) ?? null : null
-              const personaId = pickPersona(state.personas, tipo)
-              const dur = DUR_DEFAULT[tipo as keyof typeof DUR_DEFAULT] ?? 10
-              const minInicio = pred ? siguienteLunes(pred.fin) : baseInicio
-              const { inicio, fin } = buscarHueco(asignaciones, personaId, proyecto.id, minInicio, dur, feriados)
+              const horas = horasDeFase(state.config, proyecto, tipo)
+              const elegido = pickPersona(
+                state.personas, tipo, asignaciones, proyecto.id,
+                personaId => inicioDeFase(tipo, pred, personaId, feriados) ?? baseInicio,
+                horas, state.config, feriados,
+              )
 
               let id = `${proyecto.id}-${sufijo[tipo] ?? 'fase'}`
               let n = 2
@@ -621,8 +747,9 @@ export const useSimuladorStore = create<SimuladorState>()(
               idsExist.add(id)
 
               const nueva: Asignacion = {
-                id, proyecto_id: proyecto.id, tipo, persona_id: personaId,
-                inicio, fin, duracion_dias: dur, dedicacion_pct: 1,
+                id, proyecto_id: proyecto.id, tipo, persona_id: elegido.persona_id,
+                inicio: elegido.inicio, fin: elegido.fin,
+                duracion_dias: elegido.duracion_dias, dedicacion_pct: elegido.dedicacion_pct,
                 predecesoras: pred ? [pred.id] : [], es_bloqueo: false,
               }
               asignaciones = [...asignaciones, nueva]
@@ -639,6 +766,105 @@ export const useSimuladorStore = create<SimuladorState>()(
           }
         })
         return { creadas }
+      },
+
+      // Pasa el plan existente al cálculo por horas: cada fase dura lo que le lleva a SU
+      // persona con su disponibilidad de ese año, en vez de los 10/15/8 días fijos de antes.
+      // Preserva id, cuenta, tipo, persona y dependencias; reencadena Configuración (día
+      // hábil siguiente al inicio del Relevamiento) y Pruebas (día hábil siguiente al fin
+      // de Configuración), y corre hacia adelante lo que haga falta para que la persona no
+      // se pise. Quedan afuera los bloqueos y las cuentas especiales (TASA), que no salen
+      // del template estándar.
+      recalcularDuraciones() {
+        let reporte: RecalculoReporte = { recalculadas: 0, movidas: [], intactas: 0 }
+        set(state => {
+          const feriados = feriadosDeConfig(state.config)
+          const proyectoPorId = new Map(state.proyectos.map(p => [p.id, p]))
+          const esRecalculable = (a: Asignacion) =>
+            !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial
+
+          const intactas = state.asignaciones.filter(a => !esRecalculable(a))
+          const aRecalcular = state.asignaciones.filter(esRecalculable)
+          if (aRecalcular.length === 0) return {}
+
+          // Las cuentas se procesan en el orden cronológico que ya tienen: no se reordenan.
+          const grupos = new Map<string, Asignacion[]>()
+          for (const a of aRecalcular) {
+            const key = a.proyecto_id as string
+            grupos.set(key, [...(grupos.get(key) ?? []), a])
+          }
+          const ordenGrupos = [...grupos.entries()].sort((g1, g2) => {
+            const min = (fases: Asignacion[]) => fases.reduce((m, a) => (a.inicio < m ? a.inicio : m), fases[0].inicio)
+            return min(g1[1]) < min(g2[1]) ? -1 : 1
+          })
+
+          const movidas: RecalculoReporte['movidas'] = []
+          let recalculadas: Asignacion[] = []
+
+          for (const [pid, fasesGrupo] of ordenGrupos) {
+            const proyecto = proyectoPorId.get(pid) ?? null
+            const enOrden = [...fasesGrupo].sort((a, b) =>
+              (ORDEN_TIPO[a.tipo] ?? 0) - (ORDEN_TIPO[b.tipo] ?? 0) || (a.inicio < b.inicio ? -1 : 1))
+            // Primera fase de cada tipo: es la que encadena. Si una cuenta tiene dos fases
+            // del mismo tipo, la repetida se ancla en su propia fecha (no se apila).
+            const primeraDeTipo = new Set<string>()
+            const nuevasDelGrupo = new Map<TipoFase, Asignacion>()
+
+            for (const a of enOrden) {
+              const encadena = !primeraDeTipo.has(a.tipo)
+              primeraDeTipo.add(a.tipo)
+              const predTipo: Partial<Record<TipoFase, TipoFase>> = {
+                Configuracion: 'Relevamiento', Pruebas: 'Configuracion',
+              }
+              const predT = predTipo[a.tipo]
+              const pred = encadena && predT ? nuevasDelGrupo.get(predT) ?? null : null
+
+              const horas = horasDeFase(state.config, proyecto, a.tipo)
+              // La fecha actual es el piso: el recálculo corre hacia adelante, nunca hacia
+              // atrás. El encadenado empuja una fase si arrancaba demasiado pronto, pero no
+              // adelanta lo que el equipo ya ubicó más tarde a propósito.
+              const encadenado = inicioDeFase(a.tipo, pred, a.persona_id, feriados)
+              const minInicio = encadenado && encadenado > a.inicio ? encadenado : a.inicio
+              const ocupadas = [...intactas, ...recalculadas]
+              const hueco = buscarHueco(
+                ocupadas, a.persona_id, a.proyecto_id, minInicio, horas, state.config, feriados,
+              )
+
+              const nueva: Asignacion = {
+                ...a,                       // preserva id, proyecto_id, tipo, persona_id, predecesoras
+                inicio: hueco.inicio,
+                fin: hueco.fin,
+                duracion_dias: hueco.duracion_dias,
+                dedicacion_pct: hueco.dedicacion_pct,
+              }
+              if (nueva.inicio !== a.inicio) {
+                const [desde, hasta] = a.inicio < nueva.inicio ? [a.inicio, nueva.inicio] : [nueva.inicio, a.inicio]
+                const magnitud = diasHabiles(desde, hasta, feriados) - 1
+                movidas.push({
+                  id: a.id,
+                  antes: a.inicio,
+                  despues: nueva.inicio,
+                  diasHabiles: nueva.inicio > a.inicio ? magnitud : -magnitud,
+                })
+              }
+              recalculadas = [...recalculadas, nueva]
+              if (encadena) nuevasDelGrupo.set(a.tipo, nueva)
+            }
+          }
+
+          // Mantiene el orden original del array (la UI y el export no dependen de él, pero
+          // así un export antes/después se puede comparar línea a línea).
+          const porId = new Map(recalculadas.map(a => [a.id, a]))
+          const asignaciones = state.asignaciones.map(a => porId.get(a.id) ?? a)
+          reporte = { recalculadas: recalculadas.length, movidas, intactas: intactas.length }
+
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return reporte
       },
 
       // Vacía todas las asignaciones (las cuentas y el equipo quedan; pasan a "sin planificar").
@@ -672,7 +898,16 @@ export const useSimuladorStore = create<SimuladorState>()(
         const personas = (data.personas as Persona[]) ?? seedPersonas
         const proyectos = (data.proyectos as Proyecto[]) ?? seedProyectos
         const asignaciones = (data.asignaciones as Asignacion[]) ?? seedAsignaciones
-        const config = (data.config as Config) ?? seedConfig
+        // Los planes exportados antes de las tablas de horas/disponibilidad no las traen:
+        // se completan con las del seed para que el cálculo por horas siga andando. Las
+        // asignaciones entran tal cual vienen (misma cantidad, mismas personas).
+        const configImportada = (data.config as Config) ?? seedConfig
+        const config: Config = {
+          ...configImportada,
+          horas_por_fase: configImportada.horas_por_fase ?? seedConfig.horas_por_fase,
+          disponibilidad: configImportada.disponibilidad ?? seedConfig.disponibilidad,
+          template_estandar: configImportada.template_estandar ?? seedConfig.template_estandar,
+        }
         set(state => ({
           ...conHistorial(state),
           personas,

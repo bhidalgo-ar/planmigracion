@@ -7,7 +7,7 @@
       "skills": ["configuracion", "meta4", "axton"],
       "capacidad_horas_semana": 40,
       "buffer_pct": 0,
-      "_nota": "Configuradora senior, freelance. Pasa a Toyota en fecha por definir (perilla). Riesgo critico: recurso unico con dominio pleno Meta4+Axton. Confirmar disponibilidad semanal real (freelance)."
+      "_nota": "Configuradora senior, freelance. Riesgo critico: recurso unico con dominio pleno Meta4+Axton. Su disponibilidad por ano esta en config.disponibilidad (70% en 2026, 90% en 2027)."
     },
     {
       "id": "moni",
@@ -15,7 +15,7 @@
       "skills": ["soporte", "configuracion", "axton"],
       "capacidad_horas_semana": 40,
       "buffer_pct": 0,
-      "_nota": "Full-time. Absorbe configuracion estandar. Tiene piso de soporte que la migracion NO debe comer (ver config.pisos_soporte_horas_semana). Piso = regla de roadmap."
+      "_nota": "Full-time. Absorbe configuracion estandar. Su soporte Axton se refleja en config.disponibilidad: 80% en 2026, 60% en 2027 (baja a medida que las cuentas salen en vivo)."
     },
     {
       "id": "leo",
@@ -23,7 +23,7 @@
       "skills": ["relevamiento", "soporte", "meta4"],
       "capacidad_horas_semana": 40,
       "buffer_pct": 0,
-      "_nota": "Full-time. Soporte Meta4 + relevamiento. Disponibilidad parcial para relevamiento segun el plan: ajustar buffer_pct o dedicacion de sus fases si su soporte Meta4 le come horas."
+      "_nota": "Full-time. Soporte Meta4 + relevamiento. Su soporte Meta4 se refleja en config.disponibilidad: 70% en 2026, 90% en 2027."
     },
     {
       "id": "lau",
@@ -37,9 +37,9 @@
       "id": "gaby_f",
       "alias": "Gaby F.",
       "skills": [],
-      "capacidad_horas_semana": 40,
+      "capacidad_horas_semana": 20,
       "buffer_pct": 0,
-      "_nota": "Recurso del equipo. Confirmar skills, rol y capacidad real (se cargo solo con alias por la regla de privacidad)."
+      "_nota": "Media jornada: 20 hs/sem contractuales (4 hs/dia = disponibilidad 0.50 fija en config.disponibilidad, no sube con los anos). PENDIENTE DE DEFINIR: rol definitivo y skills."
     },
     {
       "id": "axton",
