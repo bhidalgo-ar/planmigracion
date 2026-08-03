@@ -28,7 +28,7 @@ export function Insights() {
     const entrega = noBloqueo.reduce<string | null>((m, a) => (!m || a.fin > m ? a.fin : m), null)
 
     // por regla
-    const porRegla = { R2: 0, R3: 0 } as Record<'R2' | 'R3', number>
+    const porRegla = { R1: 0, R2: 0, R3: 0 } as Record<'R1' | 'R2' | 'R3', number>
     for (const v of violaciones) porRegla[v.tipo]++
 
     // entregas por trimestre (fin de Pruebas, o última fase de la cuenta)
@@ -55,7 +55,7 @@ export function Insights() {
     return { rojos, avisos, enRiesgo, entrega, verdes, ambarC, rojasC, porRegla, entregasTrim, carga, totalCuentas: proyectos.length, totalPersonas: personas.length }
   }, [personas, proyectos, asignaciones, violaciones])
 
-  const maxRegla = Math.max(1, data.porRegla.R2, data.porRegla.R3)
+  const maxRegla = Math.max(1, data.porRegla.R1, data.porRegla.R2, data.porRegla.R3)
   const maxTrim = Math.max(1, ...data.entregasTrim.map(([, n]) => n))
   const maxCarga = Math.max(1, ...data.carga.map(c => c.semRojas))
 
@@ -74,7 +74,11 @@ export function Insights() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
         {/* Conflictos por regla */}
         <Card titulo="Conflictos por regla">
-          {([['R2', 'Sobreasignación', 'var(--error)'], ['R3', 'Dependencias', 'var(--warn)']] as const).map(([k, nombre, color]) => (
+          {([
+            ['R1', 'Acantilado Susana', 'var(--error)'],
+            ['R2', 'Sobreasignación', 'var(--error)'],
+            ['R3', 'Dependencias', 'var(--warn)'],
+          ] as const).map(([k, nombre, color]) => (
             <Barra key={k} label={`${k} · ${nombre}`} valor={data.porRegla[k]} max={maxRegla} color={color} />
           ))}
         </Card>

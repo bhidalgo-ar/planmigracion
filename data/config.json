@@ -34,6 +34,25 @@
     { "fecha": "2026-12-25", "nombre": "Navidad" }
   ],
   "_feriados_nota": "Feriados nacionales 2026.",
+  "feriados_nacionales_2027": [
+    { "fecha": "2027-01-01", "nombre": "Año Nuevo" },
+    { "fecha": "2027-02-08", "nombre": "Carnaval" },
+    { "fecha": "2027-02-09", "nombre": "Carnaval" },
+    { "fecha": "2027-03-24", "nombre": "Dia de la Memoria" },
+    { "fecha": "2027-03-26", "nombre": "Viernes Santo" },
+    { "fecha": "2027-04-02", "nombre": "Dia del Veterano y de los Caidos en Malvinas" },
+    { "fecha": "2027-05-01", "nombre": "Dia del Trabajador" },
+    { "fecha": "2027-05-25", "nombre": "Dia de la Revolucion de Mayo" },
+    { "fecha": "2027-06-14", "nombre": "Paso a la Inmortalidad del Gral. Guemes" },
+    { "fecha": "2027-06-20", "nombre": "Dia de la Bandera (Belgrano)" },
+    { "fecha": "2027-07-09", "nombre": "Dia de la Independencia" },
+    { "fecha": "2027-08-16", "nombre": "Paso a la Inmortalidad del Gral. San Martin" },
+    { "fecha": "2027-10-11", "nombre": "Dia del Respeto a la Diversidad Cultural" },
+    { "fecha": "2027-11-22", "nombre": "Dia de la Soberania Nacional" },
+    { "fecha": "2027-12-08", "nombre": "Inmaculada Concepcion de Maria" },
+    { "fecha": "2027-12-25", "nombre": "Navidad" }
+  ],
+  "_feriados_2027_nota": "ESTIMADO, no oficial: fijos por ley + Pascua/Carnaval calculados por formula + trasladables al lunes mas cercano (Guemes, San Martin, Diversidad, Soberania) segun Ley 27.399. Confirmar contra el decreto del Poder Ejecutivo cuando se publique (puede sumar 'puentes' no laborables que no estan aca, y el traslado a lunes es discrecional: en 2026 el Dia de la Soberania NO se traslado pese a caer viernes, asi que 2027-11-22 es el dato mas incierto de la lista).",
   "horizonte": {
     "desde": "2026-06-01",
     "hasta": "2028-06-30",

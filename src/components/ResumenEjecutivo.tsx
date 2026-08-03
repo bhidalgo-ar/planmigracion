@@ -5,8 +5,8 @@ import { useSimuladorStore } from '../store'
 import { useUIStore } from '../uiStore'
 import { formatFecha, formatFechaCorta } from '../utils/dates'
 
-const REGLA_NOMBRE: Record<'R2' | 'R3', string> = {
-  R2: 'Sobreasignación de personas', R3: 'Dependencias fuera de orden',
+const REGLA_NOMBRE: Record<'R1' | 'R2' | 'R3', string> = {
+  R1: 'Acantilado Susana → Toyota', R2: 'Sobreasignación de personas', R3: 'Dependencias fuera de orden',
 }
 
 export function ResumenEjecutivo() {
@@ -34,7 +34,7 @@ export function ResumenEjecutivo() {
     const enRiesgo = cuentas.filter(c => c.estado === 'rojo').length
     const entregaMax = asignaciones.filter(a => !a.es_bloqueo).reduce<string | null>((m, a) => (!m || a.fin > m ? a.fin : m), null)
 
-    const porRegla: Record<'R2' | 'R3', string[]> = { R2: [], R3: [] }
+    const porRegla: Record<'R1' | 'R2' | 'R3', string[]> = { R1: [], R2: [], R3: [] }
     for (const v of violaciones) porRegla[v.tipo].push(v.mensaje)
 
     return { rojos: rojos.length, avisos: avisos.length, enRiesgo, entregaMax, cuentas, porRegla }
@@ -52,7 +52,7 @@ export function ResumenEjecutivo() {
     L.push(`Transición Susi → Toyota: ${transTexto}`, '')
     L.push('RIESGOS')
     let huboRiesgo = false
-    for (const k of ['R3', 'R2'] as const) {
+    for (const k of ['R1', 'R3', 'R2'] as const) {
       if (!d.porRegla[k].length) continue
       huboRiesgo = true
       L.push(`· ${REGLA_NOMBRE[k]}:`)
@@ -118,11 +118,11 @@ export function ResumenEjecutivo() {
 
         {/* Riesgos */}
         <h3 style={hTitle}>Riesgos detectados</h3>
-        {(['R3', 'R2'] as const).every(k => d.porRegla[k].length === 0) ? (
+        {(['R1', 'R3', 'R2'] as const).every(k => d.porRegla[k].length === 0) ? (
           <p style={{ fontSize: 13, color: '#22C55E', margin: '0 0 22px' }}>✓ Sin conflictos detectados con la configuración actual.</p>
         ) : (
           <div style={{ marginBottom: 22 }}>
-            {(['R3', 'R2'] as const).map(k => d.porRegla[k].length > 0 && (
+            {(['R1', 'R3', 'R2'] as const).map(k => d.porRegla[k].length > 0 && (
               <div key={k} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#15263D', marginBottom: 4 }}>{REGLA_NOMBRE[k]} <span style={{ color: '#8FA3BA', fontWeight: 400 }}>({d.porRegla[k].length})</span></div>
                 <ul style={{ margin: 0, paddingLeft: 20 }}>

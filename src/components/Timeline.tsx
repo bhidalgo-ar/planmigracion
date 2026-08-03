@@ -5,7 +5,7 @@ import { cascadaIds, useSimuladorStore } from '../store'
 import { DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, TipoFase } from '../types'
 import { TIPO_COLOR } from '../theme/fases'
-import { getMondayOfWeek, parseDate, toISO, diasHabiles, formatFechaCorta } from '../utils/dates'
+import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -131,6 +131,7 @@ export function Timeline() {
   const rowsRef   = useRef<HTMLDivElement>(null)
 
   const { row: ROW_H, bar: BAR_H } = DENSIDAD_PX[densidad]
+  const feriados = useMemo(() => feriadosDeConfig(config), [config])
 
   const horizonStart = useMemo(() => parseDate(config.horizonte.desde), [config.horizonte.desde])
   const horizonEnd   = useMemo(() => parseDate(config.horizonte.hasta), [config.horizonte.hasta])
@@ -149,11 +150,11 @@ export function Timeline() {
   const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
   const filaDe        = useMemo(() => new Map(personas.map((p, i) => [p.id, i])), [personas])
 
-  // barras R3 en rojo
+  // barras que se pintan enteras de rojo: dependencia rota (R3) o acantilado Susana (R1)
   const barRojo = useMemo(() => {
     const s = new Set<string>()
     for (const v of violaciones)
-      if (v.severidad === 'rojo' && v.tipo === 'R3') s.add(v.asignacion_id)
+      if (v.severidad === 'rojo' && (v.tipo === 'R3' || v.tipo === 'R1')) s.add(v.asignacion_id)
     return s
   }, [violaciones])
 
@@ -233,7 +234,7 @@ export function Timeline() {
     if (d.mode === 'resize') {
       let newFin = toISO(addDays(parseISO(d.origFin), d.dd))
       if (newFin < d.origInicio) newFin = d.origInicio
-      const dur = diasHabiles(d.origInicio, newFin)
+      const dur = diasHabiles(d.origInicio, newFin, feriados)
       if (dur !== d.origDur) updateAsignacion(d.id, { duracion_dias: dur })
       return
     }

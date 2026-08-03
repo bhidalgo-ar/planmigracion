@@ -21,12 +21,20 @@ const PRESETS: { label: string; fecha: string }[] = [
 ]
 
 export function ConfigPanel() {
-  const { config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON, clearAsignaciones, asignaciones } = useSimuladorStore()
+  const {
+    config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON,
+    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
+  } = useSimuladorStore()
   const { mostrarCarga, mostrarDep, toggleCarga, toggleDep, setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad } = useUIStore()
 
   const transicion = config.fechas_clave.transicion_susana_toyota
   const rojos = violaciones.filter(v => v.severidad === 'rojo').length
   const ambar = violaciones.filter(v => v.severidad === 'ambar').length
+
+  function handleAutoPlanificar() {
+    const { creadas } = autoPlanificarPendientes()
+    if (creadas === 0) alert('No hay fases pendientes: todas las cuentas ya tienen Relevamiento, Configuración y Pruebas.')
+  }
 
   function handleImport() {
     const input = document.createElement('input')
@@ -125,6 +133,10 @@ export function ConfigPanel() {
 
       {/* Acciones */}
       <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={undo} disabled={!historial.length}
+          style={{ ...actionBtn, opacity: historial.length ? 1 : 0.45, cursor: historial.length ? 'pointer' : 'default' }}
+          title="Deshacer el último cambio (Ctrl+Z)">↩ Deshacer</button>
+        <button onClick={handleAutoPlanificar} style={actionBtn} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin tareas (o con alguna fase faltante), buscando un hueco libre para no generar sobreasignación. No toca TASA/Toyota: esa se planifica con la perilla 'Inicio Toyota'.">🪄 Planificar pendientes</button>
         <button onClick={() => setResumen(true)} style={{ ...actionBtn, background: 'var(--celeste)', color: '#fff', border: 'none' }} title="Resumen ejecutivo imprimible">📄 Resumen</button>
         <button onClick={handleExport} style={actionBtn} title="Exportar plan como JSON">↓ Exportar</button>
         <button onClick={handleImport} style={actionBtn} title="Importar plan desde JSON">↑ Importar</button>
