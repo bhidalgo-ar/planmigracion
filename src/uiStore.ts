@@ -20,6 +20,8 @@ interface UIState {
   vista: Vista
   mostrarCarga: boolean
   mostrarDep: boolean
+  /** Mostrar el resaltado de conflictos (barras rojas y anillos) en el timeline. */
+  mostrarConflictos: boolean
   modal: Modal
   resumenAbierto: boolean
   timelineFull: boolean
@@ -33,6 +35,7 @@ interface UIState {
   setVista: (v: Vista) => void
   toggleCarga: () => void
   toggleDep: () => void
+  toggleConflictos: () => void
   toggleTimelineFull: () => void
   setZoom: (z: ZoomLevel) => void
   toggleSortCuentas: () => void
@@ -49,6 +52,7 @@ export const useUIStore = create<UIState>((set) => ({
   vista: 'timeline',
   mostrarCarga: true,
   mostrarDep: true,
+  mostrarConflictos: true,
   modal: null,
   resumenAbierto: false,
   timelineFull: false,
@@ -62,6 +66,7 @@ export const useUIStore = create<UIState>((set) => ({
   setVista: (vista) => set({ vista }),
   toggleCarga: () => set(s => ({ mostrarCarga: !s.mostrarCarga })),
   toggleDep: () => set(s => ({ mostrarDep: !s.mostrarDep })),
+  toggleConflictos: () => set(s => ({ mostrarConflictos: !s.mostrarConflictos })),
   toggleTimelineFull: () => set(s => ({ timelineFull: !s.timelineFull })),
   setZoom: (zoom) => set({ zoom }),
   toggleSortCuentas: () => set(s => ({ sortCuentas: s.sortCuentas === 'fecha' ? 'nombre' : 'fecha' })),

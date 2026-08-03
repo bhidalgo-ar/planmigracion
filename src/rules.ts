@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
-import { getSemanas, seSuperponen, toISO } from './utils/dates'
+import { getSemanas, toISO } from './utils/dates'
 
 /**
  * Regla 1 · Acantilado Susana → Toyota. Toda fase de Configuración asignada a `susi`
@@ -39,6 +39,15 @@ export function checkRule1(
   return violations
 }
 
+/**
+ * Regla 2 · Sobreasignación por persona/DÍA. Se evalúa día por día (lun-vie): si ese
+ * día concreto tiene tareas de más de un proyecto activas para la misma persona y la
+ * suma de dedicación supera el límite, es colapso. Evaluar por "semana completa" (como
+ * antes) daba falsos positivos: dos fases de distintos clientes que caen en la misma
+ * semana calendario pero en días que no se tocan (ej. una termina el martes, la otra
+ * empieza el jueves) NO son un choque real. Se agrupa por semana solo para no listar
+ * una violación por cada día (la línea de la semana con el peor día encontrado).
+ */
 export function checkRule2(
   asignaciones: Asignacion[],
   personas: Persona[],
@@ -48,44 +57,39 @@ export function checkRule2(
   const semanas = getSemanas(config.horizonte.desde, config.horizonte.hasta)
 
   for (const persona of personas) {
+    const propias = asignaciones.filter(a => a.persona_id === persona.id)
+    if (propias.length < 2) continue
+
     for (const lunes of semanas) {
-      const viernes = addDays(lunes, 4)
-      // Claves de semana en hora LOCAL (toISO) para ser consistentes con base/semanaIndex
-      // del timeline; toISOString (UTC) corría un día en husos al este de UTC.
       const lunesISO = toISO(lunes)
-      const viernesISO = toISO(viernes)
+      let peor: 'rojo' | 'ambar' | null = null
+      let asigRef: string | null = null
 
-      const activas = asignaciones.filter(
-        a => a.persona_id === persona.id && seSuperponen(a.inicio, a.fin, lunesISO, viernesISO),
-      )
-      if (activas.length === 0) continue
+      for (let i = 0; i < 5; i++) {
+        const diaISO = toISO(addDays(lunes, i))
+        const activasHoy = propias.filter(a => a.inicio <= diaISO && a.fin >= diaISO)
+        if (activasHoy.length < 2) continue
 
-      // Solo hay conflicto si las tareas solapadas son de distintos proyectos.
-      // Solapamiento de fases del mismo cliente es planificación esperada, no colapso.
-      const proyectosDistintos = new Set(activas.map(a => a.proyecto_id)).size
-      if (proyectosDistintos <= 1) continue
+        // Solo cuenta si son de distintos proyectos: solapar fases del mismo
+        // cliente el mismo día es planificación esperada, no colapso.
+        const proyectosDistintos = new Set(activasHoy.map(a => a.proyecto_id)).size
+        if (proyectosDistintos <= 1) continue
 
-      const carga = activas.reduce((sum, a) => sum + a.dedicacion_pct, 0)
-      // 100% es la carga planificada normal (una fase a tiempo completo) → verde.
-      // Rojo solo si SUPERA la capacidad (típicamente dos fases solapadas).
-      // Ámbar solo en la banda fraccional realmente cercana al límite (ej. 85–99%).
-      if (carga > 1.0) {
+        const carga = activasHoy.reduce((sum, a) => sum + a.dedicacion_pct, 0)
+        if (carga > 1.0) { peor = 'rojo'; asigRef = activasHoy[0].id; break }
+        if (carga > 0.8) { peor = 'ambar'; asigRef = activasHoy[0].id }
+      }
+
+      if (peor && asigRef) {
         violations.push({
           tipo: 'R2',
-          asignacion_id: activas[0].id,
+          asignacion_id: asigRef,
           persona_id: persona.id,
           semana: lunesISO,
-          mensaje: `${persona.alias} tiene ${Math.round(carga * 100)}% de carga la semana del ${lunesISO}`,
-          severidad: 'rojo',
-        })
-      } else if (carga > 0.8 && carga < 1.0) {
-        violations.push({
-          tipo: 'R2',
-          asignacion_id: activas[0].id,
-          persona_id: persona.id,
-          semana: lunesISO,
-          mensaje: `${persona.alias} cerca del límite (${Math.round(carga * 100)}%) semana del ${lunesISO}`,
-          severidad: 'ambar',
+          mensaje: peor === 'rojo'
+            ? `${persona.alias} tiene tareas de distintos clientes pisándose el mismo día en la semana del ${lunesISO}`
+            : `${persona.alias} cerca del límite de carga en la semana del ${lunesISO}`,
+          severidad: peor,
         })
       }
     }
