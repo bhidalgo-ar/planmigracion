@@ -24,6 +24,7 @@ export function ConfigPanel() {
   const {
     config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON,
     clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
+    recalcularDuraciones,
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
@@ -37,6 +38,24 @@ export function ConfigPanel() {
   function handleAutoPlanificar() {
     const { creadas } = autoPlanificarPendientes()
     if (creadas === 0) alert('No hay fases pendientes: todas las cuentas ya tienen Relevamiento, Configuración y Pruebas.')
+  }
+
+  function handleRecalcular() {
+    if (!asignaciones.length) return
+    if (!confirm('¿Recalcular la duración de todas las fases con las horas de cada fase y la disponibilidad de cada persona?\n\nNo cambia quién hace qué ni las fechas de inicio: solo cuánto dura cada fase. Se puede deshacer.')) return
+    const { recalculadas, cambiadas, intactas, conflictos } = recalcularDuraciones()
+    const estiradas = cambiadas.filter(c => c.diasDespues > c.diasAntes)
+    const L = [`${recalculadas} fases recalculadas, ${cambiadas.length} cambiaron de duración.`]
+    if (estiradas.length) {
+      const peor = estiradas.reduce((m, c) => (c.diasDespues - c.diasAntes > m.diasDespues - m.diasAntes ? c : m), estiradas[0])
+      L.push(`${estiradas.length} se estiraron (la que más: ${peor.id}, ${peor.diasAntes} → ${peor.diasDespues} días).`)
+    }
+    if (intactas) L.push(`${intactas} sin tocar (bloqueos y cuentas especiales).`)
+    L.push('', 'Las fechas de inicio no se movieron.')
+    L.push(conflictos
+      ? `Quedan ${conflictos} conflicto${conflictos !== 1 ? 's' : ''} en rojo por resolver: acomodá las barras en el timeline.`
+      : 'El plan cierra sin conflictos.')
+    alert(L.join('\n'))
   }
 
   function handleImport() {
@@ -143,6 +162,9 @@ export function ConfigPanel() {
           style={{ ...actionBtn, opacity: historial.length ? 1 : 0.45, cursor: historial.length ? 'pointer' : 'default' }}
           title="Deshacer el último cambio (Ctrl+Z)">↩ Deshacer</button>
         <button onClick={handleAutoPlanificar} style={actionBtn} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin tareas (o con alguna fase faltante), buscando un hueco libre para no generar sobreasignación. No toca TASA/Toyota: esa se planifica con la perilla 'Inicio Toyota'.">🪄 Planificar pendientes</button>
+        <button onClick={handleRecalcular} disabled={!asignaciones.length}
+          style={{ ...actionBtn, opacity: asignaciones.length ? 1 : 0.45, cursor: asignaciones.length ? 'pointer' : 'default' }}
+          title="Recalcula la duración de cada fase con sus horas de esfuerzo y la disponibilidad de la persona asignada, y reencadena Configuración y Pruebas. No reasigna personas ni reordena cuentas.">⏱ Recalcular duraciones</button>
         <button onClick={() => setResumen(true)} style={{ ...actionBtn, background: 'var(--celeste)', color: '#fff', border: 'none' }} title="Resumen ejecutivo imprimible">📄 Resumen</button>
         <button onClick={handleExport} style={actionBtn} title="Exportar plan como JSON">↓ Exportar</button>
         <button onClick={handleImport} style={actionBtn} title="Importar plan desde JSON">↑ Importar</button>

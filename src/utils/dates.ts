@@ -51,6 +51,83 @@ function nextWorkingDay(d: Date, feriados: ReadonlySet<string>): Date {
   return result
 }
 
+/**
+ * Día hábil siguiente a `fechaISO` (nunca la misma fecha). Es el handoff correcto entre
+ * fases: Pruebas arranca el día hábil siguiente al fin de Configuración, sin esperar
+ * al lunes de la semana que viene (lo que costaba hasta 4 días hábiles por fase).
+ */
+export function siguienteDiaHabil(fechaISO: string, feriados: ReadonlySet<string> = SIN_FERIADOS): string {
+  return toISO(nextWorkingDay(addDays(parseISO(fechaISO), 1), feriados))
+}
+
+/**
+ * Disponibilidad de una persona para migración en un año dado: la fracción de la jornada
+ * de 8 hs que le dedica. Sale de `config.disponibilidad` (perilla). Si la persona o el año
+ * no están en la tabla, cae al `default` de la tabla y, en última instancia, a 1 (jornada
+ * completa) — así un plan importado sin la tabla sigue calculando en vez de romperse.
+ */
+export function disponibilidadDe(personaId: string, anio: number, config: Config): number {
+  const tabla = config.disponibilidad
+  const porPersona = tabla?.por_persona_ano?.[personaId]
+  const delAnio = porPersona?.[String(anio)]
+  if (typeof delAnio === 'number') return delAnio
+  return typeof tabla?.default === 'number' ? tabla.default : 1
+}
+
+export interface FinPorHoras {
+  fin: string
+  duracion_dias: number
+  /** Promedio de disponibilidad de los días hábiles consumidos. Va a `dedicacion_pct`. */
+  dedicacion_promedio: number
+}
+
+/**
+ * Fin de una fase derivado de HORAS de esfuerzo, no de una duración fija: recorre día por
+ * día desde `inicio`, saltea fines de semana y feriados, y por cada día hábil consume
+ * `8 × disponibilidad(persona, año de ESE día)`. Termina el día en que el acumulado llega
+ * a `horasObjetivo`.
+ *
+ * El consumo es día por día (y no "disponibilidad de la fecha de inicio para toda la fase")
+ * justamente para que una fase que cruza el 31/12 use la disponibilidad de cada año: si no,
+ * correr la barra un día sobre el fin de año cambiaría la duración de golpe.
+ */
+export function calcularFinPorHoras(
+  inicio: string,
+  horasObjetivo: number,
+  personaId: string,
+  config: Config,
+  feriados: ReadonlySet<string> = SIN_FERIADOS,
+): FinPorHoras {
+  const horasJornada = config.unidades?.horas_por_dia ?? 8
+  let dia = nextWorkingDay(parseISO(inicio), feriados)
+  let horas = 0
+  let dias = 0
+  let sumaDisponibilidad = 0
+
+  // Siempre consume al menos un día hábil: una fase de 0 hs igual ocupa el día que arranca.
+  while (true) {
+    const disp = disponibilidadDe(personaId, dia.getFullYear(), config)
+    dias++
+    sumaDisponibilidad += disp
+    horas += horasJornada * disp
+    if (horas >= horasObjetivo || dias >= MAX_DIAS_FASE) break
+    dia = nextWorkingDay(addDays(dia, 1), feriados)
+  }
+
+  return {
+    fin: toISO(dia),
+    duracion_dias: dias,
+    dedicacion_promedio: redondear2(sumaDisponibilidad / dias),
+  }
+}
+
+/** Tope de seguridad: evita un bucle infinito si la disponibilidad de la persona es 0. */
+const MAX_DIAS_FASE = 2000
+
+function redondear2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 /** Calcula la fecha fin dado un inicio (ISO) y duración en días hábiles (inclusivo). Saltea fines de semana y feriados nacionales si se pasa `feriados`. */
 export function calcularFin(inicio: string, duracionDias: number, feriados: ReadonlySet<string> = SIN_FERIADOS): string {
   let d = nextWorkingDay(parseISO(inicio), feriados)

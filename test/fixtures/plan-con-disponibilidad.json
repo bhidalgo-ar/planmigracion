@@ -1,0 +1,1178 @@
+{
+ "personas": [
+  {
+   "id": "susi",
+   "alias": "Susi",
+   "skills": [
+    "configuracion",
+    "meta4",
+    "axton"
+   ],
+   "capacidad_horas_semana": 40,
+   "buffer_pct": 0,
+   "_nota": "Configuradora senior, freelance. Releva SOLO Marval. Configura Finadiet, Copetro, Marval. Disponibilidad por año en config.disponibilidad (70% en 2026, 90% en 2027). Riesgo critico: recurso unico."
+  },
+  {
+   "id": "moni",
+   "alias": "Moni",
+   "skills": [
+    "soporte",
+    "configuracion",
+    "axton"
+   ],
+   "capacidad_horas_semana": 40,
+   "buffer_pct": 0,
+   "_nota": "Full-time. Configuradora principal de cuentas estandar (POF, Lowsedo, TIM, Campari, Piano, DLA). Tiene piso de soporte Axton que la migracion NO debe comer."
+  },
+  {
+   "id": "leo",
+   "alias": "Leo",
+   "skills": [
+    "relevamiento",
+    "soporte",
+    "meta4"
+   ],
+   "capacidad_horas_semana": 40,
+   "buffer_pct": 0,
+   "_nota": "Full-time. Soporte Meta4 + relevamiento. UNICO relevador de cuentas estandar (Sergio fuera del relevamiento por decision jul-2026). Confirmar piso de soporte Meta4."
+  },
+  {
+   "id": "lau",
+   "alias": "Lau",
+   "skills": [
+    "relevamiento",
+    "testeo"
+   ],
+   "capacidad_horas_semana": 40,
+   "buffer_pct": 0,
+   "_nota": "Full-time, dedicada 100% a Toyota/TASA."
+  },
+  {
+   "id": "gaby_f",
+   "alias": "Gaby F.",
+   "skills": [],
+   "capacidad_horas_semana": 20,
+   "buffer_pct": 0,
+   "_nota": "Releva SOLO POF y Finadiet. Configura y prueba Carrier y Sportline. PENDIENTE DE DEFINIR: rol definitivo, skills y capacidad real."
+  },
+  {
+   "id": "axton",
+   "alias": "Axton",
+   "skills": [],
+   "rol": "configuracion",
+   "capacidad_horas_semana": 40,
+   "buffer_pct": 0,
+   "custom": true
+  }
+ ],
+ "proyectos": [
+  {
+   "id": "tim",
+   "nombre": "TIM",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "Primera cuenta en el board (ene 2026). Relevamiento Leo."
+  },
+  {
+   "id": "piano",
+   "nombre": "Piano",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "Relevamiento Leo, configuracion Moni."
+  },
+  {
+   "id": "coty",
+   "nombre": "Coty",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "Cuenta piloto - primera medida."
+  },
+  {
+   "id": "pof",
+   "nombre": "POF",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "lowsedo",
+   "nombre": "Lowsedo",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 3,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "3 entidades."
+  },
+  {
+   "id": "marval",
+   "nombre": "Marval",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "campari",
+   "nombre": "Campari",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "copetro",
+   "nombre": "Copetro",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "finadiet",
+   "nombre": "Finadiet",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "dla",
+   "nombre": "DLA",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": ""
+  },
+  {
+   "id": "carrier",
+   "nombre": "Carrier",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 2,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "2 entidades."
+  },
+  {
+   "id": "sportline",
+   "nombre": "Sportline",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": false,
+   "_nota": "La mas compleja - template estandar no aplica del todo."
+  },
+  {
+   "id": "tasa",
+   "nombre": "TASA",
+   "complejidad": null,
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": false,
+   "especial": true,
+   "_nota": "Toyota, 8.000 empleados. Proyecto especial."
+  },
+  {
+   "id": "bonafide",
+   "nombre": "Bonafide",
+   "complejidad": "baja",
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": true,
+   "especial": false,
+   "_nota": "<10 empleados. Tier chico (factor 0.25)."
+  },
+  {
+   "id": "gsma",
+   "nombre": "GSMA",
+   "complejidad": "baja",
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": true,
+   "especial": false,
+   "_nota": "<10 empleados. Tier chico (factor 0.25)."
+  },
+  {
+   "id": "aysa",
+   "nombre": "Aysa",
+   "complejidad": "baja",
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": true,
+   "especial": false,
+   "_nota": "<10 empleados. Tier chico (factor 0.25)."
+  },
+  {
+   "id": "ford",
+   "nombre": "Ford",
+   "complejidad": "baja",
+   "depende_retro": null,
+   "entidades": 1,
+   "quick_win": true,
+   "especial": false,
+   "_nota": "<10 empleados. Tier chico (factor 0.25)."
+  }
+ ],
+ "asignaciones": [
+  {
+   "id": "coty-relev",
+   "proyecto_id": "coty",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-06-08",
+   "fin": "2026-06-23",
+   "duracion_dias": 12,
+   "dedicacion_pct": 1,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "coty-config",
+   "proyecto_id": "coty",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2026-06-29",
+   "fin": "2026-07-16",
+   "duracion_dias": 13,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "coty-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "coty-pruebas",
+   "proyecto_id": "coty",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2026-07-20",
+   "fin": "2026-08-06",
+   "duracion_dias": 14,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "coty-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "pof-relev",
+   "proyecto_id": "pof",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-07-20",
+   "fin": "2026-07-28",
+   "duracion_dias": 7,
+   "dedicacion_pct": 1,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "pof-config",
+   "proyecto_id": "pof",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2026-08-07",
+   "fin": "2026-08-21",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.89,
+   "predecesoras": [
+    "pof-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tasa-relev",
+   "proyecto_id": "tasa",
+   "tipo": "Relevamiento",
+   "persona_id": "lau",
+   "inicio": "2026-10-05",
+   "fin": "2027-02-12",
+   "duracion_dias": 88,
+   "dedicacion_pct": 1,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tasa-config",
+   "proyecto_id": "tasa",
+   "tipo": "Configuracion",
+   "persona_id": "lau",
+   "inicio": "2026-11-11",
+   "fin": "2027-03-12",
+   "duracion_dias": 88,
+   "dedicacion_pct": 0.12,
+   "predecesoras": [],
+   "es_bloqueo": true
+  },
+  {
+   "id": "tasa-pruebas",
+   "proyecto_id": "tasa",
+   "tipo": "Pruebas",
+   "persona_id": "lau",
+   "inicio": "2027-03-23",
+   "fin": "2027-05-27",
+   "duracion_dias": 44,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "tasa-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "lowsedo-relev",
+   "proyecto_id": "lowsedo",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-08-04",
+   "fin": "2026-08-20",
+   "duracion_dias": 12,
+   "dedicacion_pct": 0.62,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tim-relev",
+   "proyecto_id": "tim",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-08-21",
+   "fin": "2026-09-04",
+   "duracion_dias": 11,
+   "dedicacion_pct": 0.62,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "copetro-relev",
+   "proyecto_id": "copetro",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-09-05",
+   "fin": "2026-09-21",
+   "duracion_dias": 11,
+   "dedicacion_pct": 0.65,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "campari-relev",
+   "proyecto_id": "campari",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-10-06",
+   "fin": "2026-10-21",
+   "duracion_dias": 11,
+   "dedicacion_pct": 0.65,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "piano-relev",
+   "proyecto_id": "piano",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-08-26",
+   "fin": "2026-09-08",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.7,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "dla-relev",
+   "proyecto_id": "dla",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-09-24",
+   "fin": "2026-10-07",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.7,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "finadiet-relev",
+   "proyecto_id": "finadiet",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-08-03",
+   "fin": "2026-08-21",
+   "duracion_dias": 14,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "carrier-relev",
+   "proyecto_id": "carrier",
+   "tipo": "Relevamiento",
+   "persona_id": "leo",
+   "inicio": "2026-10-10",
+   "fin": "2026-10-30",
+   "duracion_dias": 14,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "sportline-relev",
+   "proyecto_id": "sportline",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-09-11",
+   "fin": "2026-09-30",
+   "duracion_dias": 14,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "gsma-relev",
+   "proyecto_id": "gsma",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-10-22",
+   "fin": "2026-11-04",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "bonafide-relev",
+   "proyecto_id": "bonafide",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2026-11-06",
+   "fin": "2026-11-19",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "aysa-relev",
+   "proyecto_id": "aysa",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2027-01-04",
+   "fin": "2027-01-15",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "ford-relev",
+   "proyecto_id": "ford",
+   "tipo": "Relevamiento",
+   "persona_id": "gaby_f",
+   "inicio": "2027-01-18",
+   "fin": "2027-01-29",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.5,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "marval-relev",
+   "proyecto_id": "marval",
+   "tipo": "Relevamiento",
+   "persona_id": "susi",
+   "inicio": "2026-08-10",
+   "fin": "2026-08-24",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.72,
+   "predecesoras": [],
+   "es_bloqueo": false
+  },
+  {
+   "id": "pof-pruebas",
+   "proyecto_id": "pof",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2026-08-22",
+   "fin": "2026-09-07",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "pof-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "lowsedo-config",
+   "proyecto_id": "lowsedo",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2026-11-03",
+   "fin": "2026-11-13",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "lowsedo-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "lowsedo-pruebas",
+   "proyecto_id": "lowsedo",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2026-11-14",
+   "fin": "2026-12-01",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "lowsedo-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "finadiet-config",
+   "proyecto_id": "finadiet",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2026-08-25",
+   "fin": "2026-09-04",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "finadiet-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "finadiet-pruebas",
+   "proyecto_id": "finadiet",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2026-09-07",
+   "fin": "2026-09-21",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "finadiet-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tim-config",
+   "proyecto_id": "tim",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2026-10-21",
+   "fin": "2026-11-02",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "tim-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tim-pruebas",
+   "proyecto_id": "tim",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2026-11-02",
+   "fin": "2026-11-16",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "tim-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "campari-config",
+   "proyecto_id": "campari",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2027-02-09",
+   "fin": "2027-02-22",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "campari-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "campari-pruebas",
+   "proyecto_id": "campari",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2027-02-24",
+   "fin": "2027-03-10",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "campari-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "sportline-config",
+   "proyecto_id": "sportline",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2027-02-25",
+   "fin": "2027-03-09",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "sportline-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "sportline-pruebas",
+   "proyecto_id": "sportline",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2027-03-15",
+   "fin": "2027-03-31",
+   "duracion_dias": 11,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "sportline-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "gsma-config",
+   "proyecto_id": "gsma",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2027-04-22",
+   "fin": "2027-05-04",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "gsma-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "gsma-pruebas",
+   "proyecto_id": "gsma",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2027-05-10",
+   "fin": "2027-05-17",
+   "duracion_dias": 6,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "gsma-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "aysa-config",
+   "proyecto_id": "aysa",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2027-06-29",
+   "fin": "2027-07-12",
+   "duracion_dias": 9,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "aysa-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "aysa-pruebas",
+   "proyecto_id": "aysa",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2027-07-12",
+   "fin": "2027-07-19",
+   "duracion_dias": 6,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "aysa-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "marval-config",
+   "proyecto_id": "marval",
+   "tipo": "Configuracion",
+   "persona_id": "moni",
+   "inicio": "2026-09-08",
+   "fin": "2026-09-23",
+   "duracion_dias": 12,
+   "dedicacion_pct": 0.72,
+   "predecesoras": [
+    "marval-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "marval-pruebas",
+   "proyecto_id": "marval",
+   "tipo": "Pruebas",
+   "persona_id": "moni",
+   "inicio": "2026-09-28",
+   "fin": "2026-10-19",
+   "duracion_dias": 15,
+   "dedicacion_pct": 0.74,
+   "predecesoras": [
+    "marval-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "copetro-config",
+   "proyecto_id": "copetro",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2026-12-01",
+   "fin": "2026-12-17",
+   "duracion_dias": 12,
+   "dedicacion_pct": 0.77,
+   "predecesoras": [
+    "copetro-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "copetro-pruebas",
+   "proyecto_id": "copetro",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2026-12-21",
+   "fin": "2027-01-11",
+   "duracion_dias": 14,
+   "dedicacion_pct": 0.77,
+   "predecesoras": [
+    "copetro-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "dla-config",
+   "proyecto_id": "dla",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2027-01-11",
+   "fin": "2027-01-27",
+   "duracion_dias": 13,
+   "dedicacion_pct": 0.81,
+   "predecesoras": [
+    "dla-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "dla-pruebas",
+   "proyecto_id": "dla",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2027-02-01",
+   "fin": "2027-02-24",
+   "duracion_dias": 16,
+   "dedicacion_pct": 0.73,
+   "predecesoras": [
+    "dla-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "carrier-config",
+   "proyecto_id": "carrier",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2027-02-10",
+   "fin": "2027-02-25",
+   "duracion_dias": 12,
+   "dedicacion_pct": 0.76,
+   "predecesoras": [
+    "carrier-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "carrier-pruebas",
+   "proyecto_id": "carrier",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2027-03-08",
+   "fin": "2027-03-30",
+   "duracion_dias": 15,
+   "dedicacion_pct": 0.78,
+   "predecesoras": [
+    "carrier-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "piano-config",
+   "proyecto_id": "piano",
+   "tipo": "Configuracion",
+   "persona_id": "susi",
+   "inicio": "2026-09-28",
+   "fin": "2026-10-14",
+   "duracion_dias": 12,
+   "dedicacion_pct": 0.78,
+   "predecesoras": [
+    "piano-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "piano-pruebas",
+   "proyecto_id": "piano",
+   "tipo": "Pruebas",
+   "persona_id": "susi",
+   "inicio": "2026-10-14",
+   "fin": "2026-11-02",
+   "duracion_dias": 14,
+   "dedicacion_pct": 0.78,
+   "predecesoras": [
+    "piano-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "bonafide-config",
+   "proyecto_id": "bonafide",
+   "tipo": "Configuracion",
+   "persona_id": "leo",
+   "inicio": "2027-03-02",
+   "fin": "2027-03-15",
+   "duracion_dias": 10,
+   "dedicacion_pct": 0.85,
+   "predecesoras": [
+    "bonafide-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "bonafide-pruebas",
+   "proyecto_id": "bonafide",
+   "tipo": "Pruebas",
+   "persona_id": "leo",
+   "inicio": "2027-03-16",
+   "fin": "2027-03-25",
+   "duracion_dias": 7,
+   "dedicacion_pct": 0.88,
+   "predecesoras": [
+    "bonafide-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "ford-config",
+   "proyecto_id": "ford",
+   "tipo": "Configuracion",
+   "persona_id": "leo",
+   "inicio": "2027-05-06",
+   "fin": "2027-05-18",
+   "duracion_dias": 9,
+   "dedicacion_pct": 0.93,
+   "predecesoras": [
+    "ford-relev"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "ford-pruebas",
+   "proyecto_id": "ford",
+   "tipo": "Pruebas",
+   "persona_id": "leo",
+   "inicio": "2027-05-19",
+   "fin": "2027-05-27",
+   "duracion_dias": 6,
+   "dedicacion_pct": 0.95,
+   "predecesoras": [
+    "ford-config"
+   ],
+   "es_bloqueo": false
+  },
+  {
+   "id": "tasa-config_2",
+   "proyecto_id": "tasa",
+   "tipo": "Configuracion",
+   "persona_id": "axton",
+   "inicio": "2026-11-16",
+   "fin": "2027-03-31",
+   "duracion_dias": 90,
+   "dedicacion_pct": 1,
+   "predecesoras": [
+    "tasa-relev"
+   ],
+   "es_bloqueo": false
+  }
+ ],
+ "config": {
+  "_doc": "Configuracion global del simulador. Estas son las PERILLAS que se mueven para hacer 'que pasa si'.",
+  "unidades": {
+   "horas_por_dia": 8,
+   "dias_por_semana": 5,
+   "_nota": "1 semana plena = 5 dias = 40 hs."
+  },
+  "fechas_clave": {
+   "transicion_susana_toyota": "2026-10-01",
+   "retro_ready_axton": null,
+   "_nota": "transicion_susana_toyota: dispara el alta automatica de TASA (Relev Lau, Config Axton, Pruebas Lau). retro_ready_axton: roadmap."
+  },
+  "pisos_soporte_horas_semana": {
+   "moni": null,
+   "leo": null,
+   "_nota": "Horas semanales reservadas para soporte. Regla de piso = roadmap (no MVP)."
+  },
+  "feriados_nacionales_2026": [
+   {
+    "fecha": "2026-01-01",
+    "nombre": "Año Nuevo"
+   },
+   {
+    "fecha": "2026-02-16",
+    "nombre": "Carnaval"
+   },
+   {
+    "fecha": "2026-02-17",
+    "nombre": "Carnaval"
+   },
+   {
+    "fecha": "2026-03-24",
+    "nombre": "Dia de la Memoria"
+   },
+   {
+    "fecha": "2026-04-02",
+    "nombre": "Dia del Veterano y de los Caidos en Malvinas"
+   },
+   {
+    "fecha": "2026-04-03",
+    "nombre": "Viernes Santo"
+   },
+   {
+    "fecha": "2026-05-01",
+    "nombre": "Dia del Trabajador"
+   },
+   {
+    "fecha": "2026-05-25",
+    "nombre": "Dia de la Revolucion de Mayo"
+   },
+   {
+    "fecha": "2026-06-15",
+    "nombre": "Paso a la Inmortalidad del Gral. Guemes"
+   },
+   {
+    "fecha": "2026-06-20",
+    "nombre": "Dia de la Bandera (Belgrano)"
+   },
+   {
+    "fecha": "2026-07-09",
+    "nombre": "Dia de la Independencia"
+   },
+   {
+    "fecha": "2026-08-17",
+    "nombre": "Paso a la Inmortalidad del Gral. San Martin"
+   },
+   {
+    "fecha": "2026-10-12",
+    "nombre": "Dia del Respeto a la Diversidad Cultural"
+   },
+   {
+    "fecha": "2026-11-20",
+    "nombre": "Dia de la Soberania Nacional"
+   },
+   {
+    "fecha": "2026-12-08",
+    "nombre": "Inmaculada Concepcion de Maria"
+   },
+   {
+    "fecha": "2026-12-25",
+    "nombre": "Navidad"
+   }
+  ],
+  "_feriados_nota": "Feriados nacionales 2026.",
+  "horizonte": {
+   "desde": "2026-06-01",
+   "hasta": "2027-10-31"
+  },
+  "template_estandar": {
+   "_doc": "Baseline derivado del tablero Monday EMPRESA - MMAAAA (board 18420861674). Cuenta estandar de 1 entidad. Aplica al ~80% de las cuentas. Sportline y TASA quedan fuera por complejidad.",
+   "fuente": "Monday board 18420861674 / subitems 18420861681, columna de horas",
+   "horas_relevador": 55.5,
+   "horas_configurador": 159,
+   "horas_axton_externo": 18,
+   "dias_habiles_span": 23,
+   "solapamiento_relev_config_dias": 6,
+   "fases": {
+    "Relevamiento": {
+     "dias": 7,
+     "horas": 55.5,
+     "offset": 0,
+     "ded": 1
+    },
+    "Configuracion": {
+     "dias": 10,
+     "horas": 71,
+     "offset": 1,
+     "ded": 0.89
+    },
+    "Pruebas": {
+     "dias": 12,
+     "horas": 88,
+     "offset": 11,
+     "ded": 0.92
+    }
+   },
+   "_supuestos_a_confirmar": [
+    "4 hs de TRACK/TEST de entregables Axton dentro de Configuracion (estimacion, no medido)",
+    "BP2 Formato asiento (16 hs): sin definir si lo hace Axton o Gaby+Manager en Claude. Hoy contabilizado como Axton (externo).",
+    "1 sola ronda de paralelo (decision explicita del Manager: si se posterga, se posterga)",
+    "Sin multiplicador por complejidad ni por entidad extra (Carrier 2, Lowsedo 3)",
+    "Feriados 2027 no cargados: Marval y TASA cruzan a 2027"
+   ],
+   "_reparto_axton": {
+    "BP2 Recibos de sueldo": "Axton (1 h)",
+    "BP2 Acreditacion bancaria": "Axton (1 h)",
+    "BP2 Formato asiento": "SIN DEFINIR - Axton o H&A (16 h)",
+    "BP2 Redefinicion de cuentas": "Moni (16 h)",
+    "BP2 Archivos sindicato": "Moni (2 h)"
+   }
+  },
+  "feriados_nacionales_2027": [
+   {
+    "fecha": "2027-01-01",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-02-08",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-02-09",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-03-24",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-03-26",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-04-02",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-05-01",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-05-25",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-06-14",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-06-20",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-07-09",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-08-16",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-10-11",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-11-22",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-12-08",
+    "nombre": "(estimado)"
+   },
+   {
+    "fecha": "2027-12-25",
+    "nombre": "(estimado)"
+   }
+  ],
+  "horas_por_fase": {
+   "_doc": "Horas de esfuerzo por fase. Fuente: tablero Monday 18420861674 (EMPRESA - MMAAAA), columna de horas.",
+   "estandar": {
+    "Relevamiento": 55.5,
+    "Configuracion": 71.0,
+    "Pruebas": 88.0
+   },
+   "chica": {
+    "Relevamiento": 37.1,
+    "Configuracion": 67.1,
+    "Pruebas": 45.2
+   },
+   "_chica_nota": "Cuentas de <10 empleados. Fijo + 0.25 x variable. HIPOTESIS sin medir.",
+   "_criterio_chica": "proyecto.complejidad === 'baja'"
+  },
+  "disponibilidad": {
+   "_doc": "Fraccion de la jornada de 8 hs que cada persona dedica a migracion, por ano. Perilla.",
+   "por_persona_ano": {
+    "leo": {
+     "2026": 0.7,
+     "2027": 0.9
+    },
+    "susi": {
+     "2026": 0.7,
+     "2027": 0.9
+    },
+    "moni": {
+     "2026": 0.8,
+     "2027": 0.6
+    },
+    "gaby_f": {
+     "2026": 0.5,
+     "2027": 0.5
+    },
+    "lau": {
+     "2026": 1.0,
+     "2027": 1.0
+    },
+    "axton": {
+     "2026": 1.0,
+     "2027": 1.0
+    }
+   },
+   "default": 1.0,
+   "_nota": "Moni BAJA en 2027: su soporte Axton crece a medida que las cuentas salen en vivo. Gaby no sube: son 20 h/sem contractuales, no disponibilidad variable."
+  }
+ }
+}
