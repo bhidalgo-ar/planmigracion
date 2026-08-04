@@ -56,7 +56,8 @@ html, body, #root {
      separación CVD, piso de croma, banda de luminosidad y contraste. */
   --viz-relev:   #7B2FBE;
   --viz-config:  #00ACD4;
-  --viz-vivo:    #2FA35A;   /* cuenta ya en vivo en Axton */
+  --viz-vivo:    #2FA35A;   /* cuenta ya en vivo en Axton (via este programa de migración) */
+  --viz-legacy:  #B8860B;   /* cartera legacy: ya estaba en Axton antes de este programa */
   --viz-track:   #E4E1DD;   /* pista: cuentas que siguen en Meta 4 sin empezar */
   --viz-grid:    var(--line-soft);
 
@@ -118,6 +119,7 @@ html, body, #root {
   --viz-relev:   #9D5FD8;
   --viz-config:  #19A0C1;
   --viz-vivo:    #2FA35A;
+  --viz-legacy:  #B5607A;
   --viz-track:   #2B3D50;
   --viz-grid:    var(--line);
 }

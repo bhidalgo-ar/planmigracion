@@ -27,11 +27,15 @@ const VIZ_FASE: Record<TipoFase, string> = {
  * barra superior, que están siempre a la vista.
  */
 export function Insights() {
-  const { personas, proyectos, asignaciones } = useSimuladorStore()
+  const { personas, proyectos, asignaciones, config } = useSimuladorStore()
   const seleccionarCliente = useSimuladorStore(s => s.seleccionarCliente)
   const setVista = useUIStore(s => s.setVista)
 
   const hoyISO = toISO(new Date())
+  const legacy = config.cartera_legacy_axton?.cuentas ?? []
+  const overrideIds = config.cartera_legacy_axton?.cuentas_programa_ya_en_vivo ?? []
+  const legacyCount = legacy.length
+  const overrideKey = overrideIds.join('|')
 
   const d = useMemo(() => {
     const cuentas = cuentasMigracion(proyectos, asignaciones)
@@ -39,9 +43,10 @@ export function Insights() {
       cuentas,
       trimestres: migracionPorTrimestre(cuentas),
       carga: cargaPorPersona(personas, cuentas),
-      r: resumenMigracion(cuentas, hoyISO),
+      r: resumenMigracion(cuentas, hoyISO, new Set(overrideIds)),
     }
-  }, [personas, proyectos, asignaciones, hoyISO])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personas, proyectos, asignaciones, hoyISO, overrideKey])
 
   function irACuenta(id: string) {
     seleccionarCliente(id)
@@ -63,11 +68,11 @@ export function Insights() {
             : null}
         />
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 14 }}>
-          <Kpi label="Cuentas a migrar" valor={d.r.totalCuentas}
+          <Kpi label="Cuentas del programa" valor={d.r.totalCuentas}
             nota={d.r.sinPlanificar ? `${d.r.planificadas} planificadas` : 'todas planificadas'} />
-          <Kpi label="Ya en vivo en Axton" valor={`${d.r.enVivoHoy}/${d.r.totalCuentas}`}
-            nota={d.r.enMigracionHoy ? `${d.r.enMigracionHoy} en migración hoy` : 'sin trabajo en curso hoy'} />
-          <Kpi label="Primera salida" valor={d.r.primeraSalida ? formatFechaCorta(d.r.primeraSalida) : '—'}
+          <Kpi label="Cartera en Axton hoy" valor={`${legacyCount + d.r.enVivoHoy}/${legacyCount + d.r.totalCuentas}`}
+            nota={`${legacyCount} legacy + ${d.r.enVivoHoy} migrada${d.r.enVivoHoy !== 1 ? 's' : ''} por este programa`} />
+          <Kpi label="Primera salida del programa" valor={d.r.primeraSalida ? formatFechaCorta(d.r.primeraSalida) : '—'}
             nota={d.r.primeraSalida ? `año ${d.r.primeraSalida.slice(0, 4)}` : ''} />
           <Kpi label="Arranque del plan" valor={d.r.inicioPrograma ? formatFechaCorta(d.r.inicioPrograma) : '—'}
             nota={d.r.inicioPrograma ? `año ${d.r.inicioPrograma.slice(0, 4)}` : ''} />
@@ -76,7 +81,7 @@ export function Insights() {
 
       {/* ── Fila media: avance por trimestre + reparto del equipo ───────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)', gap: 18, marginBottom: 18 }}>
-        <TrimestresCard trimestres={d.trimestres} total={d.r.totalCuentas} />
+        <TrimestresCard trimestres={d.trimestres} totalPrograma={d.r.totalCuentas} legacyCount={legacyCount} />
         <EquipoCard carga={d.carga} />
       </div>
 
@@ -89,20 +94,27 @@ export function Insights() {
 // ══ Trimestres ════════════════════════════════════════════════════════════════
 
 const SERIES = [
-  { key: 'enVivo' as const,      label: 'En vivo en Axton',    color: 'var(--viz-vivo)' },
-  { key: 'enMigracion' as const, label: 'En migración',        color: 'var(--viz-config)' },
-  { key: 'sinEmpezar' as const,  label: 'En Meta 4, sin empezar', color: 'var(--viz-track)' },
+  { key: 'legacy' as const,      label: 'Cartera legacy (ya en Axton)', color: 'var(--viz-legacy)' },
+  { key: 'enVivo' as const,      label: 'Migrada por este programa',   color: 'var(--viz-vivo)' },
+  { key: 'enMigracion' as const, label: 'En migración',                color: 'var(--viz-config)' },
+  { key: 'sinEmpezar' as const,  label: 'En Meta 4, sin empezar',      color: 'var(--viz-track)' },
 ]
 
 /**
- * Columnas apiladas: foto al cierre de cada trimestre. Cada columna suma el total de
- * cuentas, así que el verde creciendo desde la base ES el avance de la migración.
+ * Columnas apiladas: foto al cierre de cada trimestre. La cartera legacy (ya estaba
+ * en Axton antes de este programa) es un piso CONSTANTE en todas las columnas —
+ * por eso el total de cada columna es siempre `legacyCount + totalPrograma` y lo
+ * único que cambia trimestre a trimestre es la composición de arriba: el verde
+ * (recién migradas) creciendo a costa del celeste y el gris claro.
  * El "+N" arriba es cuántas cuentas salieron a producción en ese trimestre.
  */
-function TrimestresCard({ trimestres, total }: { trimestres: ReturnType<typeof migracionPorTrimestre>; total: number }) {
+function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
+  trimestres: ReturnType<typeof migracionPorTrimestre>; totalPrograma: number; legacyCount: number
+}) {
   const [tabla, setTabla] = useState(false)
   const PLOT_H = 190
   const COL_MAX = 24
+  const total = totalPrograma + legacyCount
 
   if (!trimestres.length) {
     return (
@@ -122,13 +134,15 @@ function TrimestresCard({ trimestres, total }: { trimestres: ReturnType<typeof m
   return (
     <Card
       titulo="Meta 4 → Axton, trimestre a trimestre"
-      subtitulo={`Cuentas al cierre de cada trimestre · total ${total}`}
+      subtitulo={legacyCount
+        ? `Cuentas al cierre de cada trimestre · ${legacyCount} legacy + ${totalPrograma} del programa = ${total}`
+        : `Cuentas al cierre de cada trimestre · total ${total}`}
       accion={<BotonTabla activo={tabla} onClick={() => setTabla(v => !v)} />}
     >
-      <Leyenda series={SERIES} />
+      <Leyenda series={legacyCount ? SERIES : SERIES.filter(s => s.key !== 'legacy')} />
 
       {tabla ? (
-        <TablaTrimestres trimestres={trimestres} />
+        <TablaTrimestres trimestres={trimestres} legacyCount={legacyCount} />
       ) : (
         <div style={{ display: 'flex', gap: 10 }}>
           {/* Eje Y (desplazado para alinear con el plot, no con la banda de salidas) */}
@@ -169,7 +183,7 @@ function TrimestresCard({ trimestres, total }: { trimestres: ReturnType<typeof m
 
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end' }}>
                 {trimestres.map(t => (
-                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} />
+                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} legacyCount={legacyCount} />
                 ))}
               </div>
             </div>
@@ -189,23 +203,28 @@ function TrimestresCard({ trimestres, total }: { trimestres: ReturnType<typeof m
   )
 }
 
-function Columna({ t, escala, colMax }: {
+function Columna({ t, escala, colMax, legacyCount }: {
   t: ReturnType<typeof migracionPorTrimestre>[number]
   escala: (n: number) => number
   colMax: number
+  legacyCount: number
 }) {
-  // De la base hacia arriba: lo hecho primero, así el verde crece desde el piso.
+  // De la base hacia arriba: lo más consolidado primero. La cartera legacy es el
+  // piso (siempre estuvo ahí); arriba, el verde de este programa crece con el tiempo.
   const tramos = [
-    { n: t.enVivo,      color: 'var(--viz-vivo)',   label: 'En vivo en Axton' },
+    { n: legacyCount,   color: 'var(--viz-legacy)', label: 'Cartera legacy (ya en Axton)' },
+    { n: t.enVivo,      color: 'var(--viz-vivo)',   label: 'Migrada por este programa' },
     { n: t.enMigracion, color: 'var(--viz-config)', label: 'En migración' },
     { n: t.sinEmpezar,  color: 'var(--viz-track)',  label: 'En Meta 4, sin empezar' },
   ]
   const ultimoConDatos = tramos.reduce((idx, tr, i) => (tr.n > 0 ? i : idx), -1)
-  const titulo = `${t.label} — en vivo ${t.enVivo} · en migración ${t.enMigracion} · sin empezar ${t.sinEmpezar}`
+  const titulo = (legacyCount ? `${legacyCount} legacy · ` : '')
+    + `${t.label} — en vivo ${t.enVivo} · en migración ${t.enMigracion} · sin empezar ${t.sinEmpezar}`
     + (t.salidas.length ? `\nSalen en el trimestre: ${t.salidas.join(', ')}` : '')
 
   let acumulado = 0
-  const hVivo = escala(t.enVivo)
+  const hVivoTope = escala(legacyCount + t.enVivo)
+  const hVivoBase = escala(legacyCount)
 
   return (
     <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }} title={titulo}>
@@ -228,16 +247,16 @@ function Columna({ t, escala, colMax }: {
           )
         })}
 
-        {/* Label directo: el acumulado en vivo, la única cifra que cuenta la historia. */}
+        {/* Label directo: el acumulado en vivo por el programa, la cifra que cuenta la historia. */}
         {t.enVivo > 0 && (
-          hVivo >= 18 ? (
+          hVivoTope - hVivoBase >= 18 ? (
             <span className="num" style={{
-              position: 'absolute', left: 0, right: 0, bottom: hVivo / 2 - 7, textAlign: 'center',
+              position: 'absolute', left: 0, right: 0, bottom: (hVivoBase + hVivoTope) / 2 - 7, textAlign: 'center',
               fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
             }}>{t.enVivo}</span>
           ) : (
             <span className="num" style={{
-              position: 'absolute', left: 0, right: 0, bottom: hVivo + 2, textAlign: 'center',
+              position: 'absolute', left: 0, right: 0, bottom: hVivoTope + 2, textAlign: 'center',
               fontSize: 10, fontWeight: 800, color: 'var(--ok-tx)', lineHeight: '12px',
             }}>{t.enVivo}</span>
           )
@@ -247,22 +266,30 @@ function Columna({ t, escala, colMax }: {
   )
 }
 
-function TablaTrimestres({ trimestres }: { trimestres: ReturnType<typeof migracionPorTrimestre> }) {
+function TablaTrimestres({ trimestres, legacyCount }: {
+  trimestres: ReturnType<typeof migracionPorTrimestre>; legacyCount: number
+}) {
   return (
     <div style={{ maxHeight: 218, overflowY: 'auto', marginTop: 4 }}>
       <table className="num" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
         <thead>
           <tr>
-            <Th align="left">Trim.</Th><Th>En Meta 4</Th><Th>En migración</Th><Th>En vivo</Th><Th>Salidas</Th>
+            <Th align="left">Trim.</Th>
+            {legacyCount > 0 && <Th>Legacy</Th>}
+            <Th>En Meta 4</Th><Th>En migración</Th><Th>Migrada</Th>
+            {legacyCount > 0 && <Th>Total Axton</Th>}
+            <Th>Salidas</Th>
           </tr>
         </thead>
         <tbody>
           {trimestres.map(t => (
             <tr key={t.key} style={{ borderTop: '1px solid var(--line-soft)' }}>
               <Td align="left">{t.label}</Td>
+              {legacyCount > 0 && <Td>{legacyCount}</Td>}
               <Td>{t.sinEmpezar}</Td>
               <Td>{t.enMigracion}</Td>
               <Td><strong>{t.enVivo}</strong></Td>
+              {legacyCount > 0 && <Td><strong>{legacyCount + t.enVivo}</strong></Td>}
               <Td>{t.salidas.length || '—'}</Td>
             </tr>
           ))}

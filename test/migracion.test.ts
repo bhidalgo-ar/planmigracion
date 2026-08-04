@@ -116,6 +116,19 @@ eq('al 3/8/2026 todavía no salió ninguna', r.enVivoHoy, 0)
 check('y hay trabajo en curso ese día', r.enMigracionHoy > 0, `${r.enMigracionHoy} en migración`)
 eq('duración del programa en meses', r.mesesPrograma, 13)
 
+titulo('resumenMigracion — override puntual de "ya en vivo hoy"')
+// Coty todavía no llega a su fin calculado (2026-08-06) el 2026-08-03: sin el
+// override cuenta como en_migracion, no en_vivo.
+const rSinOverride = resumenMigracion(cuentas, '2026-08-03')
+eq('sin el override, coty todavía no está en vivo hoy', rSinOverride.enVivoHoy, 0)
+const rConOverride = resumenMigracion(cuentas, '2026-08-03', new Set(['coty']))
+eq('con el override, coty ya cuenta como en vivo hoy', rConOverride.enVivoHoy, 1)
+eq('y sale de "en migración"', rConOverride.enMigracionHoy, rSinOverride.enMigracionHoy - 1)
+eq('el override no cambia enVivo/fechas de la cuenta',
+  cuentas.find(c => c.id === 'coty')!.enVivo, '2026-08-06')
+eq('un id que no existe en el plan no rompe nada',
+  resumenMigracion(cuentas, '2026-08-03', new Set(['no-existe'])).enVivoHoy, 0)
+
 // Un plan vacío no debe romper nada ni inventar fechas.
 titulo('Casos borde')
 const vacias = cuentasMigracion(proyectos, [])

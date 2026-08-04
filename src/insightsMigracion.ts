@@ -198,7 +198,15 @@ export interface ResumenMigracion {
   inicioPrograma: string | null
 }
 
-export function resumenMigracion(cuentas: CuentaMigracion[], hoyISO: string): ResumenMigracion {
+/**
+ * `enVivoHoyForzado`: excepción puntual para cuentas que el tablero real ya muestra
+ * migradas hoy aunque el plan simulado calcule una salida unos días posterior a hoy
+ * (ver `config.cartera_legacy_axton.cuentas_programa_ya_en_vivo`). Solo mueve el
+ * conteo de "hoy"; no toca `enVivo`/fechas de la cuenta ni el resto de los insights.
+ */
+export function resumenMigracion(
+  cuentas: CuentaMigracion[], hoyISO: string, enVivoHoyForzado: ReadonlySet<string> = new Set(),
+): ResumenMigracion {
   const conPlan = cuentas.filter(c => c.inicio && c.enVivo)
   const salidas = conPlan.map(c => c.enVivo!).sort()
   const inicios = conPlan.map(c => c.inicio!).sort()
@@ -207,7 +215,7 @@ export function resumenMigracion(cuentas: CuentaMigracion[], hoyISO: string): Re
 
   let enVivoHoy = 0, enMigracionHoy = 0
   for (const c of cuentas) {
-    const e = estadoA(c, hoyISO)
+    const e = enVivoHoyForzado.has(c.id) ? 'en_vivo' : estadoA(c, hoyISO)
     if (e === 'en_vivo') enVivoHoy++
     else if (e === 'en_migracion') enMigracionHoy++
   }
