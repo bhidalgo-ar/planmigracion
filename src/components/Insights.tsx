@@ -93,27 +93,26 @@ export function Insights() {
 
 // ══ Trimestres ════════════════════════════════════════════════════════════════
 
-const SERIES = [
-  { key: 'legacy' as const,      label: 'Cartera legacy (ya en Axton)', color: 'var(--viz-legacy)' },
-  { key: 'enVivo' as const,      label: 'Migrada por este programa',   color: 'var(--viz-vivo)' },
-  { key: 'enMigracion' as const, label: 'En migración',                color: 'var(--viz-config)' },
-  { key: 'sinEmpezar' as const,  label: 'En Meta 4, sin empezar',      color: 'var(--viz-track)' },
-]
-
 /**
- * Columnas apiladas: foto al cierre de cada trimestre. La cartera legacy (ya estaba
- * en Axton antes de este programa) es un piso CONSTANTE en todas las columnas —
- * por eso el total de cada columna es siempre `legacyCount + totalPrograma` y lo
- * único que cambia trimestre a trimestre es la composición de arriba: el verde
- * (recién migradas) creciendo a costa del celeste y el gris claro.
- * El "+N" arriba es cuántas cuentas salieron a producción en ese trimestre.
+ * Columnas apiladas: foto al cierre de cada trimestre, en DOS bloques nada más —
+ * cuántas cuentas están del lado Axton y cuántas siguen del lado Meta 4. Cada bloque
+ * lleva su total adentro, así la comparación es directa y no hay que sumar a ojo.
+ *
+ * Antes esto tenía cuatro tramos (legacy / migradas / en migración / sin empezar) con
+ * dos verdes casi iguales, y el "+N del trimestre" flotaba suelto arriba de la columna:
+ * era ilegible. Ahora:
+ *  - la cartera legacy no es un tramo propio (es constante, va en el subtítulo y en el
+ *    tooltip: un número que no cambia no necesita repetirse seis veces);
+ *  - "en migración" pasa al tooltip y a la tabla, que es donde se buscan detalles;
+ *  - las migradas EN el trimestre se marcan con un CORCHETE al costado del pedazo de
+ *    verde que les corresponde, en vez de con un color más.
  */
 function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
   trimestres: ReturnType<typeof migracionPorTrimestre>; totalPrograma: number; legacyCount: number
 }) {
   const [tabla, setTabla] = useState(false)
   const PLOT_H = 190
-  const COL_MAX = 24
+  const COL_W = 30
   const total = totalPrograma + legacyCount
 
   if (!trimestres.length) {
@@ -129,24 +128,23 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
   const paso = total <= 6 ? 1 : total <= 12 ? 2 : 5
   const ticks: number[] = []
   for (let t = 0; t <= total; t += paso) ticks.push(t)
-  const SALIDAS_H = 15
 
   return (
     <Card
       titulo="Meta 4 → Axton, trimestre a trimestre"
       subtitulo={legacyCount
-        ? `Cuentas al cierre de cada trimestre · ${legacyCount} legacy + ${totalPrograma} del programa = ${total}`
+        ? `Cuentas al cierre de cada trimestre · ${legacyCount} ya estaban en Axton + ${totalPrograma} del programa = ${total}`
         : `Cuentas al cierre de cada trimestre · total ${total}`}
       accion={<BotonTabla activo={tabla} onClick={() => setTabla(v => !v)} />}
     >
-      <Leyenda series={legacyCount ? SERIES : SERIES.filter(s => s.key !== 'legacy')} />
+      <LeyendaTrimestres />
 
       {tabla ? (
         <TablaTrimestres trimestres={trimestres} legacyCount={legacyCount} />
       ) : (
         <div style={{ display: 'flex', gap: 10 }}>
-          {/* Eje Y (desplazado para alinear con el plot, no con la banda de salidas) */}
-          <div style={{ position: 'relative', width: 18, height: PLOT_H, flexShrink: 0, marginTop: SALIDAS_H }}>
+          {/* Eje Y */}
+          <div style={{ position: 'relative', width: 18, height: PLOT_H, flexShrink: 0 }}>
             {ticks.map(t => (
               <span key={t} className="num" style={{
                 position: 'absolute', bottom: escala(t) - 6, right: 0,
@@ -156,22 +154,6 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
           </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Banda de salidas: cuántas cuentas salen a producción en el trimestre.
-                Va en su propia fila para no pisar la leyenda. */}
-            <div style={{ display: 'flex', height: SALIDAS_H, alignItems: 'flex-end' }}>
-              {trimestres.map(t => (
-                <div key={t.key} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-                  {t.salidas.length > 0 && (
-                    <span className="num" style={{ fontSize: 10, fontWeight: 700, color: 'var(--t3)' }}
-                      title={`Salen en vivo: ${t.salidas.join(', ')}`}>
-                      +{t.salidas.length}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Plot */}
             <div style={{ position: 'relative', height: PLOT_H }}>
               {/* Grid hairline, sólido y recesivo */}
               {ticks.map(t => (
@@ -181,9 +163,9 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
                 }} />
               ))}
 
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
                 {trimestres.map(t => (
-                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} legacyCount={legacyCount} total={total} />
+                  <Columna key={t.key} t={t} escala={escala} colW={COL_W} legacyCount={legacyCount} />
                 ))}
               </div>
             </div>
@@ -203,81 +185,113 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
   )
 }
 
-function Columna({ t, escala, colMax, legacyCount, total }: {
+/** Leyenda de los dos lados + qué significa el corchete. */
+function LeyendaTrimestres() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--viz-axton)', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: 'var(--t2)' }}>En Axton</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--viz-meta4)', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: 'var(--t2)' }}>En Meta 4</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        {/* Mismo glifo que el del gráfico, para que la asociación sea inmediata. */}
+        <span style={{
+          width: 5, height: 11, flexShrink: 0,
+          borderLeft: '1.5px solid var(--t2)', borderTop: '1.5px solid var(--t2)',
+          borderBottom: '1.5px solid var(--t2)',
+        }} />
+        <span style={{ fontSize: 11, color: 'var(--t2)' }}>Migraron en ese trimestre</span>
+      </div>
+    </div>
+  )
+}
+
+function Columna({ t, escala, colW, legacyCount }: {
   t: ReturnType<typeof migracionPorTrimestre>[number]
   escala: (n: number) => number
-  colMax: number
+  colW: number
   legacyCount: number
-  total: number
 }) {
-  // De la base hacia arriba: lo más consolidado primero. La cartera legacy es el
-  // piso (siempre estuvo ahí); arriba, el verde de este programa crece con el tiempo.
-  const tramos = [
-    { n: legacyCount,   color: 'var(--viz-legacy)', label: 'Cartera legacy (ya en Axton)' },
-    { n: t.enVivo,      color: 'var(--viz-vivo)',   label: 'Migrada por este programa' },
-    { n: t.enMigracion, color: 'var(--viz-config)', label: 'En migración' },
-    { n: t.sinEmpezar,  color: 'var(--viz-track)',  label: 'En Meta 4, sin empezar' },
-  ]
-  const ultimoConDatos = tramos.reduce((idx, tr, i) => (tr.n > 0 ? i : idx), -1)
-  const titulo = (legacyCount ? `${legacyCount} legacy · ` : '')
-    + `${t.label} — en vivo ${t.enVivo} · en migración ${t.enMigracion} · sin empezar ${t.sinEmpezar}`
-    + (t.salidas.length ? `\nSalen en el trimestre: ${t.salidas.join(', ')}` : '')
+  const enAxton = legacyCount + t.enVivo
+  const enMeta4 = t.enMigracion + t.sinEmpezar
+  const nuevas = t.salidas.length
 
-  let acumulado = 0
-  const hLegacyTope = escala(legacyCount)
-  const hAxtonTope = escala(legacyCount + t.enVivo)   // tope del bloque "lado Axton" completo
-  const hTotalTope = escala(total)                     // tope de la columna entera (constante)
-  const totalMeta4 = t.enMigracion + t.sinEmpezar       // lo que sigue del otro lado
+  const hAxton = escala(enAxton)
+  const hMeta4 = escala(enMeta4)
+  // El corchete abarca justo el pedazo de verde que llegó en este trimestre.
+  const baseNuevas = escala(enAxton - nuevas)
+  const hNuevas = hAxton - baseNuevas
+
+  const titulo = [
+    t.label,
+    `En Axton: ${enAxton}` + (legacyCount ? ` (${legacyCount} previas + ${t.enVivo} migradas)` : ''),
+    `En Meta 4: ${enMeta4} (${t.enMigracion} en migración · ${t.sinEmpezar} sin empezar)`,
+    nuevas ? `Migraron en el trimestre: ${t.salidas.join(', ')}` : 'No migró ninguna en el trimestre',
+  ].join('\n')
 
   return (
-    <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }} title={titulo}>
-      <div style={{ position: 'relative', width: '100%', maxWidth: colMax, height: '100%' }}>
-        {tramos.map((tr, i) => {
-          const base = escala(acumulado)
-          const alto = escala(tr.n)
-          acumulado += tr.n
-          if (tr.n === 0) return null
-          // Gap de 2px en color de superficie entre tramos: separa sin dibujar borde.
-          const hayTramoArriba = i < ultimoConDatos
-          const esTope = i === ultimoConDatos
-          return (
-            <div key={tr.label} style={{
-              position: 'absolute', left: 0, right: 0, bottom: base,
-              height: Math.max(2, alto - (hayTramoArriba ? 2 : 0)),
-              background: tr.color,
-              borderRadius: esTope ? '4px 4px 0 0' : 0,
-            }} />
-          )
-        })}
-
-        {/* Cartera legacy: su propio número, centrado en su tramo (altura constante). */}
-        {legacyCount > 0 && hLegacyTope >= 16 && (
-          <span className="num" style={{
-            position: 'absolute', left: 0, right: 0, bottom: hLegacyTope / 2 - 7, textAlign: 'center',
-            fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
-          }}>{legacyCount}</span>
+    <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }} title={titulo}>
+      {/* Columna centrada; el corchete vive afuera, en el aire de la banda. */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: colW, height: '100%',
+      }}>
+        {/* Lado Axton (acento), desde la base */}
+        {enAxton > 0 && (
+          <div style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+            height: Math.max(2, enMeta4 > 0 ? hAxton - 2 : hAxton),   // 2px de aire si hay bloque arriba
+            background: 'var(--viz-axton)',
+            borderRadius: enMeta4 > 0 ? 0 : '4px 4px 0 0',
+          }} />
+        )}
+        {/* Lado Meta 4 (de-énfasis), arriba */}
+        {enMeta4 > 0 && (
+          <div style={{
+            position: 'absolute', left: 0, right: 0, bottom: hAxton,
+            height: Math.max(2, hMeta4), background: 'var(--viz-meta4)',
+            borderRadius: '4px 4px 0 0',
+          }} />
         )}
 
-        {/* Total del lado Axton (legacy + migrada), centrado en el tramo migrada — nunca
-            flota por fuera de su propio color: si el tramo es muy angosto para el número,
-            se omite en vez de superponerse al celeste de arriba. El "9" de la cartera legacy
-            ya deja ver el piso; este número es lo que se suma encima ese trimestre. */}
-        {t.enVivo > 0 && hAxtonTope - hLegacyTope >= 18 && (
+        {/* Totales, cada uno dentro de su bloque */}
+        {enAxton > 0 && hAxton >= 18 && (
           <span className="num" style={{
-            position: 'absolute', left: 0, right: 0, bottom: (hLegacyTope + hAxtonTope) / 2 - 7, textAlign: 'center',
-            fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
-          }}>{legacyCount + t.enVivo}</span>
+            position: 'absolute', left: 0, right: 0, bottom: hAxton / 2 - 8, textAlign: 'center',
+            fontSize: 12, fontWeight: 800, color: '#fff', lineHeight: '16px',
+          }}>{enAxton}</span>
         )}
-
-        {/* Lado Meta 4 = en migración + sin empezar todavía. Centrado en lo que queda
-            de ese lado (se va achicando a medida que el verde crece desde abajo). */}
-        {totalMeta4 > 0 && escala(totalMeta4) >= 34 && (
+        {enMeta4 > 0 && hMeta4 >= 18 && (
           <span className="num" style={{
-            position: 'absolute', left: 0, right: 0, bottom: (hAxtonTope + hTotalTope) / 2 - 7, textAlign: 'center',
-            fontSize: 11, fontWeight: 700, color: 'var(--t2)', lineHeight: '14px',
-          }}>{totalMeta4}</span>
+            position: 'absolute', left: 0, right: 0, bottom: hAxton + hMeta4 / 2 - 8, textAlign: 'center',
+            fontSize: 12, fontWeight: 800, color: 'var(--t1)', lineHeight: '16px',
+          }}>{enMeta4}</span>
         )}
       </div>
+
+      {/* Corchete: marca exactamente las que migraron en este trimestre. */}
+      {nuevas > 0 && (
+        <div style={{
+          position: 'absolute', bottom: baseNuevas, height: Math.max(7, hNuevas),
+          left: `calc(50% + ${colW / 2}px + 4px)`,
+          display: 'flex', alignItems: 'center', gap: 3, pointerEvents: 'none',
+        }}>
+          <span style={{
+            width: 4, height: '100%', flexShrink: 0,
+            borderLeft: '1.5px solid var(--t3)', borderTop: '1.5px solid var(--t3)',
+            borderBottom: '1.5px solid var(--t3)',
+          }} />
+          {/* El número va en tinta, no en el color del dato: la asociación la hace el
+              corchete que lo toca, no el color de la letra. */}
+          <span className="num" style={{
+            fontSize: 11, fontWeight: 800, color: 'var(--t1)', whiteSpace: 'nowrap', lineHeight: 1,
+          }}>+{nuevas}</span>
+        </div>
+      )}
     </div>
   )
 }
