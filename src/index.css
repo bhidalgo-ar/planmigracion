@@ -56,11 +56,14 @@ html, body, #root {
      separación CVD, piso de croma, banda de luminosidad y contraste. */
   --viz-relev:   #7B2FBE;
   --viz-config:  #00ACD4;
-  --viz-vivo:    #2FA35A;   /* cuenta ya en vivo en Axton (via este programa de migración) */
-  --viz-legacy:  #1D6E3C;   /* cartera legacy: ya estaba en Axton. Mismo verde de --viz-vivo,
-                               un paso más oscuro: ambos son "lado Axton"; separación ΔE 16.1
-                               (normal) / 15.8 (deutan) — verificada, no es un verde cualquiera. */
-  --viz-track:   #E4E1DD;   /* pista: cuentas que siguen en Meta 4 sin empezar */
+  --viz-vivo:    #2FA35A;   /* fase Pruebas y rombo de go-live en la ola de migración */
+
+  /* Trimestres: forma "emphasis" — un solo acento (lado Axton) contra un gris de
+     de-énfasis (lo que sigue en Meta 4). Dos verdes casi iguales no se distinguían;
+     el detalle de "cuántas migraron en el trimestre" lo marca un corchete, no un
+     color más. --viz-axton lleva número blanco encima: 4.53:1, pasa AA. */
+  --viz-axton:   #23874A;
+  --viz-meta4:   #D6DEE6;   /* de-énfasis: cuentas que siguen en Meta 4 (número en tinta) */
   --viz-grid:    var(--line-soft);
 
   /* Sombras */
@@ -121,8 +124,8 @@ html, body, #root {
   --viz-relev:   #9D5FD8;
   --viz-config:  #19A0C1;
   --viz-vivo:    #2FA35A;
-  --viz-legacy:  #1E7140;   /* mismo verde que --viz-vivo, paso más oscuro (ΔE 15.2 normal-vision) */
-  --viz-track:   #2B3D50;
+  --viz-axton:   #23874A;   /* mismo acento que en claro: pasa banda y contraste en los dos fondos */
+  --viz-meta4:   #2B3D50;
   --viz-grid:    var(--line);
 }
 
