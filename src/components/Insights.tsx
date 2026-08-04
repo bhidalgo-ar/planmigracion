@@ -1,152 +1,596 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { parseISO } from 'date-fns'
 import { useSimuladorStore } from '../store'
-import { formatFechaCorta } from '../utils/dates'
+import { useUIStore } from '../uiStore'
+import { formatFecha, formatFechaCorta, toISO } from '../utils/dates'
+import { ORDEN_FASES, TIPO_LABEL } from '../theme/fases'
+import type { TipoFase } from '../types'
+import {
+  cargaPorPersona, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
+  type CuentaMigracion,
+} from '../insightsMigracion'
 
+/** Color de gráfico por fase. Paso propio para marcas finas (ver --viz-* en index.css). */
+const VIZ_FASE: Record<TipoFase, string> = {
+  Relevamiento: 'var(--viz-relev)',
+  Configuracion: 'var(--viz-config)',
+  Pruebas: 'var(--viz-vivo)',
+  Vacaciones: 'var(--fase-bloqueo)',
+}
+
+/**
+ * Vista Insights: cómo avanza la migración de Meta 4 a Axton.
+ *
+ * Responde tres preguntas y nada más: cuándo sale cada cuenta a producción, cuántas
+ * cuentas quedan en Meta 4 en cada trimestre, y quién hace qué. Los conflictos de
+ * capacidad NO viven acá: para eso está el resaltado del timeline y el chip de la
+ * barra superior, que están siempre a la vista.
+ */
 export function Insights() {
-  const { personas, proyectos, asignaciones, violaciones } = useSimuladorStore()
+  const { personas, proyectos, asignaciones, config } = useSimuladorStore()
+  const seleccionarCliente = useSimuladorStore(s => s.seleccionarCliente)
+  const setVista = useUIStore(s => s.setVista)
 
-  const data = useMemo(() => {
-    const rojos = violaciones.filter(v => v.severidad === 'rojo').length
-    const avisos = violaciones.filter(v => v.severidad === 'ambar').length
+  const hoyISO = toISO(new Date())
+  const legacy = config.cartera_legacy_axton?.cuentas ?? []
+  const overrideIds = config.cartera_legacy_axton?.cuentas_programa_ya_en_vivo ?? []
+  const legacyCount = legacy.length
+  const overrideKey = overrideIds.join('|')
 
-    // severidad por cuenta
-    const sevPorAsig = new Map<string, 'rojo' | 'ambar'>()
-    for (const v of violaciones) {
-      if (v.severidad === 'rojo' || sevPorAsig.get(v.asignacion_id) !== 'rojo') sevPorAsig.set(v.asignacion_id, v.severidad)
+  const d = useMemo(() => {
+    const cuentas = cuentasMigracion(proyectos, asignaciones)
+    return {
+      cuentas,
+      trimestres: migracionPorTrimestre(cuentas),
+      carga: cargaPorPersona(personas, cuentas),
+      r: resumenMigracion(cuentas, hoyISO, new Set(overrideIds)),
     }
-    const estadoCuenta = (pid: string): 'verde' | 'ambar' | 'rojo' => {
-      const sevs = asignaciones.filter(a => a.proyecto_id === pid).map(a => sevPorAsig.get(a.id))
-      return sevs.includes('rojo') ? 'rojo' : sevs.includes('ambar') ? 'ambar' : 'verde'
-    }
-    const estados = proyectos.map(p => estadoCuenta(p.id))
-    const verdes = estados.filter(e => e === 'verde').length
-    const ambarC = estados.filter(e => e === 'ambar').length
-    const rojasC = estados.filter(e => e === 'rojo').length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personas, proyectos, asignaciones, hoyISO, overrideKey])
 
-    const noBloqueo = asignaciones.filter(a => !a.es_bloqueo)
-    const entrega = noBloqueo.reduce<string | null>((m, a) => (!m || a.fin > m ? a.fin : m), null)
-
-    // por regla
-    const porRegla = { R2: 0, R3: 0 } as Record<'R2' | 'R3', number>
-    for (const v of violaciones) porRegla[v.tipo]++
-
-    // entregas por trimestre (fin de Pruebas, o última fase de la cuenta)
-    const trimestres = new Map<string, number>()
-    for (const p of proyectos) {
-      const fases = asignaciones.filter(a => a.proyecto_id === p.id && !a.es_bloqueo)
-      if (!fases.length) continue
-      const fin = fases.reduce((m, a) => (a.fin > m ? a.fin : m), fases[0].fin)
-      const d = parseISO(fin)
-      const q = Math.floor(d.getMonth() / 3) + 1
-      const key = `${d.getFullYear()} · T${q}`
-      trimestres.set(key, (trimestres.get(key) ?? 0) + 1)
-    }
-    const entregasTrim = [...trimestres.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1)
-
-    // carga del equipo: semanas rojas (R2 rojo) + fases por persona
-    const carga = personas.map(p => {
-      const semRojas = violaciones.filter(v => v.tipo === 'R2' && v.severidad === 'rojo' && v.persona_id === p.id).length
-      const nfases = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo).length
-      return { alias: p.alias, semRojas, nfases }
-    }).filter(c => c.nfases > 0).sort((a, b) => b.semRojas - a.semRojas || b.nfases - a.nfases)
-
-    const enRiesgo = rojasC
-    return { rojos, avisos, enRiesgo, entrega, verdes, ambarC, rojasC, porRegla, entregasTrim, carga, totalCuentas: proyectos.length, totalPersonas: personas.length }
-  }, [personas, proyectos, asignaciones, violaciones])
-
-  const maxRegla = Math.max(1, data.porRegla.R2, data.porRegla.R3)
-  const maxTrim = Math.max(1, ...data.entregasTrim.map(([, n]) => n))
-  const maxCarga = Math.max(1, ...data.carga.map(c => c.semRojas))
+  function irACuenta(id: string) {
+    seleccionarCliente(id)
+    setVista('timeline')
+  }
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: 24, background: 'var(--lienzo)' }}>
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, marginBottom: 22 }}>
-        <Kpi label="Conflictos" valor={data.rojos} tono="error" />
-        <Kpi label="Avisos" valor={data.avisos} tono="warn" />
-        <Kpi label="Cuentas en riesgo" valor={`${data.enRiesgo}/${data.totalCuentas}`} tono={data.enRiesgo ? 'error' : 'ok'} />
-        <Kpi label="Entrega estimada" valor={data.entrega ? formatFechaCorta(data.entrega) + ' ' + data.entrega.slice(0, 4) : '—'} />
-        <Kpi label="Cuentas" valor={data.totalCuentas} />
-        <Kpi label="Personas" valor={data.totalPersonas} />
+      {/* ── Encabezado: el número que manda ────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap', alignItems: 'stretch' }}>
+        <Hero
+          label="Migración completa"
+          valor={d.r.ultimaSalida ? formatFecha(d.r.ultimaSalida) : '—'}
+          nota={d.r.ultimaSalida
+            ? `${d.r.mesesPrograma ?? '?'} meses de programa · cierra ${d.r.cuentaCierre ?? '—'}`
+            : 'Todavía no hay cuentas planificadas.'}
+          alerta={d.r.sinPlanificar > 0
+            ? `No incluye ${d.r.sinPlanificar} cuenta${d.r.sinPlanificar !== 1 ? 's' : ''} sin planificar`
+            : null}
+        />
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 14 }}>
+          <Kpi label="Cuentas del programa" valor={d.r.totalCuentas}
+            nota={d.r.sinPlanificar ? `${d.r.planificadas} planificadas` : 'todas planificadas'} />
+          <Kpi label="Cartera en Axton hoy" valor={`${legacyCount + d.r.enVivoHoy}/${legacyCount + d.r.totalCuentas}`}
+            nota={`${legacyCount} legacy + ${d.r.enVivoHoy} migrada${d.r.enVivoHoy !== 1 ? 's' : ''} por este programa`} />
+          <Kpi label="Primera salida del programa" valor={d.r.primeraSalida ? formatFechaCorta(d.r.primeraSalida) : '—'}
+            nota={d.r.primeraSalida ? `año ${d.r.primeraSalida.slice(0, 4)}` : ''} />
+          <Kpi label="Arranque del plan" valor={d.r.inicioPrograma ? formatFechaCorta(d.r.inicioPrograma) : '—'}
+            nota={d.r.inicioPrograma ? `año ${d.r.inicioPrograma.slice(0, 4)}` : ''} />
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
-        {/* Conflictos por regla */}
-        <Card titulo="Conflictos por regla">
-          {([
-            ['R2', 'Sobreasignación', 'var(--error)'],
-            ['R3', 'Dependencias', 'var(--warn)'],
-          ] as const).map(([k, nombre, color]) => (
-            <Barra key={k} label={`${k} · ${nombre}`} valor={data.porRegla[k]} max={maxRegla} color={color} />
-          ))}
-        </Card>
+      {/* ── Fila media: avance por trimestre + reparto del equipo ───────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)', gap: 18, marginBottom: 18 }}>
+        <TrimestresCard trimestres={d.trimestres} totalPrograma={d.r.totalCuentas} legacyCount={legacyCount} />
+        <EquipoCard carga={d.carga} />
+      </div>
 
-        {/* Cuentas por estado */}
-        <Card titulo="Cuentas por estado">
-          <div style={{ display: 'flex', gap: 10 }}>
-            <EstadoChip label="OK" valor={data.verdes} color="var(--ok)" />
-            <EstadoChip label="Atención" valor={data.ambarC} color="var(--warn)" />
-            <EstadoChip label="Riesgo" valor={data.rojasC} color="var(--error)" />
+      {/* ── Abajo, a lo ancho: la ola ──────────────────────────────────────── */}
+      <OlaCard cuentas={d.cuentas} hoyISO={hoyISO} onCuenta={irACuenta} />
+    </div>
+  )
+}
+
+// ══ Trimestres ════════════════════════════════════════════════════════════════
+
+const SERIES = [
+  { key: 'legacy' as const,      label: 'Cartera legacy (ya en Axton)', color: 'var(--viz-legacy)' },
+  { key: 'enVivo' as const,      label: 'Migrada por este programa',   color: 'var(--viz-vivo)' },
+  { key: 'enMigracion' as const, label: 'En migración',                color: 'var(--viz-config)' },
+  { key: 'sinEmpezar' as const,  label: 'En Meta 4, sin empezar',      color: 'var(--viz-track)' },
+]
+
+/**
+ * Columnas apiladas: foto al cierre de cada trimestre. La cartera legacy (ya estaba
+ * en Axton antes de este programa) es un piso CONSTANTE en todas las columnas —
+ * por eso el total de cada columna es siempre `legacyCount + totalPrograma` y lo
+ * único que cambia trimestre a trimestre es la composición de arriba: el verde
+ * (recién migradas) creciendo a costa del celeste y el gris claro.
+ * El "+N" arriba es cuántas cuentas salieron a producción en ese trimestre.
+ */
+function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
+  trimestres: ReturnType<typeof migracionPorTrimestre>; totalPrograma: number; legacyCount: number
+}) {
+  const [tabla, setTabla] = useState(false)
+  const PLOT_H = 190
+  const COL_MAX = 24
+  const total = totalPrograma + legacyCount
+
+  if (!trimestres.length) {
+    return (
+      <Card titulo="Meta 4 → Axton, trimestre a trimestre">
+        <Vacio>Planificá al menos una cuenta para ver el avance por trimestre.</Vacio>
+      </Card>
+    )
+  }
+
+  const escala = (n: number) => (total > 0 ? (n / total) * PLOT_H : 0)
+  // Ticks en números redondos, no en fracciones del total (0 / 9 / 17 se lee mal).
+  const paso = total <= 6 ? 1 : total <= 12 ? 2 : 5
+  const ticks: number[] = []
+  for (let t = 0; t <= total; t += paso) ticks.push(t)
+  const SALIDAS_H = 15
+
+  return (
+    <Card
+      titulo="Meta 4 → Axton, trimestre a trimestre"
+      subtitulo={legacyCount
+        ? `Cuentas al cierre de cada trimestre · ${legacyCount} legacy + ${totalPrograma} del programa = ${total}`
+        : `Cuentas al cierre de cada trimestre · total ${total}`}
+      accion={<BotonTabla activo={tabla} onClick={() => setTabla(v => !v)} />}
+    >
+      <Leyenda series={legacyCount ? SERIES : SERIES.filter(s => s.key !== 'legacy')} />
+
+      {tabla ? (
+        <TablaTrimestres trimestres={trimestres} legacyCount={legacyCount} />
+      ) : (
+        <div style={{ display: 'flex', gap: 10 }}>
+          {/* Eje Y (desplazado para alinear con el plot, no con la banda de salidas) */}
+          <div style={{ position: 'relative', width: 18, height: PLOT_H, flexShrink: 0, marginTop: SALIDAS_H }}>
+            {ticks.map(t => (
+              <span key={t} className="num" style={{
+                position: 'absolute', bottom: escala(t) - 6, right: 0,
+                fontSize: 10, color: 'var(--t3)', lineHeight: '12px',
+              }}>{t}</span>
+            ))}
           </div>
-        </Card>
 
-        {/* Entregas por trimestre */}
-        <Card titulo="Entregas por trimestre">
-          {data.entregasTrim.length === 0 ? <Vacio /> : data.entregasTrim.map(([k, n]) => (
-            <Barra key={k} label={k} valor={n} max={maxTrim} color="var(--celeste)" />
-          ))}
-        </Card>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Banda de salidas: cuántas cuentas salen a producción en el trimestre.
+                Va en su propia fila para no pisar la leyenda. */}
+            <div style={{ display: 'flex', height: SALIDAS_H, alignItems: 'flex-end' }}>
+              {trimestres.map(t => (
+                <div key={t.key} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                  {t.salidas.length > 0 && (
+                    <span className="num" style={{ fontSize: 10, fontWeight: 700, color: 'var(--t3)' }}
+                      title={`Salen en vivo: ${t.salidas.join(', ')}`}>
+                      +{t.salidas.length}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
 
-        {/* Carga del equipo */}
-        <Card titulo="Carga del equipo (semanas sobreasignadas)">
-          {data.carga.length === 0 ? <Vacio /> : data.carga.map(c => (
-            <Barra key={c.alias} label={`${c.alias} · ${c.nfases} fases`} valor={c.semRojas} max={maxCarga} color={c.semRojas > 0 ? 'var(--error)' : 'var(--ok)'} />
-          ))}
-        </Card>
+            {/* Plot */}
+            <div style={{ position: 'relative', height: PLOT_H }}>
+              {/* Grid hairline, sólido y recesivo */}
+              {ticks.map(t => (
+                <div key={t} style={{
+                  position: 'absolute', left: 0, right: 0, bottom: escala(t),
+                  borderTop: '1px solid var(--viz-grid)', pointerEvents: 'none',
+                }} />
+              ))}
+
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end' }}>
+                {trimestres.map(t => (
+                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} legacyCount={legacyCount} />
+                ))}
+              </div>
+            </div>
+
+            {/* Eje X */}
+            <div style={{ display: 'flex', marginTop: 6 }}>
+              {trimestres.map(t => (
+                <div key={t.key} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                  <span className="num" style={{ fontSize: 10.5, color: 'var(--t2)', fontWeight: 600 }}>{t.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function Columna({ t, escala, colMax, legacyCount }: {
+  t: ReturnType<typeof migracionPorTrimestre>[number]
+  escala: (n: number) => number
+  colMax: number
+  legacyCount: number
+}) {
+  // De la base hacia arriba: lo más consolidado primero. La cartera legacy es el
+  // piso (siempre estuvo ahí); arriba, el verde de este programa crece con el tiempo.
+  const tramos = [
+    { n: legacyCount,   color: 'var(--viz-legacy)', label: 'Cartera legacy (ya en Axton)' },
+    { n: t.enVivo,      color: 'var(--viz-vivo)',   label: 'Migrada por este programa' },
+    { n: t.enMigracion, color: 'var(--viz-config)', label: 'En migración' },
+    { n: t.sinEmpezar,  color: 'var(--viz-track)',  label: 'En Meta 4, sin empezar' },
+  ]
+  const ultimoConDatos = tramos.reduce((idx, tr, i) => (tr.n > 0 ? i : idx), -1)
+  const titulo = (legacyCount ? `${legacyCount} legacy · ` : '')
+    + `${t.label} — en vivo ${t.enVivo} · en migración ${t.enMigracion} · sin empezar ${t.sinEmpezar}`
+    + (t.salidas.length ? `\nSalen en el trimestre: ${t.salidas.join(', ')}` : '')
+
+  let acumulado = 0
+  const hVivoTope = escala(legacyCount + t.enVivo)
+  const hVivoBase = escala(legacyCount)
+
+  return (
+    <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }} title={titulo}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: colMax, height: '100%' }}>
+        {tramos.map((tr, i) => {
+          const base = escala(acumulado)
+          const alto = escala(tr.n)
+          acumulado += tr.n
+          if (tr.n === 0) return null
+          // Gap de 2px en color de superficie entre tramos: separa sin dibujar borde.
+          const hayTramoArriba = i < ultimoConDatos
+          const esTope = i === ultimoConDatos
+          return (
+            <div key={tr.label} style={{
+              position: 'absolute', left: 0, right: 0, bottom: base,
+              height: Math.max(2, alto - (hayTramoArriba ? 2 : 0)),
+              background: tr.color,
+              borderRadius: esTope ? '4px 4px 0 0' : 0,
+            }} />
+          )
+        })}
+
+        {/* Label directo: el acumulado en vivo por el programa, la cifra que cuenta la historia. */}
+        {t.enVivo > 0 && (
+          hVivoTope - hVivoBase >= 18 ? (
+            <span className="num" style={{
+              position: 'absolute', left: 0, right: 0, bottom: (hVivoBase + hVivoTope) / 2 - 7, textAlign: 'center',
+              fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
+            }}>{t.enVivo}</span>
+          ) : (
+            <span className="num" style={{
+              position: 'absolute', left: 0, right: 0, bottom: hVivoTope + 2, textAlign: 'center',
+              fontSize: 10, fontWeight: 800, color: 'var(--ok-tx)', lineHeight: '12px',
+            }}>{t.enVivo}</span>
+          )
+        )}
       </div>
     </div>
   )
 }
 
-function Kpi({ label, valor, tono }: { label: string; valor: string | number; tono?: 'error' | 'warn' | 'ok' }) {
-  const color = tono === 'error' ? 'var(--error)' : tono === 'warn' ? 'var(--warn)' : tono === 'ok' ? 'var(--ok)' : 'var(--ink)'
+function TablaTrimestres({ trimestres, legacyCount }: {
+  trimestres: ReturnType<typeof migracionPorTrimestre>; legacyCount: number
+}) {
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: '14px 16px', boxShadow: 'var(--sh-sm)' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      <div className="num" style={{ fontSize: 26, fontWeight: 800, color, marginTop: 4, lineHeight: 1.1 }}>{valor}</div>
+    <div style={{ maxHeight: 218, overflowY: 'auto', marginTop: 4 }}>
+      <table className="num" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+        <thead>
+          <tr>
+            <Th align="left">Trim.</Th>
+            {legacyCount > 0 && <Th>Legacy</Th>}
+            <Th>En Meta 4</Th><Th>En migración</Th><Th>Migrada</Th>
+            {legacyCount > 0 && <Th>Total Axton</Th>}
+            <Th>Salidas</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {trimestres.map(t => (
+            <tr key={t.key} style={{ borderTop: '1px solid var(--line-soft)' }}>
+              <Td align="left">{t.label}</Td>
+              {legacyCount > 0 && <Td>{legacyCount}</Td>}
+              <Td>{t.sinEmpezar}</Td>
+              <Td>{t.enMigracion}</Td>
+              <Td><strong>{t.enVivo}</strong></Td>
+              {legacyCount > 0 && <Td><strong>{legacyCount + t.enVivo}</strong></Td>}
+              <Td>{t.salidas.length || '—'}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
-function Card({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+// ══ Equipo ════════════════════════════════════════════════════════════════════
+
+/**
+ * Cuántas cuentas toma cada persona (el número, que es la pregunta) y en qué papel
+ * (la barra, desglosada por fase). Dos unidades distintas, cada una rotulada.
+ */
+function EquipoCard({ carga }: { carga: ReturnType<typeof cargaPorPersona> }) {
+  const conCarga = carga.filter(c => c.fases > 0)
+  const sinCarga = carga.filter(c => c.fases === 0)
+  const maxFases = Math.max(1, ...conCarga.map(c => c.fases))
+
+  const seriesFase = ORDEN_FASES.map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))
+
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: 18, boxShadow: 'var(--sh-sm)' }}>
-      <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{titulo}</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>{children}</div>
-    </div>
+    <Card titulo="Quién hace cada cuenta" subtitulo="El número son cuentas distintas · la barra, sus fases">
+      <Leyenda series={seriesFase} />
+      {conCarga.length === 0 ? (
+        <Vacio>Nadie tiene fases asignadas todavía.</Vacio>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginTop: 4 }}>
+          {conCarga.map(c => (
+            <div key={c.id}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>{c.alias}</span>
+                <span className="num" style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--celeste-dark)' }}>
+                  {c.cuentas}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--t2)' }}>cuenta{c.cuentas !== 1 ? 's' : ''}</span>
+                <span className="num" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--t3)' }}>
+                  {c.fases} fase{c.fases !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {/* Barra apilada por fase: 2px de gap en superficie, punta redondeada. */}
+              <div style={{ display: 'flex', gap: 2, height: 10, alignItems: 'stretch' }}
+                title={ORDEN_FASES.map(t => `${TIPO_LABEL[t]}: ${c.porTipo[t]}`).join(' · ')}>
+                {ORDEN_FASES.map((t, i) => {
+                  const n = c.porTipo[t]
+                  if (!n) return null
+                  const esUltimo = ORDEN_FASES.slice(i + 1).every(x => !c.porTipo[x])
+                  return (
+                    <div key={t} style={{
+                      width: `${(n / maxFases) * 100}%`,
+                      background: VIZ_FASE[t],
+                      borderRadius: esUltimo ? '2px 4px 4px 2px' : 2,
+                    }} />
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          {sinCarga.length > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
+              Sin fases asignadas: {sinCarga.map(c => c.alias).join(', ')}.
+            </span>
+          )}
+        </div>
+      )}
+    </Card>
   )
 }
 
-function Barra({ label, valor, max, color }: { label: string; valor: number; max: number; color: string }) {
+// ══ Ola de migración ══════════════════════════════════════════════════════════
+
+/**
+ * Una fila por cuenta, ordenadas por fecha de salida a Axton: la migración se lee
+ * como una escalera. Cada fase va en su propio carril, así se ve el solapamiento
+ * entre relevamiento y configuración en vez de taparse. El rombo es el go-live.
+ */
+function OlaCard({ cuentas, hoyISO, onCuenta }: {
+  cuentas: CuentaMigracion[]; hoyISO: string; onCuenta: (id: string) => void
+}) {
+  const conPlan = cuentas.filter(c => c.inicio && c.enVivo)
+    .sort((a, b) => (a.enVivo! < b.enVivo! ? -1 : a.enVivo! > b.enVivo! ? 1 : 0))
+  const sinPlan = cuentas.filter(c => !c.inicio || !c.enVivo)
+
+  if (conPlan.length === 0) {
+    return (
+      <Card titulo="Ola de migración">
+        <Vacio>Sin cuentas planificadas: acá se ve el orden en que van saliendo a Axton.</Vacio>
+      </Card>
+    )
+  }
+
+  const desde = conPlan.reduce((m, c) => (c.inicio! < m ? c.inicio! : m), conPlan[0].inicio!)
+  const hasta = conPlan.reduce((m, c) => (c.enVivo! > m ? c.enVivo! : m), conPlan[0].enVivo!)
+  const t0 = parseISO(desde).getTime()
+  const span = Math.max(1, parseISO(hasta).getTime() - t0)
+  const pct = (iso: string) => ((parseISO(iso).getTime() - t0) / span) * 100
+
+  // Límites de trimestre dentro del rango, para el grid y las etiquetas del eje.
+  const limites: Array<{ iso: string; label: string }> = []
+  const dDesde = parseISO(desde)
+  let anio = dDesde.getFullYear()
+  let trim = Math.floor(dDesde.getMonth() / 3) + 1
+  for (let i = 0; i < 40; i++) {
+    const iso = `${anio}-${String(trim * 3 - 2).padStart(2, '0')}-01`
+    if (iso > hasta) break
+    if (iso >= desde) limites.push({ iso, label: `T${trim} ${String(anio).slice(2)}` })
+    trim++
+    if (trim > 4) { trim = 1; anio++ }
+  }
+
+  const ROW_H = 20
+  const LANE_H = 5
+  const hoyPct = hoyISO >= desde && hoyISO <= hasta ? pct(hoyISO) : null
+  const NAME_W = 104
+
+  const seriesFase = ORDEN_FASES.map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 12, color: 'var(--t2)', width: 130, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-      <div style={{ flex: 1, height: 18, background: 'var(--paper)', borderRadius: 9999, overflow: 'hidden' }}>
-        <div style={{ width: `${(valor / max) * 100}%`, height: '100%', background: color, borderRadius: 9999, transition: 'width var(--t) var(--ease)' }} />
+    <Card
+      titulo="Ola de migración"
+      subtitulo={`${conPlan.length} cuentas ordenadas por fecha de salida · ${formatFecha(desde)} → ${formatFecha(hasta)}`}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <Leyenda series={seriesFase} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Rombo />
+          <span style={{ fontSize: 11, color: 'var(--t2)' }}>Sale en vivo</span>
+        </div>
       </div>
-      <span className="num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', width: 26, textAlign: 'right' }}>{valor}</span>
-    </div>
+
+      <div style={{ display: 'flex', marginTop: 6 }}>
+        <div style={{ width: NAME_W, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', height: 14 }}>
+          {limites.map(l => (
+            <span key={l.iso} className="num" style={{
+              position: 'absolute', left: `${pct(l.iso)}%`, fontSize: 10, color: 'var(--t3)',
+              fontWeight: 600, transform: 'translateX(2px)', whiteSpace: 'nowrap',
+            }}>{l.label}</span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex' }}>
+        {/* Nombres */}
+        <div style={{ width: NAME_W, flexShrink: 0 }}>
+          {conPlan.map(c => (
+            <button key={c.id} onClick={() => onCuenta(c.id)}
+              title={`Ver ${c.nombre} en el timeline`}
+              style={{
+                height: ROW_H, width: '100%', display: 'flex', alignItems: 'center', gap: 5,
+                border: 'none', background: 'transparent', cursor: 'pointer', padding: '0 8px 0 0',
+                fontSize: 11.5, fontWeight: 600, color: 'var(--t1)', textAlign: 'left',
+              }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
+              {c.especial && <span style={{ fontSize: 8.5, fontWeight: 800, color: 'var(--tasa)', flexShrink: 0 }}>TASA</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Carriles */}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          {limites.map(l => (
+            <div key={l.iso} style={{
+              position: 'absolute', top: 0, bottom: 0, left: `${pct(l.iso)}%`,
+              borderLeft: '1px solid var(--viz-grid)', pointerEvents: 'none',
+            }} />
+          ))}
+          {hoyPct != null && (
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0, left: `${hoyPct}%`,
+              borderLeft: '2px solid var(--celeste)', pointerEvents: 'none', zIndex: 2,
+            }} />
+          )}
+
+          {conPlan.map(c => (
+            <div key={c.id} style={{ height: ROW_H, position: 'relative' }}>
+              {c.fases.map(f => {
+                const lane = ORDEN_FASES.indexOf(f.tipo)
+                const top = lane < 0 ? ROW_H / 2 - LANE_H / 2 : 2 + lane * (LANE_H + 1)
+                const left = pct(f.inicio)
+                const width = Math.max(0.35, pct(f.fin) - left)
+                return (
+                  <div key={f.id}
+                    title={`${c.nombre} · ${TIPO_LABEL[f.tipo]}\n${formatFechaCorta(f.inicio)} → ${formatFechaCorta(f.fin)}`}
+                    style={{
+                      position: 'absolute', top, left: `${left}%`, width: `${width}%`, height: LANE_H,
+                      background: VIZ_FASE[f.tipo], borderRadius: 3,
+                    }} />
+                )
+              })}
+              {/* Rombo de go-live, con anillo de superficie para que se lea sobre el grid. */}
+              <div title={`${c.nombre} sale en vivo el ${formatFecha(c.enVivo!)}`}
+                style={{
+                  position: 'absolute', left: `${pct(c.enVivo!)}%`, top: ROW_H / 2 - 5,
+                  width: 10, height: 10, marginLeft: -5, transform: 'rotate(45deg)',
+                  background: 'var(--viz-vivo)', border: '2px solid var(--white)', borderRadius: 2, zIndex: 3,
+                }} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {sinPlan.length > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--warn-tx)', marginTop: 8, display: 'block' }}>
+          ⚠ Sin planificar, fuera de la ola: {sinPlan.map(c => c.nombre).join(', ')}.
+        </span>
+      )}
+    </Card>
   )
 }
 
-function EstadoChip({ label, valor, color }: { label: string; valor: number; color: string }) {
+// ══ Piezas ════════════════════════════════════════════════════════════════════
+
+function Hero({ label, valor, nota, alerta }: { label: string; valor: string; nota: string; alerta: string | null }) {
   return (
-    <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 12, background: 'var(--paper)', border: `1.5px solid ${color}` }}>
-      <div className="num" style={{ fontSize: 24, fontWeight: 800, color }}>{valor}</div>
-      <div style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 600 }}>{label}</div>
+    <div style={{
+      background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14,
+      padding: '16px 20px', boxShadow: 'var(--sh-sm)', minWidth: 268, display: 'flex',
+      flexDirection: 'column', justifyContent: 'center', gap: 2,
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
+      {/* Cifra guía: una sola por vista, en la misma sans y con figuras proporcionales. */}
+      <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>{valor}</span>
+      <span style={{ fontSize: 11.5, color: 'var(--t2)' }}>{nota}</span>
+      {alerta && <span style={{ fontSize: 11, color: 'var(--warn-tx)', fontWeight: 600 }}>⚠ {alerta}</span>}
     </div>
   )
 }
 
-const Vacio = () => <span style={{ fontSize: 12, color: 'var(--t3)', fontStyle: 'italic' } as CSSProperties}>Sin datos</span>
+function Kpi({ label, valor, nota }: { label: string; valor: string | number; nota?: string }) {
+  return (
+    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: '12px 14px', boxShadow: 'var(--sh-sm)' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 21, fontWeight: 800, color: 'var(--ink)', marginTop: 3, lineHeight: 1.15 }}>{valor}</div>
+      {nota && <div style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 1 }}>{nota}</div>}
+    </div>
+  )
+}
+
+function Card({ titulo, subtitulo, accion, children }: {
+  titulo: string; subtitulo?: string; accion?: ReactNode; children: ReactNode
+}) {
+  return (
+    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: 18, boxShadow: 'var(--sh-sm)', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{titulo}</h3>
+          {subtitulo && <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{subtitulo}</div>}
+        </div>
+        {accion && <div style={{ marginLeft: 'auto', flexShrink: 0 }}>{accion}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Leyenda: siempre presente con 2+ series, para que la identidad no dependa del color. */
+function Leyenda({ series }: { series: Array<{ key: string; label: string; color: string }> }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
+      {series.map(s => (
+        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: 'var(--t2)' }}>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Rombo() {
+  return (
+    <span style={{
+      width: 9, height: 9, background: 'var(--viz-vivo)', transform: 'rotate(45deg)',
+      borderRadius: 2, flexShrink: 0, display: 'inline-block',
+    }} />
+  )
+}
+
+function BotonTabla({ activo, onClick }: { activo: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={activo ? 'Ver el gráfico' : 'Ver los números exactos'}
+      style={{
+        padding: '3px 10px', border: '1.5px solid var(--line)', borderRadius: 9999,
+        background: activo ? 'var(--celeste)' : 'var(--white)', color: activo ? '#fff' : 'var(--t2)',
+        fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+      }}>
+      {activo ? 'Gráfico' : 'Tabla'}
+    </button>
+  )
+}
+
+const Vacio = ({ children }: { children: ReactNode }) => (
+  <span style={{ fontSize: 12, color: 'var(--t3)', fontStyle: 'italic' } as CSSProperties}>{children}</span>
+)
+
+function Th({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
+  return <th style={{ textAlign: align, padding: '4px 6px', fontSize: 10, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</th>
+}
+
+function Td({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
+  return <td style={{ textAlign: align, padding: '4px 6px', color: 'var(--t1)' }}>{children}</td>
+}

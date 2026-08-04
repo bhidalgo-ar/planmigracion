@@ -78,6 +78,13 @@ export interface Config {
   disponibilidad?: Disponibilidad
   /** Baseline medido del tablero Monday. Informativo: el cálculo usa `horas_por_fase`. */
   template_estandar?: Record<string, unknown>
+  /** Cuentas ya en Axton antes de este programa de migración. Ver insightsMigracion.ts. */
+  cartera_legacy_axton?: {
+    cuentas: Array<{ nombre: string; entidades: number }>
+    /** IDs de proyectos.json que el tablero real ya muestra migrados hoy, aunque el
+     * plan simulado calcule una salida algo posterior. Solo ajusta el KPI "hoy". */
+    cuentas_programa_ya_en_vivo?: string[]
+  }
 }
 
 export type SeveridadViolacion = 'rojo' | 'ambar'

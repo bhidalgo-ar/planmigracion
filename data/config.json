@@ -104,5 +104,22 @@
       "BP2 Redefinicion de cuentas": "Moni (16 h)",
       "BP2 Archivos sindicato": "Moni (2 h)"
     }
+  },
+  "cartera_legacy_axton": {
+    "_doc": "Cuentas que ya estaban en Axton ANTES de este programa de migracion Meta4->Axton (fuente: tablero Monday 'Axton', vista por consultor). No pasan por Relevamiento/Configuracion/Pruebas: entran directo como 'ya en vivo' en los insights de avance.",
+    "_nota": "Coty NO figura en 'cuentas': es una cuenta del programa (ver proyectos.json/asignaciones.json), no legacy. El tablero Axton ya la lista como migrada aunque el plan simulado recien la termine unos dias despues de hoy; 'cuentas_programa_ya_en_vivo' registra esa excepcion puntual. El total de cuentas ya en Axton hoy es 9 (este array) + Coty = 10.",
+    "cuentas": [
+      { "nombre": "Geopagos", "entidades": 1 },
+      { "nombre": "Poincenot", "entidades": 2 },
+      { "nombre": "Siasa Logística", "entidades": 1 },
+      { "nombre": "COELSA", "entidades": 1 },
+      { "nombre": "Red Bull", "entidades": 1 },
+      { "nombre": "Merz", "entidades": 1 },
+      { "nombre": "Plastic Omnium Pilar", "entidades": 1 },
+      { "nombre": "Epiroc", "entidades": 1 },
+      { "nombre": "Internos", "entidades": 4 }
+    ],
+    "_cuentas_programa_ya_en_vivo_doc": "IDs de proyectos.json que el tablero Axton ya muestra como migrados hoy, aunque el plan simulado calcule una fecha de salida un poco posterior a hoy. Ajusta solo el KPI 'ya en vivo hoy' de los insights; no cambia ninguna fecha del plan ni el resto de la app.",
+    "cuentas_programa_ya_en_vivo": ["coty"]
   }
 }

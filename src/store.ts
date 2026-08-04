@@ -20,6 +20,23 @@ const seedProyectos = proyectosRaw.proyectos as Proyecto[]
 const seedAsignaciones = asignacionesRaw.asignaciones as Asignacion[]
 const seedConfig = configRaw as unknown as Config
 
+/**
+ * Completa con las del seed las claves de `config` que no existían todavía cuando
+ * se guardó ese plan (localStorage de una versión vieja de la app, o un JSON
+ * exportado antes de agregarlas). La usan `migrate` (planes ya persistidos) e
+ * `importarJSON` (planes exportados): mismo problema, misma solución.
+ */
+function conFallbackDeSeed(config: Partial<Config> | undefined): Config {
+  const c = config ?? {}
+  return {
+    ...c,
+    horas_por_fase: c.horas_por_fase ?? seedConfig.horas_por_fase,
+    disponibilidad: c.disponibilidad ?? seedConfig.disponibilidad,
+    template_estandar: c.template_estandar ?? seedConfig.template_estandar,
+    cartera_legacy_axton: c.cartera_legacy_axton ?? seedConfig.cartera_legacy_axton,
+  } as Config
+}
+
 // ---------- helpers ----------
 
 /** alias → id seguro (sin acentos, sin espacios). Garantiza unicidad contra los ya usados. */
@@ -859,16 +876,11 @@ export const useSimuladorStore = create<SimuladorState>()(
         // saca la predecesora al importar (el resto de la asignación entra tal cual).
         const asignacionesNorm = asignaciones.map(a =>
           a.es_bloqueo && a.predecesoras?.length ? { ...a, predecesoras: [] } : a)
-        // Los planes exportados antes de las tablas de horas/disponibilidad no las traen:
-        // se completan con las del seed para que el cálculo por horas siga andando. Las
-        // asignaciones entran tal cual vienen (misma cantidad, mismas personas).
-        const configImportada = (data.config as Config) ?? seedConfig
-        const config: Config = {
-          ...configImportada,
-          horas_por_fase: configImportada.horas_por_fase ?? seedConfig.horas_por_fase,
-          disponibilidad: configImportada.disponibilidad ?? seedConfig.disponibilidad,
-          template_estandar: configImportada.template_estandar ?? seedConfig.template_estandar,
-        }
+        // Los planes exportados antes de las tablas nuevas (horas/disponibilidad/cartera
+        // legacy) no las traen: se completan con las del seed para que el cálculo por
+        // horas y los insights sigan andando. Las asignaciones entran tal cual vienen
+        // (misma cantidad, mismas personas).
+        const config = data.config ? conFallbackDeSeed(data.config as Partial<Config>) : seedConfig
         set(state => ({
           ...conHistorial(state),
           personas,
@@ -882,17 +894,23 @@ export const useSimuladorStore = create<SimuladorState>()(
     }),
     {
       name: 'simulador-ha-v2',
-      version: 3,
-      // Los planes ya guardados en localStorage no tienen la fila de Axton: se la
-      // agregamos una sola vez (si después la borrás a mano, no vuelve a aparecer).
+      version: 4,
       migrate: (persisted, version) => {
-        const estado = persisted as { personas?: Persona[] } | undefined
+        const estado = persisted as { personas?: Persona[]; config?: Partial<Config> } | undefined
+        // Los planes ya guardados en localStorage no tienen la fila de Axton: se la
+        // agregamos una sola vez (si después la borrás a mano, no vuelve a aparecer).
         if (estado && version < 3) {
           const personas = estado.personas ?? seedPersonas
           if (!personas.some(p => p.id === 'axton')) {
             const axton = seedPersonas.find(p => p.id === 'axton')
             if (axton) estado.personas = [...personas, axton]
           }
+        }
+        // Config guardado antes de horas_por_fase/disponibilidad/cartera_legacy_axton
+        // (quedó en version 3 sin que estas claves existieran todavía): se completan
+        // con las del seed, igual que hace importarJSON con un plan exportado viejo.
+        if (estado?.config && version < 4) {
+          estado.config = conFallbackDeSeed(estado.config)
         }
         return persisted
       },

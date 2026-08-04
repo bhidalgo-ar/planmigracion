@@ -165,10 +165,38 @@ const r2Moni = checkRule2(
 check('moni con las mismas dos fases de 0,5 no dispara rojo',
   !r2Moni.some(v => v.severidad === 'rojo'), `violaciones: ${r2Moni.length}`)
 
-// ── Eval 4 + 5: importar el plan de 52 asignaciones y recalcular ─────────────────
-titulo('Eval 4 — importar un plan exportado')
+// ── migrate: localStorage de una versión vieja de la app ────────────────────────
+titulo('migrate — un plan ya persistido antes de horas_por_fase/disponibilidad/cartera_legacy_axton')
+// Simula lo que había en localStorage antes de esta tanda de cambios: version 3,
+// config sin las claves nuevas. Tiene que pasar por `migrate` al importar el store
+// (rehydration corre en el import porque el localStorage falso es sincrónico).
+mem.set('simulador-ha-v2', JSON.stringify({
+  state: {
+    personas: (planFixture.personas as Persona[]),
+    proyectos: (planFixture.proyectos as Proyecto[]),
+    asignaciones: (planFixture.asignaciones as Asignacion[]),
+    config: (() => {
+      const c = { ...(planFixture.config as Record<string, unknown>) }
+      delete c.horas_por_fase; delete c.disponibilidad; delete c.cartera_legacy_axton
+      return c
+    })(),
+  },
+  version: 3,
+}))
+
 const { useSimuladorStore } = await import('../src/store')
 const store = useSimuladorStore.getState()
+
+check('migrate completó las tablas nuevas en un plan ya persistido',
+  !!store.config.horas_por_fase && !!store.config.disponibilidad && !!store.config.cartera_legacy_axton?.cuentas.length,
+  `horas_por_fase=${!!store.config.horas_por_fase} disponibilidad=${!!store.config.disponibilidad} cartera=${!!store.config.cartera_legacy_axton?.cuentas.length}`)
+eq('y no tocó el resto del config ya persistido (unidades sigue igual)',
+  store.config.unidades.horas_por_dia, (planFixture.config as Config).unidades.horas_por_dia)
+eq('el plan persistido (52 asignaciones) sigue ahí después del migrate',
+  store.asignaciones.length, 52)
+
+// ── Eval 4 + 5: importar el plan de 52 asignaciones y recalcular ─────────────────
+titulo('Eval 4 — importar un plan exportado')
 
 const personasAntes = (planFixture.asignaciones as Asignacion[]).map(a => `${a.id}=${a.persona_id}`).join('|')
 store.importarJSON(JSON.stringify(planFixture))
@@ -183,9 +211,10 @@ check('un plan sin las tablas nuevas las hereda del seed', (() => {
   const viejo = JSON.parse(JSON.stringify(planFixture)) as { config: Record<string, unknown> }
   delete viejo.config.horas_por_fase
   delete viejo.config.disponibilidad
+  delete viejo.config.cartera_legacy_axton
   useSimuladorStore.getState().importarJSON(JSON.stringify(viejo))
   const c = useSimuladorStore.getState().config
-  return !!c.horas_por_fase && !!c.disponibilidad
+  return !!c.horas_por_fase && !!c.disponibilidad && !!c.cartera_legacy_axton?.cuentas.length
 })())
 eq('el export sigue siendo importable',
   (() => {
