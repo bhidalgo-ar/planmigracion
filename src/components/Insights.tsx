@@ -183,7 +183,7 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
 
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end' }}>
                 {trimestres.map(t => (
-                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} legacyCount={legacyCount} />
+                  <Columna key={t.key} t={t} escala={escala} colMax={COL_MAX} legacyCount={legacyCount} total={total} />
                 ))}
               </div>
             </div>
@@ -203,11 +203,12 @@ function TrimestresCard({ trimestres, totalPrograma, legacyCount }: {
   )
 }
 
-function Columna({ t, escala, colMax, legacyCount }: {
+function Columna({ t, escala, colMax, legacyCount, total }: {
   t: ReturnType<typeof migracionPorTrimestre>[number]
   escala: (n: number) => number
   colMax: number
   legacyCount: number
+  total: number
 }) {
   // De la base hacia arriba: lo más consolidado primero. La cartera legacy es el
   // piso (siempre estuvo ahí); arriba, el verde de este programa crece con el tiempo.
@@ -223,8 +224,10 @@ function Columna({ t, escala, colMax, legacyCount }: {
     + (t.salidas.length ? `\nSalen en el trimestre: ${t.salidas.join(', ')}` : '')
 
   let acumulado = 0
-  const hVivoTope = escala(legacyCount + t.enVivo)
-  const hVivoBase = escala(legacyCount)
+  const hLegacyTope = escala(legacyCount)
+  const hAxtonTope = escala(legacyCount + t.enVivo)   // tope del bloque "lado Axton" completo
+  const hTotalTope = escala(total)                     // tope de la columna entera (constante)
+  const totalMeta4 = t.enMigracion + t.sinEmpezar       // lo que sigue del otro lado
 
   return (
     <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }} title={titulo}>
@@ -247,19 +250,32 @@ function Columna({ t, escala, colMax, legacyCount }: {
           )
         })}
 
-        {/* Label directo: el acumulado en vivo por el programa, la cifra que cuenta la historia. */}
-        {t.enVivo > 0 && (
-          hVivoTope - hVivoBase >= 18 ? (
-            <span className="num" style={{
-              position: 'absolute', left: 0, right: 0, bottom: (hVivoBase + hVivoTope) / 2 - 7, textAlign: 'center',
-              fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
-            }}>{t.enVivo}</span>
-          ) : (
-            <span className="num" style={{
-              position: 'absolute', left: 0, right: 0, bottom: hVivoTope + 2, textAlign: 'center',
-              fontSize: 10, fontWeight: 800, color: 'var(--ok-tx)', lineHeight: '12px',
-            }}>{t.enVivo}</span>
-          )
+        {/* Cartera legacy: su propio número, centrado en su tramo (altura constante). */}
+        {legacyCount > 0 && hLegacyTope >= 16 && (
+          <span className="num" style={{
+            position: 'absolute', left: 0, right: 0, bottom: hLegacyTope / 2 - 7, textAlign: 'center',
+            fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
+          }}>{legacyCount}</span>
+        )}
+
+        {/* Total del lado Axton (legacy + migrada), centrado en el tramo migrada — nunca
+            flota por fuera de su propio color: si el tramo es muy angosto para el número,
+            se omite en vez de superponerse al celeste de arriba. El "9" de la cartera legacy
+            ya deja ver el piso; este número es lo que se suma encima ese trimestre. */}
+        {t.enVivo > 0 && hAxtonTope - hLegacyTope >= 18 && (
+          <span className="num" style={{
+            position: 'absolute', left: 0, right: 0, bottom: (hLegacyTope + hAxtonTope) / 2 - 7, textAlign: 'center',
+            fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: '14px',
+          }}>{legacyCount + t.enVivo}</span>
+        )}
+
+        {/* Lado Meta 4 = en migración + sin empezar todavía. Centrado en lo que queda
+            de ese lado (se va achicando a medida que el verde crece desde abajo). */}
+        {totalMeta4 > 0 && escala(totalMeta4) >= 34 && (
+          <span className="num" style={{
+            position: 'absolute', left: 0, right: 0, bottom: (hAxtonTope + hTotalTope) / 2 - 7, textAlign: 'center',
+            fontSize: 11, fontWeight: 700, color: 'var(--t2)', lineHeight: '14px',
+          }}>{totalMeta4}</span>
         )}
       </div>
     </div>
