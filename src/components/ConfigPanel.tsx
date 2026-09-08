@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useSimuladorStore } from '../store'
 import { useUIStore, type Densidad, type ZoomLevel } from '../uiStore'
+import { MenuPersonas } from './MenuPersonas'
 
 const DENSIDAD_OPTS: { value: Densidad; label: string }[] = [
   { value: 'compacta', label: 'S' },
@@ -133,6 +134,11 @@ export function ConfigPanel() {
             style={{ padding: '4px 11px', border: 'none', background: modoMovimiento === 'estricto' ? 'var(--celeste)' : 'var(--white)', color: modoMovimiento === 'estricto' ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             title="Arrastrar mueve esta fase y las siguientes de la cuenta; las anteriores no se tocan (Shift = solo esta tarea)">🔗 Estricto</button>
         </Grupo>
+
+        <Divider />
+
+        {/* Qué personas se ven y en qué orden */}
+        <MenuPersonas />
 
         <Divider />
 

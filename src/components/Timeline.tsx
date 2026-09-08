@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { format, addDays, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cascadaIds, useSimuladorStore } from '../store'
-import { DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
+import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, TipoFase } from '../types'
 import { TIPO_COLOR } from '../theme/fases'
 import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
@@ -122,10 +122,20 @@ function getPeriodLabel(
 
 export function Timeline() {
   const {
-    personas, proyectos, asignaciones, config, violaciones,
+    personas: personasTodas, proyectos, asignaciones, config, violaciones,
     clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente,
   } = useSimuladorStore()
-  const { mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad } = useUIStore()
+  const {
+    mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad,
+    ordenPersonas, personasOcultas,
+  } = useUIStore()
+
+  // Filas que se ven, en el orden elegido por el usuario. Todo el render y la
+  // matemática de arrastre vertical trabajan sobre esta lista, no sobre el store.
+  const personas = useMemo(
+    () => aplicarOrdenYFiltro(personasTodas, ordenPersonas, personasOcultas),
+    [personasTodas, ordenPersonas, personasOcultas],
+  )
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowsRef   = useRef<HTMLDivElement>(null)
@@ -204,7 +214,7 @@ export function Timeline() {
       if (drag!.mode !== 'resize' && rowsRef.current) {
         const rect = rowsRef.current.getBoundingClientRect()
         const idx = Math.max(0, Math.min(personas.length - 1, Math.floor((e.clientY - rect.top) / ROW_H)))
-        persona = personas[idx].id
+        persona = personas[idx]?.id ?? persona
       }
       setDrag(d => (d && d.dd === rawDd && d.persona === persona) ? d : (d ? { ...d, dd: rawDd, persona } : d))
     }
@@ -409,11 +419,13 @@ export function Timeline() {
     const fases = asignaciones.filter(a => a.proyecto_id === clienteSeleccionado)
     const byId  = new Map(asignaciones.map(a => [a.id, a]))
     for (const a of fases) {
-      const rowA = filaDe.get(a.persona_id) ?? 0
+      const rowA = filaDe.get(a.persona_id)
+      if (rowA == null) continue
       for (const predId of a.predecesoras) {
         const pred = byId.get(predId)
         if (!pred) continue
-        const rowP = filaDe.get(pred.persona_id) ?? 0
+        const rowP = filaDe.get(pred.persona_id)
+        if (rowP == null) continue
         segs.push({
           x1: dateToX(pred.fin) + pxPerDay,
           y1: rowP * ROW_H + ROW_H / 2,
@@ -623,6 +635,8 @@ export function Timeline() {
               differenceInDays(parseISO(a.fin),    horizonStart) < 0 ||
               differenceInDays(parseISO(a.inicio),  horizonEnd)   > 0
             ) return null
+            // la persona está oculta en esta vista → no hay fila donde pintarla
+            if (!filaDe.has(a.persona_id)) return null
 
             const { left, width, top } = geom(a)
             const proyecto    = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null
