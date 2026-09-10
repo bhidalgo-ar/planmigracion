@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useSimuladorStore } from './store'
 
-export type Vista = 'timeline' | 'insights' | 'equipo' | 'confidencial'
+export type Vista = 'timeline' | 'insights' | 'equipo' | 'resumen' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
 export type ZoomLevel = 'dias' | 'semanas' | 'meses' | 'trimestres'
 export type SortCuentas = 'fecha' | 'nombre'
@@ -60,8 +60,14 @@ interface UIState {
   ordenPersonas: string[]
   /** Ids de personas que no se muestran en la vista actual. */
   personasOcultas: string[]
+  /**
+   * Nombre del archivo de plan que se importó, sin extensión (ej. 'v3'). Es solo una
+   * etiqueta para mostrar en pantalla; null = el plan que ya estaba cargado.
+   */
+  nombrePlan: string | null
 
   setVista: (v: Vista) => void
+  setNombrePlan: (n: string | null) => void
   toggleCarga: () => void
   toggleDep: () => void
   toggleConflictos: () => void
@@ -103,8 +109,10 @@ export const useUIStore = create<UIState>((set) => ({
   // Las filas sin ninguna fase arrancan ocultas: con el plan v3, Susi, Lau y Axton ocupaban
   // tres carriles vacíos. "Personas → Ver todas" las vuelve a mostrar.
   personasOcultas: personasSinCarga(),
+  nombrePlan: null,
 
   setVista: (vista) => set({ vista }),
+  setNombrePlan: (nombrePlan) => set({ nombrePlan }),
   toggleCarga: () => set(s => ({ mostrarCarga: !s.mostrarCarga })),
   toggleDep: () => set(s => ({ mostrarDep: !s.mostrarDep })),
   toggleConflictos: () => set(s => ({ mostrarConflictos: !s.mostrarConflictos })),

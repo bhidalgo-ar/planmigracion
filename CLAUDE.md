@@ -15,11 +15,13 @@ stakeholders**. Un sitio estático (React + Vite + TypeScript + Zustand + date-f
 backend, desplegado a GitHub Pages desde `main`. El plan vive en un JSON que se importa y
 exporta; el seed de `data/` es solo un punto de partida.
 
-Tres pestañas más una:
+Cuatro pestañas más una:
 - **Timeline**: personas en filas, semanas en columnas, fases como barras arrastrables.
 - **Insights**: para gerencia. Cuándo termina la migración, trimestre a trimestre, y la ola.
 - **Equipo**: para el equipo de payroll. Horas por persona y mes contra capacidad, el
   solapamiento explicado en prosa, quién hace qué en cada cuenta, salidas por mes, insumos.
+- **Resumen**: el mismo relato para gerencia, como video de 45 s (1920×1080). Todo lo que
+  dice y dibuja sale del plan cargado (`src/resumen/`), nada está escrito en el componente.
 - **Disponibilidad del equipo** (confidencial): solo aparece si el plan importado trae
   `config.equipo_confidencial`. Ver §5.
 
@@ -61,6 +63,28 @@ Los mensajes son para un gerente: nombran cuenta, fase y fecha en `dd/mm`. Nunca
 Con el plan v3 (`test/fixtures/plan-v3.json`) el resultado esperado es: 0 dependencia,
 0 margen, 0 blackout, 0 tope en rojo, 1 informativo (marzo 2027), 1 rojo de carga
 (enero 2027 de Willy) y algunos avisos semanales. Si cambia, algo se rompió.
+
+## 3.1 El video del resumen (`src/resumen/`)
+
+Cuatro archivos, una responsabilidad cada uno:
+
+- `derivarResumen.ts` — función pura `(personas, proyectos, asignaciones, config, hoy) →
+  ResumenData`: cuántas cuentas hay en Axton, las salidas por trimestre y por mes, cuándo
+  cierra el programa, el mes crítico con su gantt y las dos alertas. Reusa `capacidad.ts`
+  y `rules.ts`; no duplica matemática. **Nunca lee `equipo_confidencial`.**
+- `guion.ts` — los textos y los tiempos. Cada string es una función de `ResumenData`.
+- `motion.ts` — los tres únicos movimientos (`enter`, `draw`, `pop`) y el easing.
+- `ResumenAnimado.tsx` — un reloj `T` y un árbol siempre montado; todo se dibuja como
+  función pura de `(T, data)`. La paleta va literal (no `var(--celeste)`): el lienzo es
+  blanco fijo y no puede cambiar con el modo oscuro de quien lo mira.
+
+Un link con `#t=31` abre la app en la pestaña Resumen, pausada en el segundo 31: es para
+clavar una escena en una reunión. El hash se mantiene solo mientras el video está pausado
+(con `replaceState`, así el botón Atrás no se llena de pasos del scrubber).
+
+El mes crítico es el de la primera alerta roja de `carga_mes`, y las cuentas que muestra
+son las de la persona sobrecargada. Con el plan v3: enero 2027, Copetro, Campari, Marval y
+Lowsedo. La referencia de diseño está en `docs/handoff/resumen-animado/`.
 
 ## 4. Datos
 

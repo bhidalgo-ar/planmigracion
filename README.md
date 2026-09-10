@@ -2,7 +2,9 @@
 
 Tablero con el que se revisa el programa de migración con los stakeholders: timeline de fases
 por persona, avance por trimestre para gerencia, y la pestaña Equipo con horas contra
-capacidad, solapamientos explicados, quién hace qué y salidas por mes.
+capacidad, solapamientos explicados, quién hace qué y salidas por mes. La pestaña Resumen
+cuenta lo mismo como un video de 45 segundos, derivado del plan que esté cargado; un link con
+`#t=31` lo abre pausado en ese segundo.
 
 Deploy automático a `https://bhidalgo-ar.github.io/planmigracion/` en cada push a `main`.
 
@@ -31,8 +33,10 @@ src/
   validacionPlan.ts← Zod: valida el JSON al importar
   confidencial.ts  ← pestaña confidencial (hash, sesión, vista)
   insights*.ts     ← lógica de Insights y Equipo
+  resumen/         ← el video del resumen ejecutivo (datos, guion, movimiento, vista)
   components/      ← UI
 test/              ← suites (esbuild + node) y el fixture del plan v3
+docs/handoff/      ← referencias de diseño de los handoffs (prototipos HTML, capturas)
 docs/_archivo/     ← documentos del producto anterior, solo históricos
 ```
 
