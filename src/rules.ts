@@ -16,6 +16,7 @@ import {
  *  margen        rojo   Pruebas cierra a menos de N hábiles del corte de novedades del mes de salida
  *  blackout      rojo   una Configuración toca el blackout de fin de año
  *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta
+ *  vacaciones    rojo   una fase cae sobre las vacaciones de quien la hace
  *
  * Lo que NO es conflicto: dos personas configurando la misma cuenta a la vez, o una persona
  * en dos cuentas la misma semana con dedicación parcial. El solapamiento es el modelo; lo que
@@ -162,18 +163,52 @@ export function checkTopeSalidas(asignaciones: Asignacion[], config: Config, pro
   return out
 }
 
-/** Corte de novedades de una cuenta en su mes de salida, corrido hacia atrás si cae en día no hábil. */
-export function fechaCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): string | null {
-  const dia = config.cortes_novedades_dia?.[proyectoId]
-  if (typeof dia !== 'number') return null
-  const ultimo = ultimoDiaDelMes(mesISO).getDate()
-  let d = parseISO(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`)
+const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
+
+/** Corre una fecha hacia atrás hasta el primer día hábil (ella misma si ya lo es). */
+function habilAnteriorOIgual(iso: string, feriados: ReadonlySet<string>): string {
+  let d = parseISO(iso)
   for (let i = 0; i < 14; i++) {
     const dow = d.getDay()
     if (dow !== 0 && dow !== 6 && !feriados.has(toISO(d))) break
     d = addDays(d, -1)
   }
   return toISO(d)
+}
+
+/**
+ * Corte de novedades de una cuenta en un mes. Primero la fecha concreta de ese período
+ * (`cortes_novedades_fechas`, leída de los cronogramas de monday); si el plan no la trae,
+ * el día fijo (`cortes_novedades_dia`). En los dos casos corrido hacia atrás si cae en
+ * día no hábil.
+ */
+export function fechaCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): string | null {
+  const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
+  if (typeof exacta === 'string' && RE_FECHA.test(exacta)) return habilAnteriorOIgual(exacta, feriados)
+  const dia = config.cortes_novedades_dia?.[proyectoId]
+  if (typeof dia !== 'number') return null
+  const ultimo = ultimoDiaDelMes(mesISO).getDate()
+  return habilAnteriorOIgual(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`, feriados)
+}
+
+export interface OrigenCorte {
+  fecha: string
+  /** monday = el ítem ya existe en el cronograma · estimado = proyectado desde 2026 · dia_fijo = regla vieja */
+  origen: 'monday' | 'estimado' | 'dia_fijo'
+  /** Qué ronda es el ancla ('1Q', 'v1', 'ronda 1', 'mensual'); null con el día fijo. */
+  ronda: string | null
+}
+
+/** El corte con su procedencia, para explicarlo en pantalla. */
+export function origenCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): OrigenCorte | null {
+  const fecha = fechaCorteDe(proyectoId, mesISO, config, feriados)
+  if (!fecha) return null
+  const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
+  if (typeof exacta !== 'string') return { fecha, origen: 'dia_fijo', ronda: null }
+  const det = config.cortes_novedades_detalle?.[proyectoId]
+  const ronda = typeof det?.ancla === 'string' ? det.ancla : null
+  const txt = ronda ? det?.por_periodo?.[mesISO]?.[ronda] : undefined
+  return { fecha, origen: typeof txt === 'string' && txt.includes('monday') ? 'monday' : 'estimado', ronda }
 }
 
 /**
@@ -300,6 +335,37 @@ export function checkDependenciaConfigPruebas(asignaciones: Asignacion[], proyec
   return out
 }
 
+const FASE_CON_ARTICULO: Record<string, string> = {
+  Relevamiento: 'el relevamiento', Configuracion: 'la configuración', Pruebas: 'las pruebas', Cierre: 'el cierre', Vacaciones: 'las vacaciones',
+}
+
+/**
+ * Regla dura: una fase no puede caer sobre las vacaciones de quien la hace. Se cuelga de
+ * la fase (no del bloqueo) para que el panel de la cuenta la muestre. No se resuelve sola:
+ * mover la cuenta o reasignar la fase es decisión de quien planifica.
+ */
+export function checkVacaciones(asignaciones: Asignacion[], personas: Persona[], proyectos: Proyecto[]): Violacion[] {
+  const out: Violacion[] = []
+  const vacaciones = asignaciones.filter(a => a.tipo === 'Vacaciones')
+  if (!vacaciones.length) return out
+  for (const a of asignaciones) {
+    if (a.es_bloqueo) continue
+    for (const v of vacaciones) {
+      if (v.persona_id !== a.persona_id || a.inicio > v.fin || a.fin < v.inicio) continue
+      const alias = personas.find(p => p.id === a.persona_id)?.alias ?? a.persona_id
+      out.push({
+        tipo: 'vacaciones',
+        asignacion_id: a.id,
+        persona_id: a.persona_id,
+        proyecto_id: a.proyecto_id ?? undefined,
+        severidad: 'rojo',
+        mensaje: `${alias} tiene ${FASE_CON_ARTICULO[a.tipo] ?? a.tipo} de ${nombreCuenta(a.proyecto_id, proyectos)} del ${ddmm(a.inicio)} al ${ddmm(a.fin)} y está de vacaciones del ${ddmm(v.inicio)} al ${ddmm(v.fin)}`,
+      })
+    }
+  }
+  return out
+}
+
 export function computeViolaciones(
   asignaciones: Asignacion[],
   personas: Persona[],
@@ -307,6 +373,7 @@ export function computeViolaciones(
   proyectos: Proyecto[],
 ): Violacion[] {
   return [
+    ...checkVacaciones(asignaciones, personas, proyectos),
     ...checkDependenciaConfigPruebas(asignaciones, proyectos),
     ...checkMargenYBlackout(asignaciones, config, proyectos),
     ...checkTopeSalidas(asignaciones, config, proyectos),

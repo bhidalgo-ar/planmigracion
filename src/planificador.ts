@@ -1,5 +1,5 @@
 import { addDays, parseISO } from 'date-fns'
-import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
+import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from './types'
 import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
 import { computeViolaciones, fechaCorteDe, habilesHasta } from './rules'
 import { cargaMensual, mesSalidaDe } from './capacidad'
@@ -345,5 +345,122 @@ export function describirMovimiento(args: {
     nuevas: [...msgsDespues].filter(m => !msgsAntes.has(m)),
     resueltas: [...msgsAntes].filter(m => !msgsDespues.has(m)),
     cargas,
+  }
+}
+
+// ── quién hace qué: reasignar una fase viendo el impacto ──────────────────────────
+
+const SKILLS_POR_FASE: Record<string, string[]> = {
+  Relevamiento: ['relevamiento'], Configuracion: ['configuracion'], Pruebas: ['pruebas', 'testeo'], Cierre: ['cierre'],
+}
+const ROL_POR_FASE: Record<string, string> = { Relevamiento: 'relevamiento', Configuracion: 'configuracion', Pruebas: 'pruebas' }
+
+/**
+ * true si la persona tiene el rol o el skill de esa fase. Es una SEÑAL para ordenar la
+ * lista y avisar "no suele hacer configuración"; nunca una prohibición (decisión de Willy,
+ * 10/09/2026: cualquiera puede tomar cualquier fase).
+ */
+export function tieneRolPara(persona: Persona, tipo: TipoFase): boolean {
+  if (persona.rol && ROL_POR_FASE[tipo] === persona.rol) return true
+  const skills = SKILLS_POR_FASE[tipo] ?? []
+  return (persona.skills ?? []).some(s => skills.includes(s))
+}
+
+export interface Candidata {
+  personaId: string
+  alias: string
+  /** Es quien la tiene hoy. */
+  actual: boolean
+  tieneRol: boolean
+  estado: EstadoDestino
+  motivo: string | null
+  deltaRojos: number
+  deltaAmbares: number
+}
+
+/**
+ * Para una fase, qué pasaría si la hiciera cada persona del equipo: se simula el cambio,
+ * corren las reglas y se compara con la base (mismo mecanismo que la tira de meses).
+ * Orden: la actual primero, después quienes tienen el rol, después el resto.
+ */
+export function simularReasignacion(
+  asignacionId: string, asignaciones: Asignacion[], personas: Persona[], config: Config, proyectos: Proyecto[],
+): Candidata[] {
+  const barra = asignaciones.find(a => a.id === asignacionId)
+  if (!barra) return []
+  const base = computeViolaciones(asignaciones, personas, config, proyectos)
+  const rojosBase = cuenta(base, 'rojo')
+  const ambaresBase = cuenta(base, 'ambar')
+  const mensajesBase = new Set(base.map(v => v.mensaje))
+
+  return personas.map(p => {
+    const actual = p.id === barra.persona_id
+    let estado: EstadoDestino = 'verde'
+    let motivo: string | null = null
+    let deltaRojos = 0
+    let deltaAmbares = 0
+    if (!actual) {
+      const nuevas = asignaciones.map(a => (a.id === asignacionId ? { ...a, persona_id: p.id } : a))
+      const v = computeViolaciones(nuevas, personas, config, proyectos)
+      deltaRojos = cuenta(v, 'rojo') - rojosBase
+      deltaAmbares = cuenta(v, 'ambar') - ambaresBase
+      const aparecen = v.filter(x => x.severidad !== 'info' && !mensajesBase.has(x.mensaje))
+      motivo = (aparecen.find(x => x.severidad === 'rojo') ?? aparecen[0])?.mensaje ?? null
+      estado = deltaRojos > 0 ? 'rojo' : deltaAmbares > 0 ? 'ambar' : 'verde'
+    }
+    return { personaId: p.id, alias: p.alias, actual, tieneRol: tieneRolPara(p, barra.tipo), estado, motivo, deltaRojos, deltaAmbares }
+  }).sort((a, b) =>
+    Number(b.actual) - Number(a.actual) || Number(b.tieneRol) - Number(a.tieneRol) || a.alias.localeCompare(b.alias, 'es'))
+}
+
+// ── traspaso en bloque: pasarle fases a otra persona ──────────────────────────────
+
+export interface Traspaso {
+  origen: string
+  destino: string
+  /** null = todos los tipos de fase. */
+  tipos: TipoFase[] | null
+  /** 'YYYY-MM' desde el que se traspasa (por inicio de la fase); null = todas. */
+  desdeMes: string | null
+}
+
+/** Las fases que un traspaso movería. Los bloqueos (vacaciones, corridas) no se traspasan. */
+export function fasesATraspasar(asignaciones: Asignacion[], t: Traspaso): Asignacion[] {
+  return asignaciones.filter(a =>
+    !a.es_bloqueo && a.persona_id === t.origen
+    && (!t.tipos || t.tipos.includes(a.tipo))
+    && (!t.desdeMes || a.inicio.slice(0, 7) >= t.desdeMes))
+}
+
+/** Solo cambia `persona_id`: las fechas y las horas de cada fase quedan igual. */
+export function aplicarTraspaso(asignaciones: Asignacion[], t: Traspaso): Asignacion[] {
+  if (t.origen === t.destino) return asignaciones
+  const ids = new Set(fasesATraspasar(asignaciones, t).map(a => a.id))
+  return asignaciones.map(a => (ids.has(a.id) ? { ...a, persona_id: t.destino } : a))
+}
+
+export interface ReporteTraspaso {
+  fases: number
+  rojosAntes: number
+  rojosDespues: number
+  ambaresAntes: number
+  ambaresDespues: number
+  nuevas: string[]
+  resueltas: string[]
+}
+
+export function describirTraspaso(
+  asignaciones: Asignacion[], t: Traspaso, personas: Persona[], config: Config, proyectos: Proyecto[],
+): ReporteTraspaso {
+  const antes = computeViolaciones(asignaciones, personas, config, proyectos)
+  const despues = computeViolaciones(aplicarTraspaso(asignaciones, t), personas, config, proyectos)
+  const msgsAntes = new Set(antes.filter(v => v.severidad !== 'info').map(v => v.mensaje))
+  const msgsDespues = new Set(despues.filter(v => v.severidad !== 'info').map(v => v.mensaje))
+  return {
+    fases: t.origen === t.destino ? 0 : fasesATraspasar(asignaciones, t).length,
+    rojosAntes: cuenta(antes, 'rojo'), rojosDespues: cuenta(despues, 'rojo'),
+    ambaresAntes: cuenta(antes, 'ambar'), ambaresDespues: cuenta(despues, 'ambar'),
+    nuevas: [...msgsDespues].filter(m => !msgsAntes.has(m)),
+    resueltas: [...msgsAntes].filter(m => !msgsDespues.has(m)),
   }
 }

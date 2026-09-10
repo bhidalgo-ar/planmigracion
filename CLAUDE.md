@@ -57,6 +57,23 @@ pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar,
 mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
 carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.test.ts`.
 
+**El corte de novedades es una fecha por mes, no un día fijo.** `config.cortes_novedades_fechas`
+trae el corte de cada cuenta y período (leído de los cronogramas de monday, ítem "Recepción de
+Novedades"; ver `specs/2026-09-10-vacaciones-reasignacion-cortes-SPEC.md`). El ancla es la
+**primera ronda** del período: la 1Q en Copetro y Ford (quincenales), la v1 en DLA, la ronda 1
+en Sportline. `fechaCorteDe` la prefiere y cae a `cortes_novedades_dia` si el mes no está;
+`origenCorteDe` dice de dónde salió (monday / estimado / día fijo) y el panel lo muestra.
+
+**Vacaciones son bloqueos `tipo: 'Vacaciones'`** que se cargan desde 👥 Equipo. Restan capacidad
+del mes y de la semana (`diasDeVacaciones` en `capacidad.ts`) y una fase que las pise dispara la
+regla `vacaciones`. Otros bloqueos (corrida inicial, supervisión) son trabajo reservado y no
+restan capacidad.
+
+**Quién hace qué.** El rol/skill de una persona es una señal, no una prohibición
+(`tieneRolPara`). Cada fase muestra a quién pasársela y qué pasaría (`simularReasignacion`,
+mismo mecanismo que la tira de meses). "Pasar fases a otra persona" en Equipo hace el traspaso
+en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan igual.
+
 ## 3. Las reglas (`src/rules.ts`)
 
 | tipo | severidad | qué controla |
@@ -67,6 +84,7 @@ carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.
 | `margen` | rojo | menos de `margen_minimo_habiles` días hábiles entre el fin de Pruebas y el corte de novedades (el día del corte cuenta) |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config` |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona |
+| `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
 
 Los mensajes son para un gerente: nombran cuenta, fase y fecha en `dd/mm`. Nunca un id.
 

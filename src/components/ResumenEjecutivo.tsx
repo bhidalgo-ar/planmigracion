@@ -14,9 +14,10 @@ const REGLA_NOMBRE: Record<TipoRegla, string> = {
   tope_salidas: 'Salidas en vivo por mes',
   carga_mes: 'Personas por encima de su capacidad mensual',
   carga_semana: 'Semanas con carga concentrada (aviso)',
+  vacaciones: 'Fases sobre las vacaciones de quien las hace',
 }
 /** Orden en que se listan: primero lo que rompe el calendario, después la carga. */
-const ORDEN_REGLAS: TipoRegla[] = ['dependencia', 'margen', 'blackout', 'tope_salidas', 'carga_mes', 'carga_semana']
+const ORDEN_REGLAS: TipoRegla[] = ['vacaciones', 'dependencia', 'margen', 'blackout', 'tope_salidas', 'carga_mes', 'carga_semana']
 
 export function ResumenEjecutivo() {
   const { proyectos, asignaciones, personas, violaciones } = useSimuladorStore()

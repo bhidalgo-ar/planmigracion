@@ -9,7 +9,7 @@ import {
   aplicarPlan, configConSalida, describirMovimiento, esHabilISO, habilAnterior, habilesDesde,
   lunesHabilAnteriorOIgual, mesesCandidatos, pisaBlackout, planificarCuenta, simularDestinos, ultimosHabiles,
 } from '../src/planificador'
-import { computeViolaciones } from '../src/rules'
+import { computeViolaciones, fechaCorteDe, origenCorteDe } from '../src/rules'
 import { feriadosDeConfig } from '../src/utils/dates'
 import planV3 from './fixtures/plan-v3.json'
 
@@ -190,6 +190,28 @@ if (timNov.ok) {
   check('las cargas listan solo personas de TIM en meses donde cambió algo', rep.cargas.length > 0 && rep.cargas.every(c => ['Guille', 'Moni', 'Gaby F.'].includes(c.alias)),
     rep.cargas.map(c => `${c.alias} ${c.mes} ${c.antes}→${c.despues}`).join(' | '))
   check('ningún texto muestra un id', [...rep.nuevas, ...rep.resueltas].every(m => !/tim-/.test(m)))
+}
+
+titulo('Cortes por fecha (cortes_novedades_fechas) — mandan sobre el día fijo')
+const cfgFechas: Config = {
+  ...config,
+  cortes_novedades_fechas: { tim: { '2026-10': '2026-10-16', '2026-11': '2026-11-15' } },
+  cortes_novedades_detalle: { tim: { ancla: 'mensual', rondas: ['mensual'], por_periodo: { '2026-10': { mensual: '2026-10-16 (monday)' }, '2026-11': { mensual: '2026-11-15 (estimado)' } } } },
+}
+eq('octubre usa la fecha exacta (16/10) y no el día fijo 19', fechaCorteDe('tim', '2026-10', cfgFechas, feriados), '2026-10-16')
+eq('una fecha en domingo (15/11) corre al viernes 13/11', fechaCorteDe('tim', '2026-11', cfgFechas, feriados), '2026-11-13')
+eq('un mes sin fecha cae al día fijo: diciembre → 18/12 (el 19 es sábado)', fechaCorteDe('tim', '2026-12', cfgFechas, feriados), '2026-12-18')
+eq('sin ninguna de las dos → null', fechaCorteDe('nadie', '2026-10', cfgFechas, feriados), null)
+const oOct = origenCorteDe('tim', '2026-10', cfgFechas, feriados)!
+eq('origen octubre: monday', oOct.origen, 'monday')
+eq('ronda octubre: mensual', oOct.ronda, 'mensual')
+eq('origen noviembre: estimado', origenCorteDe('tim', '2026-11', cfgFechas, feriados)!.origen, 'estimado')
+eq('origen diciembre: día fijo', origenCorteDe('tim', '2026-12', cfgFechas, feriados)!.origen, 'dia_fijo')
+const timOct16 = planificarCuenta('tim', asignaciones, '2026-10', cfgFechas)
+check('el planificador toma la fecha exacta como ancla', timOct16.ok && timOct16.corte === '2026-10-16', timOct16.ok ? timOct16.corte : timOct16.motivo)
+if (timOct16.ok) {
+  // Con corte 16/10: lunes 28/09 termina el 07/10 y deja 8,9,13,14,15,16 = 6 hábiles (antes eran 7 con el 19).
+  eq('el margen se recalcula contra el corte nuevo: 6', timOct16.margen, 6)
 }
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)

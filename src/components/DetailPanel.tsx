@@ -7,9 +7,9 @@ import type { Asignacion, Persona, Proyecto, TipoFase, Violacion } from '../type
 import { tierDe, TIER_LABEL, type Tier } from '../insightsEquipo'
 import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
 import { feriadosDeConfig, formatFechaCorta, toISO } from '../utils/dates'
-import { ddmm, fechaCorteDe, margenesPorCuenta, nombreMes } from '../rules'
+import { ddmm, margenesPorCuenta, nombreMes, origenCorteDe } from '../rules'
 import { mesSalidaDe } from '../capacidad'
-import { mesesCandidatos, planificarCuenta, simularDestinos, type Destino } from '../planificador'
+import { mesesCandidatos, planificarCuenta, simularDestinos, simularReasignacion, type Destino } from '../planificador'
 
 const COLOR_TIER: Record<Tier, string> = {
   chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
@@ -145,7 +145,9 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
   const feriados = useMemo(() => feriadosDeConfig(config), [config])
   const mesActual = mesSalidaDe(proyecto.id, config)
   const tieneCorte = typeof config.cortes_novedades_dia?.[proyecto.id] === 'number'
-  const corte = mesActual && tieneCorte ? fechaCorteDe(proyecto.id, mesActual, config, feriados) : null
+    || Object.keys(config.cortes_novedades_fechas?.[proyecto.id] ?? {}).length > 0
+  const corteInfo = mesActual && tieneCorte ? origenCorteDe(proyecto.id, mesActual, config, feriados) : null
+  const ORIGEN_TXT = { monday: 'fecha del cronograma', estimado: 'estimado', dia_fijo: 'día fijo' } as const
   const margen = useMemo(
     () => margenesPorCuenta(asignaciones, config, proyectos).find(m => m.proyectoId === proyecto.id)?.habiles ?? null,
     [asignaciones, config, proyectos, proyecto.id],
@@ -178,7 +180,12 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>{mesActual ? nombreMes(mesActual) : 'sin definir'}</span>
       </div>
       <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {corte && <span>Corte de novedades <b style={{ color: 'var(--ink)' }}>{ddmm(corte)}</b></span>}
+        {corteInfo && (
+          <span title={corteInfo.origen === 'monday' ? 'El ítem ya está cargado en el cronograma de monday' : corteInfo.origen === 'estimado' ? 'Proyectado desde los cortes reales de 2026, corrido al hábil anterior' : 'Regla vieja: día fijo del mes'}>
+            Corte de novedades <b style={{ color: 'var(--ink)' }}>{ddmm(corteInfo.fecha)}</b>
+            <span style={{ color: 'var(--t3)' }}>{corteInfo.ronda ? ` · ${corteInfo.ronda}` : ''} · {ORIGEN_TXT[corteInfo.origen]}</span>
+          </span>
+        )}
         {margen !== null && (
           <span>Margen <b style={{ color: margen < minimo ? 'var(--error-tx)' : 'var(--ink)' }}>{margen} hábil{margen !== 1 ? 'es' : ''}</b> hasta el corte</span>
         )}
@@ -265,6 +272,13 @@ interface FaseCardProps {
 }
 
 function FaseCard({ tipo, asignacion, personas, violaciones, onUpdate, onCreate }: FaseCardProps) {
+  const { asignaciones, config, proyectos } = useSimuladorStore()
+  const setPrevisualizacion = useUIStore(s => s.setPrevisualizacion)
+  // Quién más podría hacer esta fase y qué pasaría: se simula el cambio y corren las reglas.
+  const candidatas = useMemo(
+    () => (asignacion ? simularReasignacion(asignacion.id, asignaciones, personas, config, proyectos) : []),
+    [asignacion, asignaciones, personas, config, proyectos],
+  )
   const color = TIPO_COLOR[tipo]
   const hasRojo = violaciones.some(v => v.severidad === 'rojo')
   const hasAmbar = violaciones.some(v => v.severidad === 'ambar')
@@ -285,9 +299,9 @@ function FaseCard({ tipo, asignacion, personas, violaciones, onUpdate, onCreate 
         <div style={{ padding: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Campo label="Asignado a">
-              <select value={asignacion.persona_id} onChange={e => onUpdate({ persona_id: e.target.value })} style={input}>
-                {personas.map(p => <option key={p.id} value={p.id}>{p.alias}</option>)}
-              </select>
+              <div style={{ ...input, background: 'var(--paper)', border: '1.5px solid var(--line-soft)', cursor: 'default', fontWeight: 700 }}>
+                {personas.find(p => p.id === asignacion.persona_id)?.alias ?? asignacion.persona_id}
+              </div>
             </Campo>
             <Campo label="Duración">
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -312,6 +326,32 @@ function FaseCard({ tipo, asignacion, personas, violaciones, onUpdate, onCreate 
               </div>
             </Campo>
           </div>
+          {candidatas.length > 1 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 }}>Pasársela a</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {candidatas.filter(c => !c.actual).map(c => {
+                  const e = ESTILO_DESTINO[c.estado]
+                  const title = `${c.motivo ?? 'Sin conflictos nuevos'}`
+                    + (c.tieneRol ? '' : ` · no suele hacer ${TIPO_LABEL[tipo].toLowerCase()}`)
+                    + (c.deltaRojos < 0 ? ` · resuelve ${-c.deltaRojos} conflicto${-c.deltaRojos !== 1 ? 's' : ''}` : '')
+                  return (
+                    <button key={c.personaId} title={title}
+                      onMouseEnter={() => setPrevisualizacion({ proyectoId: asignacion.proyecto_id ?? '', asignaciones: [{ ...asignacion, persona_id: c.personaId }] })}
+                      onMouseLeave={() => setPrevisualizacion(null)}
+                      onClick={() => { setPrevisualizacion(null); onUpdate({ persona_id: c.personaId }) }}
+                      style={{
+                        padding: '3px 9px', borderRadius: 9999, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        background: e.bg, color: e.tx, border: `1.5px ${c.tieneRol ? 'solid' : 'dashed'} ${e.bd}`, opacity: c.tieneRol ? 1 : 0.75,
+                      }}>{c.alias}</button>
+                  )
+                })}
+              </div>
+              <div style={{ marginTop: 5, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
+                El color dice qué pasa si la hace esa persona (verde sin conflictos nuevos, rojo rompe una regla). Borde punteado: no tiene el rol de esta fase, pero puede tomarla igual. Pasá el mouse para verla en su fila del timeline.
+              </div>
+            </div>
+          )}
           <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
             La dedicación es la fracción de la jornada diaria (7 h, Gaby 4 h) que esta persona le pone a la fase. La carga del mes suma las horas de todas sus fases y se compara con su capacidad.
           </div>
