@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type Vista = 'timeline' | 'insights' | 'equipo'
+export type Vista = 'timeline' | 'insights' | 'equipo' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
 export type ZoomLevel = 'dias' | 'semanas' | 'meses' | 'trimestres'
 export type SortCuentas = 'fecha' | 'nombre'

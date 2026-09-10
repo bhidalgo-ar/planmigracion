@@ -7,6 +7,7 @@ import {
   seSuperponen, siguienteDiaHabil, toISO,
 } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
+import { estaDesbloqueado } from './confidencial'
 import { ORDEN_FASES } from './theme/fases'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
@@ -323,6 +324,7 @@ interface SimuladorState {
   recalcularDuraciones: () => RecalculoReporte
   resetToSeed: () => void
   exportarJSON: () => string
+  exportOmiteConfidencial: () => boolean
   importarJSON: (json: string) => void
 }
 
@@ -871,7 +873,20 @@ export const useSimuladorStore = create<SimuladorState>()(
 
       exportarJSON() {
         const { personas, proyectos, asignaciones, config } = get()
-        return JSON.stringify({ personas, proyectos, asignaciones, config }, null, 2)
+        // El bloque confidencial sale del export solo si esta pestaña del navegador está
+        // desbloqueada; si no, se omite (el resto del plan va completo). Brief §3.3.
+        let configExport: Config = config
+        if (config.equipo_confidencial && !estaDesbloqueado()) {
+          const { equipo_confidencial: _omitido, ...resto } = config
+          configExport = resto as Config
+        }
+        return JSON.stringify({ personas, proyectos, asignaciones, config: configExport }, null, 2)
+      },
+
+      /** true si el próximo export va a omitir el bloque confidencial (existe y la sesión está bloqueada). */
+      exportOmiteConfidencial() {
+        const { config } = get()
+        return !!config.equipo_confidencial && !estaDesbloqueado()
       },
 
       importarJSON(json) {
