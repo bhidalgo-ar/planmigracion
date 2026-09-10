@@ -10,6 +10,8 @@ import { computeViolaciones as _computeViolaciones } from './rules'
 import { estaDesbloqueado } from './confidencial'
 import { validarPlan, type ResultadoValidacion } from './validacionPlan'
 import { ORDEN_FASES } from './theme/fases'
+import { aplicarPlan, configConSalida, describirMovimiento, MOTIVO_TEXTO, planificarCuenta, type ReporteMovimiento } from './planificador'
+import { mesSalidaDe } from './capacidad'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
 import asignacionesRaw from '../data/asignaciones.json'
@@ -128,7 +130,7 @@ function inicioDeFase(
 
 /** Orden canónico de fases dentro de una cuenta (para el respaldo de la cascada). */
 const ORDEN_TIPO: Record<string, number> = {
-  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Vacaciones: 3,
+  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Cierre: 3, Vacaciones: 4,
 }
 
 /**
@@ -289,6 +291,15 @@ interface SimuladorState {
   addFase: (proyectoId: string, tipo: TipoFase, personaId: string) => void
   seleccionarCliente: (proyectoId: string | null) => void
   shiftAccount: (proyectoId: string, semanas: number) => void
+  /**
+   * Cambia el mes de salida en vivo de una cuenta y rearma sus fases hacia atrás desde el
+   * corte de novedades de ese mes (ver `src/planificador.ts`). Actualiza
+   * `config.salidas_en_vivo_propuestas`, así el tope de salidas, el margen, la
+   * disponibilidad de Moni, Insights, Equipo y el video ven el mes nuevo.
+   */
+  moverCuentaAMes: (proyectoId: string, mes: string) => { ok: boolean; motivo?: string; reporte?: ReporteMovimiento }
+  /** Rearma TODAS las cuentas con mes de salida y corte desde su corte. Equivale a correr el script Python. */
+  replanificarDesdeElCorte: () => { replanificadas: number; sinCorte: string[]; sinLugar: string[] }
   addPersona: (alias: string, rol: RolPersona | null) => void
   removePersona: (id: string, force?: boolean) => { ok: boolean; motivo?: string }
   renamePersona: (id: string, alias: string) => void
@@ -450,6 +461,60 @@ export const useSimuladorStore = create<SimuladorState>()(
             violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
         })
+      },
+
+      // Mover una cuenta = cambiar su mes de salida. Las fechas de las fases se derivan del
+      // corte de novedades de ese mes; el config guarda el mes nuevo para que todas las
+      // vistas y reglas lo vean. Devuelve qué cambió (para mostrarlo en el panel).
+      moverCuentaAMes(proyectoId, mes) {
+        let salida: { ok: boolean; motivo?: string; reporte?: ReporteMovimiento } = { ok: false }
+        set(state => {
+          const plan = planificarCuenta(proyectoId, state.asignaciones, mes, state.config)
+          if (!plan.ok) { salida = { ok: false, motivo: MOTIVO_TEXTO[plan.motivo] }; return {} }
+          const asignaciones = aplicarPlan(state.asignaciones, plan.asignaciones)
+          const config = configConSalida(state.config, proyectoId, mes)
+          const violaciones = recompute(asignaciones, state.personas, config, state.proyectos)
+          salida = {
+            ok: true,
+            reporte: describirMovimiento({
+              proyectoId, proyectos: state.proyectos, personas: state.personas,
+              antes: { asignaciones: state.asignaciones, config: state.config, violaciones: state.violaciones },
+              despues: { asignaciones, config, violaciones },
+              plan,
+            }),
+          }
+          return { ...conHistorial(state), asignaciones, config, violaciones }
+        })
+        return salida
+      },
+
+      // Rearma todas las cuentas desde su corte con el mes que ya tienen. Es lo que hacía el
+      // script Python: sirve para normalizar un plan importado o después de editar a mano.
+      replanificarDesdeElCorte() {
+        const reporte = { replanificadas: 0, sinCorte: [] as string[], sinLugar: [] as string[] }
+        set(state => {
+          let asignaciones = state.asignaciones
+          for (const p of state.proyectos) {
+            const mes = mesSalidaDe(p.id, state.config)
+            if (!mes) continue
+            if (!asignaciones.some(a => a.proyecto_id === p.id && !a.es_bloqueo)) continue
+            const plan = planificarCuenta(p.id, asignaciones, mes, state.config)
+            if (!plan.ok) {
+              if (plan.motivo === 'sin_corte') reporte.sinCorte.push(p.nombre)
+              else reporte.sinLugar.push(p.nombre)
+              continue
+            }
+            asignaciones = aplicarPlan(asignaciones, plan.asignaciones)
+            reporte.replanificadas++
+          }
+          if (reporte.replanificadas === 0) return {}
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return reporte
       },
 
       // Alta de recurso: SOLO alias + rol (enum). Nunca nombres reales/PII (regla dura CLAUDE.md §5).

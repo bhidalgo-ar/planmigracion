@@ -26,7 +26,7 @@ const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
 export function ConfigPanel() {
   const {
     violaciones, resetToSeed, exportarJSON, exportOmiteConfidencial, importarJSON,
-    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
+    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes, replanificarDesdeElCorte,
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
@@ -53,6 +53,15 @@ export function ConfigPanel() {
     setMasAbierto(false)
     const { creadas } = autoPlanificarPendientes()
     if (creadas === 0) alert('No hay fases pendientes: todas las cuentas ya tienen Relevamiento, Configuración y Pruebas.')
+  }
+
+  function handleReplanificar() {
+    setMasAbierto(false)
+    const r = replanificarDesdeElCorte()
+    const partes = [`${r.replanificadas} cuenta${r.replanificadas !== 1 ? 's' : ''} rearmada${r.replanificadas !== 1 ? 's' : ''} desde su corte.`]
+    if (r.sinCorte.length) partes.push(`Sin corte de novedades (no se tocaron): ${r.sinCorte.join(', ')}.`)
+    if (r.sinLugar.length) partes.push(`Sin lugar antes del corte (no se tocaron): ${r.sinLugar.join(', ')}.`)
+    alert(partes.join('\n'))
   }
 
   function handleImport() {
@@ -158,6 +167,7 @@ export function ConfigPanel() {
               <MenuDivider />
               <MenuTitulo>Plan</MenuTitulo>
               <MenuItem onClick={handleAutoPlanificar} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin fases, buscando hueco libre.">🪄 Planificar pendientes</MenuItem>
+              <MenuItem onClick={handleReplanificar} title="Rearma las fechas de cada cuenta hacia atrás desde el corte de novedades de su mes de salida: margen mínimo, blackout, lunes y feriados. No cambia quién hace qué ni cuánto dura cada fase.">🧭 Replanificar desde el corte</MenuItem>
               <MenuItem
                 onClick={() => { setMasAbierto(false); if (asignaciones.length && confirm(`¿Eliminar las ${asignaciones.length} asignaciones? Las cuentas y el equipo se mantienen, pero quedan sin planificar.`)) clearAsignaciones() }}
                 disabled={!asignaciones.length} tono="error" title="Eliminar todas las asignaciones del plan">

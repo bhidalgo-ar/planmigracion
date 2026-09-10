@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { useSimuladorStore } from './store'
+import type { Asignacion } from './types'
+import type { ReporteMovimiento } from './planificador'
 
 export type Vista = 'timeline' | 'insights' | 'equipo' | 'resumen' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
@@ -65,9 +67,15 @@ interface UIState {
    * etiqueta para mostrar en pantalla; null = el plan que ya estaba cargado.
    */
   nombrePlan: string | null
+  /** Fases fantasma que el timeline dibuja mientras el mouse está sobre un mes candidato del panel. Transitorio. */
+  previsualizacion: { proyectoId: string; asignaciones: Asignacion[] } | null
+  /** Qué cambió con el último movimiento de cuenta, para mostrarlo en el panel. Transitorio. */
+  ultimoMovimiento: ReporteMovimiento | null
 
   setVista: (v: Vista) => void
   setNombrePlan: (n: string | null) => void
+  setPrevisualizacion: (p: { proyectoId: string; asignaciones: Asignacion[] } | null) => void
+  setUltimoMovimiento: (r: ReporteMovimiento | null) => void
   toggleCarga: () => void
   toggleDep: () => void
   toggleConflictos: () => void
@@ -110,9 +118,13 @@ export const useUIStore = create<UIState>((set) => ({
   // tres carriles vacíos. "Personas → Ver todas" las vuelve a mostrar.
   personasOcultas: personasSinCarga(),
   nombrePlan: null,
+  previsualizacion: null,
+  ultimoMovimiento: null,
 
   setVista: (vista) => set({ vista }),
   setNombrePlan: (nombrePlan) => set({ nombrePlan }),
+  setPrevisualizacion: (previsualizacion) => set({ previsualizacion }),
+  setUltimoMovimiento: (ultimoMovimiento) => set({ ultimoMovimiento }),
   toggleCarga: () => set(s => ({ mostrarCarga: !s.mostrarCarga })),
   toggleDep: () => set(s => ({ mostrarDep: !s.mostrarDep })),
   toggleConflictos: () => set(s => ({ mostrarConflictos: !s.mostrarConflictos })),

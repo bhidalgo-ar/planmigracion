@@ -47,6 +47,16 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
 **Mes de salida en vivo es dato** (`config.salidas_en_vivo_propuestas`), no se deduce del
 fin de las fases. POF y Finadiet salen sin fases (`salidas_en_vivo_fuera_del_plan`).
 
+**Mover una cuenta es cambiar su mes de salida**, no arrastrar sus barras. `src/planificador.ts`
+porta el algoritmo del script `armar_calendario_migracion.py`: desde el corte de novedades del
+mes elegido arma hacia atrás Pruebas (margen mínimo, fuera del blackout), Configuración,
+Relevamiento y el Cierre pegado al corte; conserva id, persona, duración y dedicación de cada
+barra. El panel de la cuenta ("Sale en vivo") muestra cada mes candidato pintado según qué
+pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar, actualiza
+`salidas_en_vivo_propuestas` y resume qué cambió. "Más → Replanificar desde el corte" hace lo
+mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
+carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.test.ts`.
+
 ## 3. Las reglas (`src/rules.ts`)
 
 | tipo | severidad | qué controla |
