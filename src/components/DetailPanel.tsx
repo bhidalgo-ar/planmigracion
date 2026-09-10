@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
 import type { Asignacion, Persona, TipoFase, Violacion } from '../types'
-import { tierDe, TIER_LABEL } from '../insightsEquipo'
+import { tierDe, TIER_LABEL, type Tier } from '../insightsEquipo'
+
+const COLOR_TIER: Record<Tier, string> = {
+  chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
+}
 import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
 import { formatFechaCorta } from '../utils/dates'
 
@@ -81,7 +85,7 @@ export function DetailPanel() {
               {proyecto.quick_win && <span style={pill('var(--ok)')}>Quick-win</span>}
               {proyecto.entidades > 1 && <span style={pill('var(--celeste)')}>{proyecto.entidades} entidades</span>}
               {(() => { const t = tierDe(proyecto.id, config); return t
-                ? <span style={pill(t === 'grande' ? 'var(--fase-relev)' : t === 'chica' ? 'var(--ok)' : 'var(--celeste-dark)')}>Cuenta {TIER_LABEL[t]}</span>
+                ? <span style={pill(COLOR_TIER[t])}>Cuenta {TIER_LABEL[t]}</span>
                 : <span style={pill('var(--gris)')}>tier sin definir</span> })()}
             </div>
           </div>

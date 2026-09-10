@@ -10,6 +10,7 @@ export const TIPO_COLOR: Record<TipoFase, string> = {
   Relevamiento: 'var(--fase-relev)',
   Configuracion: 'var(--fase-config)',
   Pruebas: 'var(--fase-pruebas)',
+  Cierre: 'var(--fase-cierre)',
   Vacaciones: 'var(--fase-bloqueo)',
 }
 
@@ -17,8 +18,14 @@ export const TIPO_LABEL: Record<TipoFase, string> = {
   Relevamiento: 'Relevamiento',
   Configuracion: 'Configuración',
   Pruebas: 'Pruebas',
+  Cierre: 'Cierre',
   Vacaciones: 'Vacaciones',
 }
 
-/** Orden canónico de las 3 fases estándar (excluye bloqueos/vacaciones). */
-export const ORDEN_FASES: TipoFase[] = ['Relevamiento', 'Configuracion', 'Pruebas']
+/**
+ * Orden canónico de las 4 fases estándar (excluye bloqueos/vacaciones).
+ * `Cierre` es la Actualización Final: va pegada al corte de novedades, no al fin
+ * de pruebas, y son dos barras — el relevador trae el delta de nómina y conceptos,
+ * el configurador lo aplica en Axton y recarga acumuladores.
+ */
+export const ORDEN_FASES: TipoFase[] = ['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre']

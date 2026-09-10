@@ -43,6 +43,10 @@ html, body, #root {
   --fase-relev:   #7B2FBE;       /* = --hya-seleccion del DS (antes #7c5cbf sin respaldo) */
   --fase-config:  #00ACD4;       /* celeste de marca (antes #579bfc, azul de Monday) */
   --fase-pruebas: #2FA35A;       /* verde propio de fase, distinto de --ok #22C55E (estado) */
+  --fase-cierre:  #2A4F7A;       /* = --hya-navy-mid del DS. Cuarta fase (Actualizacion Final):
+                                    navy contra el cyan #00ACD4 de config, distinto en tono y en
+                                    luminosidad; no se eligio otro verde para no repetir el
+                                    problema de "dos verdes casi iguales" de los trimestres. */
   --fase-bloqueo: var(--gris);   /* #8C837B, unifica los #bbb/#999 inconsistentes */
   --tasa:         #7B2FBE;       /* badge de cuenta especial (Toyota/TASA); token propio */
 
@@ -57,6 +61,7 @@ html, body, #root {
   --viz-relev:   #7B2FBE;
   --viz-config:  #00ACD4;
   --viz-vivo:    #2FA35A;   /* fase Pruebas y rombo de go-live en la ola de migración */
+  --viz-cierre:  #2A4F7A;   /* fase Cierre (Actualización Final) */
 
   /* Trimestres: forma "emphasis" — un solo acento (lado Axton) contra un gris de
      de-énfasis (lo que sigue en Meta 4). Dos verdes casi iguales no se distinguían;
@@ -124,6 +129,7 @@ html, body, #root {
   --viz-relev:   #9D5FD8;
   --viz-config:  #19A0C1;
   --viz-vivo:    #2FA35A;
+  --viz-cierre:  #6C93C4;   /* el navy #2A4F7A se hunde contra el fondo oscuro: se aclara */
   --viz-axton:   #23874A;   /* mismo acento que en claro: pasa banda y contraste en los dos fondos */
   --viz-meta4:   #2B3D50;
   --viz-grid:    var(--line);

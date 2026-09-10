@@ -3,7 +3,14 @@ import { useSimuladorStore } from '../store'
 import { useUIStore } from '../uiStore'
 import { resumenPlan } from '../insights'
 import { formatFecha } from '../utils/dates'
-import { TIPO_LABEL } from '../theme/fases'
+import { ORDEN_FASES, TIPO_LABEL } from '../theme/fases'
+
+/** 'Relevamiento, Configuración, Pruebas y Cierre', armado desde ORDEN_FASES para
+ *  que el texto no quede viejo cada vez que se agrega una fase. */
+function listarFases(): string {
+  const n = ORDEN_FASES.map(t => TIPO_LABEL[t])
+  return `${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`
+}
 
 /**
  * Franja inferior del timeline: lectura rápida del plan tal como está cargado.
@@ -99,7 +106,7 @@ export function PanelInsights() {
             {r.cuentasPlanificadas === 0 ? (
               <Nota>Todavía no hay ninguna cuenta planificada.</Nota>
             ) : r.incompletas.length === 0 ? (
-              <Nota tono="ok">✓ Las {r.cuentasPlanificadas} cuentas planificadas tienen Relevamiento, Configuración y Pruebas.</Nota>
+              <Nota tono="ok">✓ Las {r.cuentasPlanificadas} cuentas planificadas tienen {listarFases()}.</Nota>
             ) : (
               <Chips>
                 {r.incompletas.map(c => (

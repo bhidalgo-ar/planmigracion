@@ -1,4 +1,4 @@
-export type TipoFase = 'Relevamiento' | 'Configuracion' | 'Pruebas' | 'Vacaciones'
+export type TipoFase = 'Relevamiento' | 'Configuracion' | 'Pruebas' | 'Cierre' | 'Vacaciones'
 
 /** Clasificación del recurso. Opcional: null/undefined = "sin clasificar" (se completa a mano). */
 export type RolPersona = 'relevamiento' | 'configuracion' | 'pruebas'
@@ -107,11 +107,13 @@ export interface Config {
     cuentas: Array<{ nombre: string; alias?: string; sale_en_vivo: string }>
     _doc?: string
   }
-  /** Tier de cada cuenta (chica / std / grande) y el blackout de configuración. */
+  /** Tier de cada cuenta (chica / std / grande / xl) y el blackout de configuración. */
   tiers_v3?: {
     chica: string[]
     std: string[]
     grande: string[]
+    /** Tier de una sola cuenta (Sportline): más grande que `grande`. */
+    xl?: string[]
     duraciones_dias?: Record<string, Record<string, number>>
     /** [desde, hasta] ISO, inclusive. Ninguna Configuración puede tocar ese rango. */
     blackout_config?: [string, string]

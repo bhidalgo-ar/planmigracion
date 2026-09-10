@@ -15,6 +15,7 @@ const VIZ_FASE: Record<TipoFase, string> = {
   Relevamiento: 'var(--viz-relev)',
   Configuracion: 'var(--viz-config)',
   Pruebas: 'var(--viz-vivo)',
+  Cierre: 'var(--viz-cierre)',
   Vacaciones: 'var(--fase-bloqueo)',
 }
 

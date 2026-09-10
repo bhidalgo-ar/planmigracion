@@ -12,7 +12,8 @@ import {
 import { Card, Leyenda, Th, Td, Vacio } from './Insights'
 
 const VIZ_FASE: Record<TipoFase, string> = {
-  Relevamiento: 'var(--viz-relev)', Configuracion: 'var(--viz-config)', Pruebas: 'var(--viz-vivo)', Vacaciones: 'var(--fase-bloqueo)',
+  Relevamiento: 'var(--viz-relev)', Configuracion: 'var(--viz-config)', Pruebas: 'var(--viz-vivo)',
+  Cierre: 'var(--viz-cierre)', Vacaciones: 'var(--fase-bloqueo)',
 }
 const COLOR_ESTADO = { ok: 'var(--viz-axton)', ambar: 'var(--warn)', rojo: 'var(--error)' } as const
 const TX_ESTADO = { ok: 'var(--ok-tx)', ambar: 'var(--warn-tx)', rojo: 'var(--error-tx)' } as const
@@ -72,7 +73,7 @@ export function Equipo() {
         {/* B3: quién hace qué en cada cuenta */}
         <Card titulo="Quién hace qué en cada cuenta"
           subtitulo="Ordenadas por mes de salida · tier, corte de novedades y margen en días hábiles · a la derecha las fases en carriles por persona">
-          <Leyenda series={(['Relevamiento', 'Configuracion', 'Pruebas'] as TipoFase[]).map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))} />
+          <Leyenda series={(['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre'] as TipoFase[]).map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))} />
           {d.cuentas.length === 0
             ? <Vacio>Sin cuentas planificadas.</Vacio>
             : <TablaCuentas cuentas={d.cuentas} aliasDe={aliasDe} onCuenta={irACuenta} />}
