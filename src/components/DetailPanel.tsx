@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useSimuladorStore } from '../store'
-import type { Asignacion, Persona, TipoFase, Violacion } from '../types'
+import { useUIStore } from '../uiStore'
+import type { Asignacion, Persona, Proyecto, TipoFase, Violacion } from '../types'
 import { tierDe, TIER_LABEL, type Tier } from '../insightsEquipo'
+import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
+import { feriadosDeConfig, formatFechaCorta, toISO } from '../utils/dates'
+import { ddmm, fechaCorteDe, margenesPorCuenta, nombreMes } from '../rules'
+import { mesSalidaDe } from '../capacidad'
+import { mesesCandidatos, planificarCuenta, simularDestinos, type Destino } from '../planificador'
 
 const COLOR_TIER: Record<Tier, string> = {
   chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
 }
-import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
-import { formatFechaCorta } from '../utils/dates'
 
 export function DetailPanel() {
   const config = useSimuladorStore(s => s.config)
-  const { proyectos, asignaciones, personas, violaciones, clienteSeleccionado, updateAsignacion, addFase, shiftAccount, renameProyecto, removeProyecto } =
+  const { proyectos, asignaciones, personas, violaciones, clienteSeleccionado, updateAsignacion, addFase, renameProyecto, removeProyecto } =
     useSimuladorStore()
 
   const proyecto = proyectos.find(p => p.id === clienteSeleccionado) ?? null
@@ -55,7 +61,7 @@ export function DetailPanel() {
         <div style={{ color: 'var(--t3)', textAlign: 'center', marginTop: 60, fontSize: 14, lineHeight: 1.6, padding: '0 12px' }}>
           Seleccioná una cuenta del panel izquierdo para ver y editar sus fases.
           <div style={{ marginTop: 16, fontSize: 12, color: 'var(--t3)' }}>
-            En el timeline: arrastrá una barra para moverla · vertical reasigna persona · borde derecho estira. Arrastrá el fondo (o usá el botón del medio del mouse) para desplazarte. Con el toggle "Al mover" elegís si arrastrar mueve solo la tarea (Flexible) o también las fases siguientes de la cuenta (Estricto, nunca las anteriores); Shift invierte el modo puntualmente.
+            Para mover una cuenta de mes, elegí el mes en "Sale en vivo": las fases se rearman hacia atrás desde el corte de novedades. En el timeline: arrastrá una barra para ajustarla a mano · vertical reasigna persona · borde derecho estira. Arrastrá el fondo (o usá el botón del medio del mouse) para desplazarte.
           </div>
         </div>
       ) : (
@@ -90,12 +96,8 @@ export function DetailPanel() {
             </div>
           </div>
 
-          {/* Mover cuenta entera */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '8px 10px', background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 10 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', flex: 1 }}>Mover cuenta entera</span>
-            <button onClick={() => shiftAccount(proyecto.id, -1)} style={moverBtn} title="Adelantar 1 semana">◀ 1 sem</button>
-            <button onClick={() => shiftAccount(proyecto.id, 1)} style={moverBtn} title="Atrasar 1 semana">1 sem ▶</button>
-          </div>
+          {/* La causa: el mes de salida. Las fases de abajo son la consecuencia. */}
+          <BloqueSalida proyecto={proyecto} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {fasesPorTipo.map(({ tipo, asignacion }) => (
@@ -111,6 +113,143 @@ export function DetailPanel() {
             ))}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+/** Etiqueta corta de un mes 'YYYY-MM': 'oct 26'. */
+function mesCortoDe(mes: string): string {
+  return format(parseISO(`${mes}-01`), 'MMM yy', { locale: es })
+}
+
+const ESTILO_DESTINO: Record<Destino['estado'], { bg: string; bd: string; tx: string }> = {
+  verde: { bg: 'var(--ok-bg)', bd: 'var(--ok-bd)', tx: 'var(--ok-tx)' },
+  ambar: { bg: 'var(--warn-bg)', bd: 'var(--warn-bd)', tx: 'var(--warn-tx)' },
+  rojo: { bg: 'var(--error-bg)', bd: 'var(--error-bd)', tx: 'var(--error-tx)' },
+  gris: { bg: 'var(--line-soft)', bd: 'var(--line)', tx: 'var(--t3)' },
+}
+
+/**
+ * La causa arriba, las consecuencias abajo: acá se elige el MES DE SALIDA de la cuenta y
+ * las fechas de las fases se derivan del corte de novedades de ese mes. Cada mes candidato
+ * se pinta según qué pasaría si la cuenta saliera ahí; al pasar el mouse, el timeline
+ * muestra las fases fantasma en su lugar nuevo.
+ */
+function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
+  const { asignaciones, personas, config, proyectos, moverCuentaAMes } = useSimuladorStore()
+  const { setPrevisualizacion, ultimoMovimiento, setUltimoMovimiento } = useUIStore()
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { setError(null) }, [proyecto.id])
+
+  const feriados = useMemo(() => feriadosDeConfig(config), [config])
+  const mesActual = mesSalidaDe(proyecto.id, config)
+  const tieneCorte = typeof config.cortes_novedades_dia?.[proyecto.id] === 'number'
+  const corte = mesActual && tieneCorte ? fechaCorteDe(proyecto.id, mesActual, config, feriados) : null
+  const margen = useMemo(
+    () => margenesPorCuenta(asignaciones, config, proyectos).find(m => m.proyectoId === proyecto.id)?.habiles ?? null,
+    [asignaciones, config, proyectos, proyecto.id],
+  )
+  const minimo = config.capacidad?.margen_minimo_habiles ?? 5
+  const meses = useMemo(() => mesesCandidatos(config, toISO(new Date())), [config])
+  const destinos = useMemo(
+    () => (tieneCorte ? simularDestinos(proyecto.id, meses, asignaciones, personas, config, proyectos) : []),
+    [tieneCorte, proyecto.id, meses, asignaciones, personas, config, proyectos],
+  )
+
+  function previsualizar(mes: string) {
+    const plan = planificarCuenta(proyecto.id, asignaciones, mes, config)
+    setPrevisualizacion(plan.ok ? { proyectoId: proyecto.id, asignaciones: plan.asignaciones } : null)
+  }
+  function elegir(mes: string) {
+    setPrevisualizacion(null)
+    const r = moverCuentaAMes(proyecto.id, mes)
+    if (!r.ok) { setError(r.motivo ?? 'No se pudo mover la cuenta.'); return }
+    setError(null)
+    setUltimoMovimiento(r.reporte ?? null)
+  }
+
+  const reporte = ultimoMovimiento?.proyectoId === proyecto.id ? ultimoMovimiento : null
+
+  return (
+    <div style={{ marginBottom: 16, padding: '12px 14px', background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: 'var(--sh-sm)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--celeste-dark)' }}>Sale en vivo</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>{mesActual ? nombreMes(mesActual) : 'sin definir'}</span>
+      </div>
+      <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {corte && <span>Corte de novedades <b style={{ color: 'var(--ink)' }}>{ddmm(corte)}</b></span>}
+        {margen !== null && (
+          <span>Margen <b style={{ color: margen < minimo ? 'var(--error-tx)' : 'var(--ink)' }}>{margen} hábil{margen !== 1 ? 'es' : ''}</b> hasta el corte</span>
+        )}
+      </div>
+
+      {!tieneCorte ? (
+        <div style={{ marginTop: 10, fontSize: 11.5, padding: '7px 10px', background: 'var(--warn-bg)', border: '1px solid var(--warn-bd)', borderRadius: 8, color: 'var(--warn-tx)', lineHeight: 1.4 }}>
+          [FALTA: corte de novedades de {proyecto.nombre}] Sin ese dato no se puede ubicar la cuenta en un mes. Va en <code>config.cortes_novedades_dia</code>.
+        </div>
+      ) : (
+        <>
+          <div style={{ marginTop: 10, fontSize: 10, fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Moverla a</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+            {destinos.map(d => {
+              const e = ESTILO_DESTINO[d.estado]
+              const title = d.actual
+                ? `Mes actual · corte ${d.corte ? ddmm(d.corte) : '—'} · margen ${d.margen ?? '—'}`
+                : d.estado === 'gris'
+                  ? d.motivo ?? ''
+                  : `${d.motivo ?? 'Sin conflictos nuevos'} · corte ${d.corte ? ddmm(d.corte) : '—'} · margen ${d.margen ?? '—'} hábiles${d.deltaRojos < 0 ? ` · resuelve ${-d.deltaRojos} conflicto${-d.deltaRojos !== 1 ? 's' : ''}` : ''}`
+              return (
+                <button
+                  key={d.mes}
+                  disabled={d.estado === 'gris'}
+                  title={title}
+                  onMouseEnter={() => d.estado !== 'gris' && previsualizar(d.mes)}
+                  onMouseLeave={() => setPrevisualizacion(null)}
+                  onClick={() => elegir(d.mes)}
+                  style={{
+                    padding: '4px 9px', borderRadius: 9999, fontSize: 11, fontWeight: d.actual ? 800 : 600, cursor: d.estado === 'gris' ? 'not-allowed' : 'pointer',
+                    background: e.bg, color: e.tx, border: `1.5px solid ${d.actual ? 'var(--celeste)' : e.bd}`,
+                    boxShadow: d.actual ? '0 0 0 2px var(--celeste-dim)' : 'none', textTransform: 'capitalize',
+                  }}
+                >{mesCortoDe(d.mes)}</button>
+              )
+            })}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
+            Verde entra sin conflictos nuevos · ámbar suma avisos · rojo rompe una regla. Pasá el mouse para ver las fases en el timeline; hacé clic para moverla. Las fechas se arman hacia atrás desde el corte; si después editás una fase a mano, volvé a elegir el mes para rearmarlas.
+          </div>
+        </>
+      )}
+
+      {error && (
+        <div style={{ marginTop: 8, fontSize: 11.5, padding: '6px 9px', background: 'var(--error-bg)', border: '1px solid var(--error-bd)', borderRadius: 8, color: 'var(--error-tx)' }}>{error}</div>
+      )}
+
+      {reporte && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--line-soft)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--t2)' }}>Qué cambió</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--t1)', lineHeight: 1.5 }}>
+            {reporte.nombre}: <b>{reporte.mesAntes ? nombreMes(reporte.mesAntes) : 'sin mes'} → {nombreMes(reporte.mesDespues)}</b>. Corte {ddmm(reporte.corte)}, {reporte.margen} hábil{reporte.margen !== 1 ? 'es' : ''} de margen.
+            {reporte.cierrePisaPruebas && ' La actualización final se pisa con las pruebas.'}
+          </div>
+          <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)' }}>
+            Conflictos {reporte.rojosAntes} → <b style={{ color: reporte.rojosDespues > reporte.rojosAntes ? 'var(--error-tx)' : 'var(--ink)' }}>{reporte.rojosDespues}</b> · Avisos {reporte.ambaresAntes} → <b style={{ color: 'var(--ink)' }}>{reporte.ambaresDespues}</b>
+          </div>
+          {reporte.nuevas.map((m, i) => (
+            <div key={`n${i}`} style={{ marginTop: 4, fontSize: 11, padding: '5px 8px', background: 'var(--error-bg)', borderRadius: 6, color: 'var(--error-tx)' }}>{m}</div>
+          ))}
+          {reporte.resueltas.map((m, i) => (
+            <div key={`r${i}`} style={{ marginTop: 4, fontSize: 11, padding: '5px 8px', background: 'var(--ok-bg)', borderRadius: 6, color: 'var(--ok-tx)' }}>Resuelto: {m}</div>
+          ))}
+          {reporte.cargas.length > 0 && (
+            <div className="num" style={{ marginTop: 6, fontSize: 11, color: 'var(--t2)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {reporte.cargas.map(c => (
+                <span key={`${c.alias}${c.mes}`}>{c.alias} en {nombreMes(c.mes).toLowerCase()}: {c.antes} → <b style={{ color: c.despues > c.capacidad ? 'var(--error-tx)' : 'var(--ink)' }}>{c.despues} h</b> de {c.capacidad}</span>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -230,10 +369,6 @@ const stepBtn: CSSProperties = {
 const iconBtn: CSSProperties = {
   border: '1.5px solid var(--line)', borderRadius: 8, background: 'var(--white)', cursor: 'pointer',
   fontSize: 13, lineHeight: 1, padding: '5px 8px', flexShrink: 0,
-}
-const moverBtn: CSSProperties = {
-  padding: '5px 10px', border: '1.5px solid var(--line)', borderRadius: 9999, background: 'var(--white)',
-  cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--t1)',
 }
 function pill(bg: string): CSSProperties {
   return { background: bg, color: '#fff', borderRadius: 9999, padding: '3px 10px', fontSize: 11, fontWeight: 600 }
