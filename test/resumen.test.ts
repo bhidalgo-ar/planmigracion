@@ -10,7 +10,7 @@
 
 import type { Asignacion, Config, Persona, Proyecto } from '../src/types'
 import { derivarResumen, enLetras, fechaLarga, mesDeAnio } from '../src/resumen/derivarResumen'
-import { armarGuion, CUES, ESCENAS, subtituloEn, unirConY } from '../src/resumen/guion'
+import { armarGuion, CUES, ESCENAS, hashDeSegundo, segundoDelHash, subtituloEn, unirConY } from '../src/resumen/guion'
 import planV3 from './fixtures/plan-v3.json'
 
 let fallos = 0
@@ -179,6 +179,25 @@ eq('a los 5 segundos se lee el de Hoy', subtituloEn(g.subtitulos, 5)?.texto, tex
 eq('a los 30 se lee el del mes crítico', subtituloEn(g.subtitulos, 30)?.texto, textos[4])
 check('los subtítulos van en orden de tiempo',
   g.subtitulos.every((s, i) => i === 0 || g.subtitulos[i - 1].at < s.at))
+
+// ── el segundo en la URL ──────────────────────────────────────────────────────
+titulo('guion — clavar una escena con #t=')
+eq('lee el segundo del hash', segundoDelHash('#t=31'), 31)
+eq('acepta decimales', segundoDelHash('#t=31.5'), 31.5)
+eq('el segundo cero es válido', segundoDelHash('#t=0'), 0)
+eq('y el último segundo también', segundoDelHash('#t=45'), 45)
+check('sin hash no hay segundo', segundoDelHash('') === null)
+check('un hash de otra cosa se ignora', segundoDelHash('#insights') === null)
+check('un segundo fuera del video se ignora', segundoDelHash('#t=99') === null)
+check('un valor que no es número se ignora', segundoDelHash('#t=abc') === null)
+check('un negativo se ignora', segundoDelHash('#t=-3') === null)
+eq('funciona con el t= atrás de otro parámetro', segundoDelHash('#vista=resumen&t=24'), 24)
+eq('arma el hash con un decimal', hashDeSegundo(31.44), '#t=31.4')
+eq('y redondea el segundo decimal', hashDeSegundo(31.46), '#t=31.5')
+eq('recorta lo que se pasa del final', hashDeSegundo(999), '#t=45')
+eq('y lo que va antes del arranque', hashDeSegundo(-5), '#t=0')
+check('lo que arma se puede volver a leer',
+  segundoDelHash(hashDeSegundo(CUES.Cuello + 7)) === CUES.Cuello + 7)
 
 // ── el video sigue al plan ────────────────────────────────────────────────────
 titulo('derivarResumen — si el plan cambia, el video cambia')

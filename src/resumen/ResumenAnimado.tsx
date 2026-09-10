@@ -11,7 +11,7 @@ import {
   derivarResumen, diaYMesCorto,
   type Cuello as CuelloData, type ResumenData, type Salida,
 } from './derivarResumen'
-import { armarGuion, CUES, subtituloEn } from './guion'
+import { armarGuion, CUES, hashDeSegundo, segundoDelHash, subtituloEn } from './guion'
 import { clamp, draw, enter, lerp, pop, Easing } from './motion'
 
 /**
@@ -495,11 +495,14 @@ export function ResumenAnimado() {
   const nombrePlan = useUIStore(s => s.nombrePlan)
 
   const [prefs, setPrefs] = useState(leerPrefs)
-  const [T, setT] = useState(0)
-  const [reproduciendo, setReproduciendo] = useState(true)
+  // Si la URL trae `#t=31`, el video abre PAUSADO en ese segundo: es el link que se
+  // pega en una reunión para clavar una escena sin buscarla con el scrubber.
+  const [T, setT] = useState(() => segundoDelHash(location.hash) ?? 0)
+  const [reproduciendo, setReproduciendo] = useState(() => segundoDelHash(location.hash) === null)
   const [loop, setLoop] = useState(true)
   const [grabando, setGrabando] = useState(false)
   const [escala, setEscala] = useState(0.5)
+  const [linkCopiado, setLinkCopiado] = useState(false)
   const cajaRef = useRef<HTMLDivElement>(null)
 
   const data = useMemo(
@@ -515,6 +518,15 @@ export function ResumenAnimado() {
   useEffect(() => {
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)) } catch { /* no pasa nada */ }
   }, [prefs])
+
+  // Con el video pausado, la URL de la barra queda apuntando a ese segundo, así se puede
+  // copiar y pegar directo. Mientras corre no se toca: sería escribir la URL 60 veces
+  // por segundo. `replaceState` no agrega entradas al historial (el botón Atrás sigue
+  // sirviendo para salir de la app, no para deshacer el scrubber).
+  useEffect(() => {
+    if (reproduciendo || grabando) return
+    try { history.replaceState(null, '', hashDeSegundo(T)) } catch { /* no pasa nada */ }
+  }, [T, reproduciendo, grabando])
 
   // El lienzo es de 1920×1080 fijo: se escala para que entre en el espacio disponible.
   useLayoutEffect(() => {
@@ -550,6 +562,20 @@ export function ResumenAnimado() {
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [reproduciendo, loop])
+
+  /** Copia al portapapeles el link de esta escena (la URL de la app con `#t=`). */
+  async function copiarLink() {
+    setReproduciendo(false)
+    const url = `${location.origin}${location.pathname}${location.search}${hashDeSegundo(T)}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopiado(true)
+      setTimeout(() => setLinkCopiado(false), 2000)
+    } catch {
+      // Sin permiso de portapapeles (o sin HTTPS): al menos queda en la barra del navegador.
+      try { history.replaceState(null, '', hashDeSegundo(T)) } catch { /* no pasa nada */ }
+    }
+  }
 
   /**
    * Exportar: el navegador graba la pestaña (le vas a tener que dar permiso y elegir
@@ -616,6 +642,9 @@ export function ResumenAnimado() {
           <label style={check}>
             <input type="checkbox" checked={prefs.subtitulos} onChange={e => setPrefs(p => ({ ...p, subtitulos: e.target.checked }))} /> Subtítulos
           </label>
+          <button onClick={copiarLink} style={btn(false)} title="Copia el link con este segundo (#t=), para abrir el video clavado en esta escena">
+            {linkCopiado ? '✓ Link copiado' : '🔗 Copiar escena'}
+          </button>
           <button onClick={grabar} style={btn(false)} title="Graba la pestaña una vuelta completa y baja un .webm">⏺ Grabar video</button>
         </div>
       )}

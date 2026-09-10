@@ -171,6 +171,28 @@ export function armarGuion(data: ResumenData, mostrarAlertas: boolean, nombrePla
   }
 }
 
+// ── el segundo en la URL (#t=31) ─────────────────────────────────────────────────
+// Para clavar una escena en una reunión: se pega el link y el video abre pausado ahí,
+// sin tener que buscarla con el scrubber delante de todos.
+
+/**
+ * Lee el segundo del hash de la URL (`#t=31`, `#t=31.5`). Devuelve null si no hay `t=`
+ * o si el valor no es un número dentro del largo del video: un hash raro no tiene que
+ * romper la pantalla, tiene que ignorarse.
+ */
+export function segundoDelHash(hash: string): number | null {
+  const m = /(?:^|[#&?])t=([0-9]+(?:\.[0-9]+)?)/.exec(hash)
+  if (!m) return null
+  const t = Number(m[1])
+  if (!Number.isFinite(t) || t < 0 || t > CUES.total) return null
+  return t
+}
+
+/** El hash que corresponde a un segundo, con un decimal: `#t=31.4`. */
+export function hashDeSegundo(T: number): string {
+  return `#t=${Math.round(Math.max(0, Math.min(CUES.total, T)) * 10) / 10}`
+}
+
 /** El subtítulo que corresponde al segundo `T`, o null. Cada uno dura hasta el siguiente. */
 export function subtituloEn(subtitulos: Subtitulo[], T: number): Subtitulo | null {
   for (let i = 0; i < subtitulos.length; i++) {

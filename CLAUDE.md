@@ -78,6 +78,10 @@ Cuatro archivos, una responsabilidad cada uno:
   función pura de `(T, data)`. La paleta va literal (no `var(--celeste)`): el lienzo es
   blanco fijo y no puede cambiar con el modo oscuro de quien lo mira.
 
+Un link con `#t=31` abre la app en la pestaña Resumen, pausada en el segundo 31: es para
+clavar una escena en una reunión. El hash se mantiene solo mientras el video está pausado
+(con `replaceState`, así el botón Atrás no se llena de pasos del scrubber).
+
 El mes crítico es el de la primera alerta roja de `carga_mes`, y las cuentas que muestra
 son las de la persona sobrecargada. Con el plan v3: enero 2027, Copetro, Campari, Marval y
 Lowsedo. La referencia de diseño está en `docs/handoff/resumen-animado/`.

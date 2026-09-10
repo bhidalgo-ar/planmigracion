@@ -12,6 +12,7 @@ import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
 import { ResumenAnimado } from './resumen/ResumenAnimado'
+import { segundoDelHash } from './resumen/guion'
 import { useSimuladorStore } from './store'
 import { useUIStore, type Vista } from './uiStore'
 import logoUrl from './assets/logo-ha.png'
@@ -31,6 +32,11 @@ export default function App() {
   const hayConfidencial = useSimuladorStore(s => tieneBloqueConfidencial(s.config))
   const tabs = hayConfidencial ? [...TABS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad del equipo' }] : TABS
   useEffect(() => { if (vista === 'confidencial' && !hayConfidencial) setVista('timeline') }, [vista, hayConfidencial, setVista])
+  // Un link con `#t=31` abre directo el video del resumen en ese segundo: si no
+  // cambiáramos de pestaña, el link caería en el Timeline y no se vería nada.
+  useEffect(() => {
+    if (segundoDelHash(location.hash) !== null) setVista('resumen')
+  }, [setVista])
   const [darkMode, setDarkMode] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark')
 
   function toggleTheme() {
