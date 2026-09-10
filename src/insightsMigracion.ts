@@ -1,6 +1,7 @@
 import { differenceInCalendarMonths, parseISO } from 'date-fns'
-import type { Asignacion, Persona, Proyecto, TipoFase } from './types'
+import type { Asignacion, Config, Persona, Proyecto, TipoFase } from './types'
 import { ORDEN_FASES } from './theme/fases'
+import { mesSalidaDe, salidasFueraDelPlan, ultimoDiaDelMesISO } from './capacidad'
 
 /**
  * Lectura de AVANCE de la migración (Meta 4 → Axton), para la vista Insights.
@@ -9,9 +10,11 @@ import { ORDEN_FASES } from './theme/fases'
  * cargado y si alguien está sobreasignado; acá interesa cuándo sale cada cuenta a
  * producción y cómo se reparte el trabajo. Nada de conflictos.
  *
- * Definición central: una cuenta está **en vivo en Axton** cuando termina su última
- * fase planificada. Hasta ese día sigue operando en Meta 4, incluso mientras se la
- * está migrando. Por eso los tres estados de una cuenta son:
+ * Definición central: una cuenta está **en vivo en Axton** en el mes de salida que el
+ * plan declara (`config.salidas_en_vivo_propuestas`); es un DATO del plan v3, no una
+ * deducción. Solo si el plan no lo trae se cae al fin de la última fase planificada
+ * (comportamiento anterior). Hasta ese día sigue operando en Meta 4, incluso mientras
+ * se la está migrando. Por eso los tres estados de una cuenta son:
  *
  *   sin_empezar   → todavía en Meta 4, sin trabajo iniciado
  *   en_migracion  → todavía en Meta 4, con trabajo en curso
@@ -35,15 +38,24 @@ export interface CuentaMigracion {
   especial: boolean
   /** Primer día de trabajo de la cuenta. null si no está planificada. */
   inicio: string | null
-  /** Fin de la última fase = salida en vivo en Axton. null si no está planificada. */
+  /**
+   * Salida en vivo en Axton: último día del mes de salida propuesto, o el fin de la
+   * última fase si el plan no declara mes. null si no está planificada.
+   */
   enVivo: string | null
   fases: FaseCuenta[]
+  /** true para las cuentas que salen en vivo sin pasar por fases (POF, Finadiet). */
+  fueraDelPlan?: boolean
 }
 
 export type EstadoMigracion = 'sin_empezar' | 'en_migracion' | 'en_vivo'
 
-/** Cuentas con sus fases ordenadas y su fecha de salida a Axton. Excluye bloqueos. */
-export function cuentasMigracion(proyectos: Proyecto[], asignaciones: Asignacion[]): CuentaMigracion[] {
+/**
+ * Cuentas con sus fases ordenadas y su fecha de salida a Axton. Excluye bloqueos.
+ * `config` es opcional para no romper a quien no lo tenga a mano: sin él, la salida es
+ * el fin de la última fase.
+ */
+export function cuentasMigracion(proyectos: Proyecto[], asignaciones: Asignacion[], config?: Config): CuentaMigracion[] {
   const fases = asignaciones.filter(a => !a.es_bloqueo)
 
   return proyectos.map(p => {
@@ -52,14 +64,29 @@ export function cuentasMigracion(proyectos: Proyecto[], asignaciones: Asignacion
       .map(a => ({ id: a.id, tipo: a.tipo, inicio: a.inicio, fin: a.fin, persona_id: a.persona_id }))
       .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
 
+    const mesSalida = config ? mesSalidaDe(p.id, config) : null
+    const finFases = propias.length ? propias.reduce((m, f) => (f.fin > m ? f.fin : m), propias[0].fin) : null
     return {
       id: p.id,
       nombre: p.nombre,
       especial: p.especial,
       inicio: propias.length ? propias.reduce((m, f) => (f.inicio < m ? f.inicio : m), propias[0].inicio) : null,
-      enVivo: propias.length ? propias.reduce((m, f) => (f.fin > m ? f.fin : m), propias[0].fin) : null,
+      enVivo: mesSalida ? ultimoDiaDelMesISO(mesSalida) : finFases,
       fases: propias,
     }
+  })
+}
+
+/**
+ * Cuentas que salen en vivo dentro del horizonte sin fases en el simulador (ya están
+ * configuradas): entran al gráfico de trimestres y al KPI de cartera como salidas más,
+ * rotuladas "fuera del simulador". Su `inicio` es el mismo día de salida para que nunca
+ * cuenten como "en migración".
+ */
+export function cuentasFueraDelPlan(config: Config): CuentaMigracion[] {
+  return salidasFueraDelPlan(config).map(c => {
+    const enVivo = ultimoDiaDelMesISO(c.mes)
+    return { id: `fuera:${c.nombre}`, nombre: c.nombre, especial: false, inicio: enVivo, enVivo, fases: [], fueraDelPlan: true }
   })
 }
 

@@ -27,8 +27,8 @@ export interface ResumenPlan {
   enCurso: number
   conflictos: number
   avisos: number
-  /** Persona con más semanas sobreasignadas (R2 rojo), si hay alguna. */
-  cuello: { alias: string; semanas: number } | null
+  /** Persona con más meses por encima de su capacidad (carga_mes rojo), si hay alguna. */
+  cuello: { alias: string; meses: number } | null
   cuentasPlanificadas: number
   totalCuentas: number
 }
@@ -77,16 +77,16 @@ export function resumenPlan(
     .filter(p => !fases.some(a => a.persona_id === p.id))
     .map(p => ({ id: p.id, alias: p.alias }))
 
-  const semanasRojasPorPersona = new Map<string, number>()
+  const mesesRojosPorPersona = new Map<string, number>()
   for (const v of violaciones) {
-    if (v.tipo !== 'R2' || v.severidad !== 'rojo' || !v.persona_id) continue
-    semanasRojasPorPersona.set(v.persona_id, (semanasRojasPorPersona.get(v.persona_id) ?? 0) + 1)
+    if (v.tipo !== 'carga_mes' || v.severidad !== 'rojo' || !v.persona_id) continue
+    mesesRojosPorPersona.set(v.persona_id, (mesesRojosPorPersona.get(v.persona_id) ?? 0) + 1)
   }
-  let cuello: { alias: string; semanas: number } | null = null
-  for (const [pid, semanas] of semanasRojasPorPersona) {
-    if (cuello && cuello.semanas >= semanas) continue
+  let cuello: { alias: string; meses: number } | null = null
+  for (const [pid, meses] of mesesRojosPorPersona) {
+    if (cuello && cuello.meses >= meses) continue
     const alias = personas.find(p => p.id === pid)?.alias ?? pid
-    cuello = { alias, semanas }
+    cuello = { alias, meses }
   }
 
   const finDate = finPlan ? parseISO(finPlan) : null
