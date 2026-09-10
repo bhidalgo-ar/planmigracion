@@ -69,7 +69,8 @@ export function cargaEquipo(personas: Persona[], asignaciones: Asignacion[], con
 // ── B2: el solapamiento explicado ─────────────────────────────────────────────
 
 const VERBO: Record<TipoFase, string> = {
-  Relevamiento: 'releva', Configuracion: 'configura', Pruebas: 'prueba', Vacaciones: 'está de vacaciones por',
+  Relevamiento: 'releva', Configuracion: 'configura', Pruebas: 'prueba', Cierre: 'actualiza',
+  Vacaciones: 'está de vacaciones por',
 }
 
 function listar(nombres: string[]): string {
@@ -107,8 +108,8 @@ export function fraseDelMes(
 
 // ── B3: quién hace qué en cada cuenta ─────────────────────────────────────────
 
-export type Tier = 'chica' | 'std' | 'grande'
-export const TIER_LABEL: Record<Tier, string> = { chica: 'chica', std: 'estándar', grande: 'grande' }
+export type Tier = 'chica' | 'std' | 'grande' | 'xl'
+export const TIER_LABEL: Record<Tier, string> = { chica: 'chica', std: 'estándar', grande: 'grande', xl: 'XL' }
 
 export function tierDe(proyectoId: string, config: Config): Tier | null {
   const t = config.tiers_v3
@@ -116,6 +117,7 @@ export function tierDe(proyectoId: string, config: Config): Tier | null {
   if (t.chica?.includes(proyectoId)) return 'chica'
   if (t.std?.includes(proyectoId)) return 'std'
   if (t.grande?.includes(proyectoId)) return 'grande'
+  if (t.xl?.includes(proyectoId)) return 'xl'
   return null
 }
 

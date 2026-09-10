@@ -37,7 +37,7 @@ const ProyectoSchema = z.object({
 const AsignacionSchema = z.object({
   id: z.string().min(1),
   proyecto_id: z.string().nullable(),
-  tipo: z.enum(['Relevamiento', 'Configuracion', 'Pruebas', 'Vacaciones']),
+  tipo: z.enum(['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre', 'Vacaciones']),
   persona_id: z.string().min(1),
   inicio: FECHA,
   fin: FECHA,

@@ -55,6 +55,11 @@ const alReves = clon(); (alReves.asignaciones[0] as { inicio: string; fin: strin
 check('fin antes de inicio: error', !validarPlan(JSON.stringify(alReves)).ok)
 const tipoRaro = clon(); (tipoRaro.asignaciones[0] as { tipo: string }).tipo = 'UAT'
 check('un tipo de fase desconocido: error', !validarPlan(JSON.stringify(tipoRaro)).ok)
+// La Actualización Final es fase 'Cierre'. Cuando se agregó, el enum del validador
+// todavía tenía tres fases y el plan entero se rechazaba: nada de "se ignora esa barra".
+const conCierre = clon(); (conCierre.asignaciones[0] as { tipo: string }).tipo = 'Cierre'
+const rCierre = validarPlan(JSON.stringify(conCierre))
+check('la fase Cierre (Actualización Final) se acepta', rCierre.ok, rCierre.errores.join(' | '))
 const horizInvertido = clon(); (horizInvertido.config.horizonte as { desde: string; hasta: string }).hasta = '2020-01-01'
 check('horizonte invertido: error', !validarPlan(JSON.stringify(horizInvertido)).ok)
 

@@ -1,6 +1,11 @@
 import { useMemo, type CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
-import { tierDe, TIER_LABEL } from '../insightsEquipo'
+import { tierDe, TIER_LABEL, type Tier } from '../insightsEquipo'
+
+/** Color del badge de tier. XL es el navy de la fase Cierre: no hay otro tono libre. */
+const COLOR_TIER: Record<Tier, string> = {
+  chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
+}
 import { useUIStore } from '../uiStore'
 import { formatFechaCorta } from '../utils/dates'
 
@@ -98,7 +103,7 @@ export function AccountRail() {
                 </span>
                 <span style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                   {proyecto.especial && <span style={badge('var(--tasa)')}>TASA</span>}
-                  {(() => { const t = tierDe(proyecto.id, config); return t ? <span style={badge(t === 'grande' ? 'var(--fase-relev)' : t === 'chica' ? 'var(--ok)' : 'var(--celeste-dark)')} title={`Tier ${TIER_LABEL[t]}`}>{t === 'std' ? 'std' : t === 'chica' ? 'chica' : 'grande'}</span> : null })()}
+                  {(() => { const t = tierDe(proyecto.id, config); return t ? <span style={badge(COLOR_TIER[t])} title={`Tier ${TIER_LABEL[t]}`}>{TIER_LABEL[t]}</span> : null })()}
                   {proyecto.quick_win && <span style={badge('var(--ok)')}>QW</span>}
                   {proyecto.entidades > 1 && <span style={badge('var(--celeste)')}>×{proyecto.entidades}</span>}
                 </span>

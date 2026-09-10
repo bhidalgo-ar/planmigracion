@@ -39,6 +39,7 @@ const W = 1920, H = 1080
  */
 const CEL = '#00ACD4', CELD = '#007896', CELL = '#B3E6F2'
 const GRIS = '#8C837B', INK = '#000000', BORDER = '#E7E6E6'
+const NAVY = '#2A4F7A'   // fase Cierre; = --hya-navy-mid del DS
 const ERR = '#E85518', WARN = '#F59E0B'
 const F = "'Source Sans 3','Source Sans Pro',Arial,Helvetica,sans-serif"
 
@@ -46,6 +47,7 @@ const COLOR_FASE: Record<string, { bg: string; fg: string }> = {
   Relevamiento: { bg: CELL, fg: CELD },
   Configuracion: { bg: CEL, fg: '#fff' },
   Pruebas: { bg: CELD, fg: '#fff' },
+  Cierre: { bg: NAVY, fg: '#fff' },
   Vacaciones: { bg: GRIS, fg: '#fff' },
 }
 
