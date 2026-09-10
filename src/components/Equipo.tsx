@@ -313,9 +313,10 @@ function TicketsCard({ filas }: { filas: Array<{ cliente: string; tickets: numbe
             <span style={{ fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.cliente}</span>
             <div style={{ position: 'relative', height: 14 }} title={`${f.cliente}: ${f.tickets} tickets · ${f.pct_criticas} % críticas · peso ${f.peso} · ${f.escalados} escalados`}>
               <div style={{ width: `${(f.tickets / max) * 100}%`, height: '100%', background: colorCriticas(f.pct_criticas), borderRadius: 3, opacity: 0.9 }} />
-              {Array.from({ length: Math.min(f.escalados, 20) }).map((_, i) => (
+              {Array.from({ length: Math.min(f.escalados, 8) }).map((_, i) => (
                 <span key={i} style={{ position: 'absolute', top: -5, left: `calc(${(f.tickets / max) * 100}% + ${4 + i * 7}px)`, fontSize: 7, color: 'var(--t2)' }}>▲</span>
               ))}
+              {f.escalados > 8 && <span style={{ position: 'absolute', top: -4, left: `calc(${(f.tickets / max) * 100}% + 62px)`, fontSize: 8, color: 'var(--t3)' }}>+{f.escalados - 8}</span>}
             </div>
             <span className="num" style={{ color: 'var(--t2)', whiteSpace: 'nowrap' }}>
               <strong style={{ color: 'var(--ink)' }}>{f.tickets}</strong> · {Math.round(f.pct_criticas)} % · {f.escalados} esc.
