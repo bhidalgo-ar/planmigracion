@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useSimuladorStore } from './store'
 
 export type Vista = 'timeline' | 'insights' | 'equipo' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
@@ -30,6 +31,14 @@ export function aplicarOrdenYFiltro<T extends { id: string }>(
     .filter(p => !escondidas.has(p.id))
     .slice()
     .sort((a, b) => (pos.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (pos.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+}
+
+/** Ids de las personas del plan cargado que no tienen ninguna fase (los bloqueos no cuentan). */
+function personasSinCarga(): string[] {
+  try {
+    const { personas, asignaciones } = useSimuladorStore.getState()
+    return personas.filter(p => !asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo)).map(p => p.id)
+  } catch { return [] }
 }
 
 interface UIState {
@@ -70,6 +79,8 @@ interface UIState {
   /** Mueve una persona `delta` posiciones dentro del orden visible dado. */
   moverPersona: (idsVisibles: string[], id: string, delta: number) => void
   togglePersonaOculta: (id: string) => void
+  /** Oculta exactamente estas personas (las que no tienen fases). Se usa al arrancar y al importar. */
+  ocultarPersonasSinCarga: (ids: string[]) => void
   mostrarTodasLasPersonas: () => void
   resetOrdenPersonas: () => void
 }
@@ -89,7 +100,9 @@ export const useUIStore = create<UIState>((set) => ({
   densidad: 'comoda',
   insightsAbierto: true,
   ordenPersonas: [],
-  personasOcultas: [],
+  // Las filas sin ninguna fase arrancan ocultas: con el plan v3, Susi, Lau y Axton ocupaban
+  // tres carriles vacíos. "Personas → Ver todas" las vuelve a mostrar.
+  personasOcultas: personasSinCarga(),
 
   setVista: (vista) => set({ vista }),
   toggleCarga: () => set(s => ({ mostrarCarga: !s.mostrarCarga })),
@@ -126,6 +139,8 @@ export const useUIStore = create<UIState>((set) => ({
       ? s.personasOcultas.filter(p => p !== id)
       : [...s.personasOcultas, id],
   })),
+
+  ocultarPersonasSinCarga: (ids) => set({ personasOcultas: ids }),
 
   mostrarTodasLasPersonas: () => set({ personasOcultas: [] }),
 

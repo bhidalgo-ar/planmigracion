@@ -19,7 +19,7 @@ const REGLA_NOMBRE: Record<TipoRegla, string> = {
 const ORDEN_REGLAS: TipoRegla[] = ['dependencia', 'margen', 'blackout', 'tope_salidas', 'carga_mes', 'carga_semana']
 
 export function ResumenEjecutivo() {
-  const { proyectos, asignaciones, personas, violaciones, config } = useSimuladorStore()
+  const { proyectos, asignaciones, personas, violaciones } = useSimuladorStore()
   const setResumen = useUIStore(s => s.setResumen)
   const [copiado, setCopiado] = useState(false)
   const copiadoTimer = useRef<number>()
@@ -52,8 +52,6 @@ export function ResumenEjecutivo() {
     return { rojos: rojos.length, avisos: avisos.length, enRiesgo, entregaMax, cuentas, porRegla }
   }, [proyectos, asignaciones, personas, violaciones])
 
-  const transicion = config.fechas_clave.transicion_susana_toyota
-  const transTexto = transicion ? formatFecha(transicion) : 'sin definir'
   const hoy = format(new Date(), "d 'de' MMMM yyyy", { locale: es })
 
   function textoPlano(): string {
@@ -61,7 +59,7 @@ export function ResumenEjecutivo() {
     L.push('SIMULADOR DE MIGRACIÓN Meta4 → Axton — Resumen ejecutivo')
     L.push(`Hidalgo & Asociados · ${hoy}`, '')
     L.push(`Conflictos: ${d.rojos}  |  Avisos: ${d.avisos}  |  Cuentas en riesgo: ${d.enRiesgo}/${d.cuentas.length}  |  Entrega estimada: ${d.entregaMax ? formatFecha(d.entregaMax) : '—'}`)
-    L.push(`Transición Susi → Toyota: ${transTexto}`, '')
+    L.push('')
     L.push('RIESGOS')
     let huboRiesgo = false
     for (const k of ORDEN_REGLAS) {
@@ -122,10 +120,6 @@ export function ResumenEjecutivo() {
           <RKpi label="Avisos" valor={d.avisos} color="#F59E0B" />
           <RKpi label="Cuentas en riesgo" valor={`${d.enRiesgo}/${d.cuentas.length}`} color={d.enRiesgo ? '#E85518' : '#22C55E'} />
           <RKpi label="Entrega estimada" valor={d.entregaMax ? formatFechaCorta(d.entregaMax) + " '" + d.entregaMax.slice(2, 4) : '—'} color="#00ACD4" />
-        </div>
-
-        <div style={{ fontSize: 13, marginBottom: 22, padding: '8px 12px', background: '#EEF2F7', borderRadius: 6 }}>
-          <strong>Transición Susi → Toyota:</strong> {transTexto}
         </div>
 
         {/* Riesgos */}
