@@ -11,6 +11,7 @@ import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
+import { ResumenAnimado } from './resumen/ResumenAnimado'
 import { useSimuladorStore } from './store'
 import { useUIStore, type Vista } from './uiStore'
 import logoUrl from './assets/logo-ha.png'
@@ -21,6 +22,7 @@ const TABS: { v: Vista; label: string }[] = [
   { v: 'timeline', label: '📅 Timeline' },
   { v: 'insights', label: '📊 Insights' },
   { v: 'equipo', label: '👥 Equipo' },
+  { v: 'resumen', label: '📽 Resumen' },
 ]
 
 export default function App() {
@@ -113,6 +115,8 @@ export default function App() {
           </div>
         ) : vista === 'equipo' ? (
           <Equipo />
+        ) : vista === 'resumen' ? (
+          <ResumenAnimado />
         ) : vista === 'confidencial' && hayConfidencial ? (
           <Confidencial />
         ) : (

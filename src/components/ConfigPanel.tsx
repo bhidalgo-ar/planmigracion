@@ -70,6 +70,9 @@ export function ConfigPanel() {
           for (const e of r.errores) L.push(`• ${e}`)
           L.push('', 'El plan que estaba cargado sigue igual.')
         } else {
+          // Se guarda el nombre del archivo para poder decir de qué plan es el video
+          // del resumen ejecutivo ("Plan v3 · 10 de septiembre de 2026").
+          useUIStore.getState().setNombrePlan(file.name.replace(/\.json$/i, ''))
           L.push(`Importado "${file.name}": ${r.resumen.personas} personas, ${r.resumen.proyectos} cuentas, ${r.resumen.asignaciones} fases.`)
           if (r.resumen.sinAsignar) L.push(`${r.resumen.sinAsignar} fase${r.resumen.sinAsignar !== 1 ? 's' : ''} quedan en la fila "Sin asignar".`)
           if (r.avisos.length) { L.push('', 'Para mirar:'); for (const a of r.avisos.slice(0, 10)) L.push(`• ${a}`); if (r.avisos.length > 10) L.push(`• … y ${r.avisos.length - 10} más`) }
