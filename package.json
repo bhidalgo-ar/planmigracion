@@ -7,18 +7,20 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "npm run test:duraciones && npm run test:migracion && npm run test:reglas && npm run test:equipo && npm run test:confidencial",
+    "test": "npm run test:duraciones && npm run test:migracion && npm run test:reglas && npm run test:equipo && npm run test:confidencial && npm run test:importar",
     "test:duraciones": "esbuild test/duraciones.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-duraciones.mjs --log-level=warning && node dist/.test-duraciones.mjs",
     "test:migracion": "esbuild test/migracion.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-migracion.mjs --log-level=warning && node dist/.test-migracion.mjs",
     "test:reglas": "esbuild test/reglas.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-reglas.mjs --log-level=warning && node dist/.test-reglas.mjs",
     "test:equipo": "esbuild test/equipo.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-equipo.mjs --log-level=warning && node dist/.test-equipo.mjs",
-    "test:confidencial": "esbuild test/confidencial.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-confidencial.mjs --log-level=warning && node dist/.test-confidencial.mjs"
+    "test:confidencial": "esbuild test/confidencial.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-confidencial.mjs --log-level=warning && node dist/.test-confidencial.mjs",
+    "test:importar": "esbuild test/importar.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-importar.mjs --log-level=warning && node dist/.test-importar.mjs"
   },
   "dependencies": {
+    "date-fns": "^3.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "zustand": "^4.5.4",
-    "date-fns": "^3.6.0"
+    "zod": "^3.25.76",
+    "zustand": "^4.5.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

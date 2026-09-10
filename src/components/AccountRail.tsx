@@ -1,10 +1,11 @@
 import { useMemo, type CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
+import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { useUIStore } from '../uiStore'
 import { formatFechaCorta } from '../utils/dates'
 
 export function AccountRail() {
-  const { proyectos, asignaciones, violaciones, clienteSeleccionado, seleccionarCliente, removeProyecto } = useSimuladorStore()
+  const { proyectos, asignaciones, violaciones, clienteSeleccionado, seleccionarCliente, removeProyecto, config } = useSimuladorStore()
   const { abrirModal, sortCuentas, toggleSortCuentas } = useUIStore()
 
   function handleRemove(id: string, nombre: string) {
@@ -97,6 +98,7 @@ export function AccountRail() {
                 </span>
                 <span style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                   {proyecto.especial && <span style={badge('var(--tasa)')}>TASA</span>}
+                  {(() => { const t = tierDe(proyecto.id, config); return t ? <span style={badge(t === 'grande' ? 'var(--fase-relev)' : t === 'chica' ? 'var(--ok)' : 'var(--celeste-dark)')} title={`Tier ${TIER_LABEL[t]}`}>{t === 'std' ? 'std' : t === 'chica' ? 'chica' : 'grande'}</span> : null })()}
                   {proyecto.quick_win && <span style={badge('var(--ok)')}>QW</span>}
                   {proyecto.entidades > 1 && <span style={badge('var(--celeste)')}>×{proyecto.entidades}</span>}
                 </span>

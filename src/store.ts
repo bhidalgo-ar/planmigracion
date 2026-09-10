@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { addDays, addWeeks, differenceInDays, parseISO } from 'date-fns'
+import { addDays, differenceInDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, RolPersona, TipoFase, Violacion } from './types'
 import {
   calcularFin, calcularFinPorHoras, feriadosDeConfig, getMondayOfWeek,
@@ -8,6 +8,7 @@ import {
 } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
 import { estaDesbloqueado } from './confidencial'
+import { validarPlan, type ResultadoValidacion } from './validacionPlan'
 import { ORDEN_FASES } from './theme/fases'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
@@ -82,15 +83,6 @@ function candidatosPara(personas: Persona[], tipo: TipoFase): Persona[] {
     if (p.skills?.some(s => skills.includes(s))) out.push(p)
   }
   return out.length ? out : personas.slice(0, 1)
-}
-
-/**
- * Lunes de la semana siguiente al fin de una fase (ISO). Solo lo usa el alta de TASA:
- * es un proyecto especial cuyo encadenado no se toca. Las cuentas estándar encadenan con
- * `siguienteDiaHabil` (ver `inicioDeFase`).
- */
-function siguienteLunes(finISO: string): string {
-  return toISO(addWeeks(getMondayOfWeek(parseISO(finISO)), 1))
 }
 
 /** Horas de esfuerzo de una fase según el tipo de cuenta. null = fase sin horas en la tabla. */
@@ -295,7 +287,6 @@ interface SimuladorState {
 
   updateAsignacion: (id: string, patch: Partial<Asignacion>) => void
   addFase: (proyectoId: string, tipo: TipoFase, personaId: string) => void
-  updateConfigFecha: (key: 'transicion_susana_toyota' | 'retro_ready_axton', value: string | null) => void
   seleccionarCliente: (proyectoId: string | null) => void
   shiftAccount: (proyectoId: string, semanas: number) => void
   addPersona: (alias: string, rol: RolPersona | null) => void
@@ -325,7 +316,12 @@ interface SimuladorState {
   resetToSeed: () => void
   exportarJSON: () => string
   exportOmiteConfidencial: () => boolean
-  importarJSON: (json: string) => void
+  /**
+   * Importa un plan exportado. Valida la forma antes de tocar nada: si hay errores, el plan
+   * cargado sigue igual y el resultado los trae legibles. Las fases con persona inexistente
+   * entran igual (se ven en la fila "Sin asignar").
+   */
+  importarJSON: (json: string) => ResultadoValidacion
 }
 
 function recompute(
@@ -417,72 +413,6 @@ export const useSimuladorStore = create<SimuladorState>()(
             ...conHistorial(state),
             asignaciones,
             violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
-          }
-        })
-      },
-
-      updateConfigFecha(key, value) {
-        set(state => {
-          const feriados = feriadosDeConfig(state.config)
-          const config: Config = {
-            ...state.config,
-            fechas_clave: { ...state.config.fechas_clave, [key]: value },
-          }
-
-          let asignaciones = state.asignaciones
-
-          // "Inicio Toyota" gobierna las fases de TASA:
-          //  - TASA sin fases  → auto-crear Relev(lau 4m) → Config(axton 4m) → Pruebas(lau 2m)
-          //  - TASA ya planificada → mover el bloque entero para que arranque en la nueva fecha
-          if (key === 'transicion_susana_toyota' && value) {
-            const targetInicio = toISO(getMondayOfWeek(parseISO(value)))
-            const tasaFases = state.asignaciones.filter(a => a.proyecto_id === 'tasa' && !a.es_bloqueo)
-
-            if (tasaFases.length === 0) {
-              const relevInicio = targetInicio
-              const relevFin    = calcularFin(relevInicio, 88, feriados)
-              const configInicio = siguienteLunes(relevFin)
-              const configFin   = calcularFin(configInicio, 88, feriados)
-              const pruebasInicio = siguienteLunes(configFin)
-              const pruebasFin  = calcularFin(pruebasInicio, 44, feriados)
-
-              const mk = (
-                sufijo: string, tipo: TipoFase, ini: string, fin: string, dur: number, preds: string[],
-              ): Asignacion => ({
-                id: `tasa-${sufijo}`,
-                proyecto_id: 'tasa',
-                tipo,
-                // Configuración de TASA la ejecuta Axton; Lau releva y prueba.
-                persona_id: sufijo === 'config' ? 'axton' : 'lau',
-                inicio: ini, fin, duracion_dias: dur,
-                dedicacion_pct: 1, predecesoras: preds, es_bloqueo: false,
-              })
-
-              const nuevas: Asignacion[] = [
-                mk('relev',   'Relevamiento',  relevInicio,   relevFin,   88, []),
-                mk('config',  'Configuracion', configInicio,  configFin,  88, ['tasa-relev']),
-                mk('pruebas', 'Pruebas',       pruebasInicio, pruebasFin, 44, ['tasa-config']),
-              ]
-              asignaciones = [...state.asignaciones, ...nuevas]
-            } else {
-              // Desplazar TODAS las fases de TASA para que la más temprana arranque en targetInicio.
-              const earliest = tasaFases.reduce((m, a) => (a.inicio < m ? a.inicio : m), tasaFases[0].inicio)
-              const delta = differenceInDays(parseISO(targetInicio), parseISO(earliest))
-              if (delta !== 0) {
-                asignaciones = state.asignaciones.map(a => {
-                  if (a.proyecto_id !== 'tasa') return a
-                  const inicio = toISO(addDays(parseISO(a.inicio), delta))
-                  return { ...a, inicio, fin: calcularFin(inicio, a.duracion_dias, feriados) }
-                })
-              }
-            }
-          }
-
-          return {
-            ...conHistorial(state),
-            config,
-            asignaciones,
-            violaciones: recompute(asignaciones, state.personas, config, state.proyectos),
           }
         })
       },
@@ -890,10 +820,10 @@ export const useSimuladorStore = create<SimuladorState>()(
       },
 
       importarJSON(json) {
-        const data = JSON.parse(json) as Partial<SimuladorState>
-        const personas = (data.personas as Persona[]) ?? seedPersonas
-        const proyectos = (data.proyectos as Proyecto[]) ?? seedProyectos
-        const asignaciones = (data.asignaciones as Asignacion[]) ?? seedAsignaciones
+        const r = validarPlan(json)
+        if (!r.ok || !r.plan) return r
+        const { personas, proyectos, asignaciones } = r.plan
+        const data = { config: r.plan.config }
         // Un bloqueo es tiempo reservado, no una fase que deba esperar a su predecesora:
         // el bloqueo de supervisión de TASA corre a propósito por debajo del relevamiento.
         // Con la predecesora declarada, la Regla 3 lo marcaba como dependencia rota. Se le
@@ -914,6 +844,7 @@ export const useSimuladorStore = create<SimuladorState>()(
           violaciones: recompute(asignacionesNorm, personas, config, proyectos),
           clienteSeleccionado: null,
         }))
+        return r
       },
     }),
     {

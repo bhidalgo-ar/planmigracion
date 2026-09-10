@@ -3,7 +3,7 @@ import { format, addDays, parseISO, differenceInDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cascadaIds, useSimuladorStore } from '../store'
 import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
-import type { Asignacion, TipoFase } from '../types'
+import type { Asignacion, Persona, TipoFase } from '../types'
 import { TIPO_COLOR } from '../theme/fases'
 import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
@@ -118,6 +118,13 @@ function getPeriodLabel(
   }
 }
 
+/** Fila sintética para las fases cuya `persona_id` no existe en el plan. */
+const SIN_ASIGNAR = '__sin_asignar__'
+const FILA_SIN_ASIGNAR: Persona = {
+  id: SIN_ASIGNAR, alias: 'Sin asignar', skills: [], capacidad_horas_semana: 0, buffer_pct: 0,
+  _nota: 'Fases con una persona que no existe en el plan. Arrastralas a alguien del equipo.',
+}
+
 // ── Componente ──────────────────────────────────────────────────────────────
 
 export function Timeline() {
@@ -132,10 +139,16 @@ export function Timeline() {
 
   // Filas que se ven, en el orden elegido por el usuario. Todo el render y la
   // matemática de arrastre vertical trabajan sobre esta lista, no sobre el store.
-  const personas = useMemo(
-    () => aplicarOrdenYFiltro(personasTodas, ordenPersonas, personasOcultas),
-    [personasTodas, ordenPersonas, personasOcultas],
-  )
+  // Una fase cuya persona no existe en el plan no desaparece: se dibuja en una fila
+  // "Sin asignar" al final, para que se vea y se pueda arrastrar a alguien.
+  const idsPersonas = useMemo(() => new Set(personasTodas.map(p => p.id)), [personasTodas])
+  const hayHuerfanas = useMemo(() => asignaciones.some(a => !idsPersonas.has(a.persona_id)), [asignaciones, idsPersonas])
+  const personas = useMemo(() => {
+    const visibles = aplicarOrdenYFiltro(personasTodas, ordenPersonas, personasOcultas)
+    return hayHuerfanas ? [...visibles, FILA_SIN_ASIGNAR] : visibles
+  }, [personasTodas, ordenPersonas, personasOcultas, hayHuerfanas])
+  /** Id de la fila donde se dibuja una fase: su persona, o "Sin asignar" si no existe. */
+  const filaIdDe = (a: Asignacion) => (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowsRef   = useRef<HTMLDivElement>(null)
@@ -395,7 +408,7 @@ export function Timeline() {
 
   function geom(a: Asignacion) {
     let inicioISO = a.inicio, finISO = a.fin
-    let row = filaDe.get(a.persona_id) ?? 0
+    let row = filaDe.get(filaIdDe(a)) ?? 0
 
     if (drag) {
       if (drag.mode === 'phase' && drag.id === a.id) {
@@ -430,12 +443,12 @@ export function Timeline() {
     const fases = asignaciones.filter(a => a.proyecto_id === clienteSeleccionado)
     const byId  = new Map(asignaciones.map(a => [a.id, a]))
     for (const a of fases) {
-      const rowA = filaDe.get(a.persona_id)
+      const rowA = filaDe.get(filaIdDe(a))
       if (rowA == null) continue
       for (const predId of a.predecesoras) {
         const pred = byId.get(predId)
         if (!pred) continue
-        const rowP = filaDe.get(pred.persona_id)
+        const rowP = filaDe.get(filaIdDe(pred))
         if (rowP == null) continue
         segs.push({
           x1: dateToX(pred.fin) + pxPerDay,
@@ -648,7 +661,7 @@ export function Timeline() {
               differenceInDays(parseISO(a.inicio),  horizonEnd)   > 0
             ) return null
             // la persona está oculta en esta vista → no hay fila donde pintarla
-            if (!filaDe.has(a.persona_id)) return null
+            if (!filaDe.has(filaIdDe(a))) return null
 
             const { left, width, top } = geom(a)
             const proyecto    = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null

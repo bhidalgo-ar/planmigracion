@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useSimuladorStore } from '../store'
 import type { Asignacion, Persona, TipoFase, Violacion } from '../types'
+import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
 import { formatFechaCorta } from '../utils/dates'
 
 export function DetailPanel() {
+  const config = useSimuladorStore(s => s.config)
   const { proyectos, asignaciones, personas, violaciones, clienteSeleccionado, updateAsignacion, addFase, shiftAccount, renameProyecto, removeProyecto } =
     useSimuladorStore()
 
@@ -78,7 +80,9 @@ export function DetailPanel() {
               {proyecto.especial && <span style={pill('var(--tasa)')}>Especial · Toyota</span>}
               {proyecto.quick_win && <span style={pill('var(--ok)')}>Quick-win</span>}
               {proyecto.entidades > 1 && <span style={pill('var(--celeste)')}>{proyecto.entidades} entidades</span>}
-              {proyecto.complejidad == null && <span style={pill('var(--gris)')}>complejidad sin definir</span>}
+              {(() => { const t = tierDe(proyecto.id, config); return t
+                ? <span style={pill(t === 'grande' ? 'var(--fase-relev)' : t === 'chica' ? 'var(--ok)' : 'var(--celeste-dark)')}>Cuenta {TIER_LABEL[t]}</span>
+                : <span style={pill('var(--gris)')}>tier sin definir</span> })()}
             </div>
           </div>
 
