@@ -160,23 +160,34 @@ export function Timeline() {
   const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
   const filaDe        = useMemo(() => new Map(personas.map((p, i) => [p.id, i])), [personas])
 
-  // barras que se pintan enteras de rojo: dependencia rota (R3)
+  // barras que se pintan enteras de rojo: la fase en sí rompe una regla del calendario
+  // (pruebas antes de cerrar la configuración, poco margen al corte, configuración en blackout)
   const barRojo = useMemo(() => {
     const s = new Set<string>()
     if (!mostrarConflictos) return s
     for (const v of violaciones)
-      if (v.severidad === 'rojo' && v.tipo === 'R3') s.add(v.asignacion_id)
+      if (v.severidad === 'rojo' && (v.tipo === 'dependencia' || v.tipo === 'margen' || v.tipo === 'blackout') && v.asignacion_id)
+        s.add(v.asignacion_id)
     return s
   }, [violaciones, mostrarConflictos])
 
-  // carga R2: (personaId|lunesISO) → severidad. Alimenta tanto el tinte semanal
-  // ("Carga semanal") como el anillo de las barras (parte del toggle "Conflictos").
+  // carga: (personaId|lunesISO) → severidad. Alimenta el tinte semanal ("Carga semanal")
+  // y el anillo de las barras. `carga_semana` (ámbar) tiñe su semana; `carga_mes` (rojo)
+  // tiñe todas las semanas del mes que se pasa de capacidad.
   const cargaCelda = useMemo(() => {
     const m = new Map<string, 'rojo' | 'ambar'>()
+    const marcar = (key: string, sev: 'rojo' | 'ambar') => {
+      if (sev === 'rojo' || m.get(key) !== 'rojo') m.set(key, sev)
+    }
     for (const v of violaciones) {
-      if (v.tipo !== 'R2' || !v.persona_id || !v.semana) continue
-      const key = `${v.persona_id}|${v.semana}`
-      if (v.severidad === 'rojo' || m.get(key) !== 'rojo') m.set(key, v.severidad)
+      if (!v.persona_id || v.severidad === 'info') continue
+      if (v.tipo === 'carga_semana' && v.semana) marcar(`${v.persona_id}|${v.semana}`, v.severidad)
+      if (v.tipo === 'carga_mes' && v.mes) {
+        const [y, mo] = v.mes.split('-').map(Number)
+        const ultimo = new Date(y, mo, 0)
+        for (let d = getMondayOfWeek(new Date(y, mo - 1, 1)); d <= ultimo; d = addDays(d, 7))
+          marcar(`${v.persona_id}|${toISO(d)}`, v.severidad)
+      }
     }
     return m
   }, [violaciones])
@@ -470,8 +481,9 @@ export function Timeline() {
     const m = new Map<string, { fases: number; cuentas: number; semRojas: number }>()
     for (const p of personas) {
       const suyas = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+      // meses en que la persona se pasa de su capacidad
       const semRojas = violaciones.filter(
-        v => v.tipo === 'R2' && v.severidad === 'rojo' && v.persona_id === p.id,
+        v => v.tipo === 'carga_mes' && v.severidad === 'rojo' && v.persona_id === p.id,
       ).length
       m.set(p.id, {
         fases: suyas.length,
@@ -542,7 +554,7 @@ export function Timeline() {
             return <div key={i} style={{ position: 'absolute', top: 0, left: x, height: bodyH, borderLeft: `1px solid ${strong ? 'var(--line)' : 'var(--line-soft)'}`, zIndex: 1, pointerEvents: 'none' }} />
           })}
 
-          {/* tintes de carga semanal (R2) */}
+          {/* tintes de carga (semana ámbar / mes rojo) */}
           {mostrarCarga && [...cargaCelda.entries()].map(([key, sev]) => {
             const [pid, lunesISO] = key.split('|')
             const row = filaDe.get(pid)
@@ -602,7 +614,7 @@ export function Timeline() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: compacta ? 13 : 15, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.alias}</span>
                     {mostrarConflictos && st && st.semRojas > 0 && (
-                      <span title={`${st.semRojas} semana${st.semRojas !== 1 ? 's' : ''} sobreasignada${st.semRojas !== 1 ? 's' : ''}`}
+                      <span title={`${st.semRojas} mes${st.semRojas !== 1 ? 'es' : ''} por encima de su capacidad`}
                         style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#fff', background: 'var(--error)', borderRadius: 9999, padding: '1px 6px' }}>
                         ⚠ {st.semRojas}
                       </span>

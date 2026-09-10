@@ -12,7 +12,6 @@
   },
   "pisos_soporte_horas_semana": {
     "moni": null,
-    "leo": null,
     "_nota": "Horas semanales reservadas para soporte. Regla de piso = roadmap (no MVP)."
   },
   "feriados_nacionales_2026": [
@@ -68,7 +67,6 @@
   "disponibilidad": {
     "_doc": "Fraccion de la jornada de 8 hs que cada persona dedica a migracion, por ano. Perilla.",
     "por_persona_ano": {
-      "leo": { "2026": 0.70, "2027": 0.90 },
       "susi": { "2026": 0.70, "2027": 0.90 },
       "moni": { "2026": 0.80, "2027": 0.60 },
       "gaby_f": { "2026": 0.50, "2027": 0.50 },
@@ -121,5 +119,18 @@
     ],
     "_cuentas_programa_ya_en_vivo_doc": "IDs de proyectos.json que el tablero Axton ya muestra como migrados hoy, aunque el plan simulado calcule una fecha de salida un poco posterior a hoy. Ajusta solo el KPI 'ya en vivo hoy' de los insights; no cambia ninguna fecha del plan ni el resto de la app.",
     "cuentas_programa_ya_en_vivo": ["coty"]
+  },
+  "capacidad": {
+    "_doc": "Modelo de capacidad (brief 10/09/2026 s.2). Todo en horas: horas_dia x dias habiles x dedicacion. Ver src/capacidad.ts.",
+    "horas_dia_default": 7,
+    "margen_minimo_habiles": 5,
+    "aviso_semanal_tolerancia": 1.15,
+    "moni_soporte_axton": {
+      "base": 0.80,
+      "cuentas_base": 10,
+      "caida_por_cuenta": 0.02,
+      "piso": 0.50,
+      "_nota": "disponibilidad = max(piso, base - caida x (cuentas_en_axton - cuentas_base)). Perilla, calibrar con la ticketera (board 5171238580, Herramienta = Axton)."
+    }
   }
 }

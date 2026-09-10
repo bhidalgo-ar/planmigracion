@@ -166,7 +166,7 @@ function FaseCard({ tipo, asignacion, personas, violaciones, onUpdate, onCreate 
             </Campo>
           </div>
           <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
-            Bajá la dedicación si esta persona solo destina una parte de su semana a esta fase: la Regla 2 (sobreasignación) suma la dedicación de todo lo que se pisa el mismo día para la misma persona.
+            La dedicación es la fracción de la jornada diaria (7 h, Gaby 4 h) que esta persona le pone a la fase. La carga del mes suma las horas de todas sus fases y se compara con su capacidad.
           </div>
           {violaciones.length > 0 && (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>

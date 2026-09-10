@@ -1,0 +1,1968 @@
+{
+  "personas": [
+    {
+      "id": "susi",
+      "alias": "Susi",
+      "skills": [
+        "configuracion",
+        "meta4",
+        "axton"
+      ],
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "_nota": "Configuradora senior, freelance. Releva SOLO Marval. Configura Finadiet, Copetro, Marval. Pasa a TASA config cuando termina el relevamiento de Lau. Riesgo critico: recurso unico."
+    },
+    {
+      "id": "moni",
+      "alias": "Moni",
+      "skills": [
+        "soporte",
+        "configuracion",
+        "axton"
+      ],
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "_nota": "Full-time. Configuradora principal de cuentas estandar (POF, Lowsedo, TIM, Campari, Piano, DLA). Tiene piso de soporte Axton que la migracion NO debe comer."
+    },
+    {
+      "id": "lau",
+      "alias": "Lau",
+      "skills": [
+        "relevamiento",
+        "testeo"
+      ],
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "_nota": "Full-time, dedicada 100% a Toyota/TASA."
+    },
+    {
+      "id": "gaby_f",
+      "alias": "Gaby F.",
+      "skills": [],
+      "capacidad_horas_semana": 20,
+      "buffer_pct": 0,
+      "_nota": "Releva SOLO POF y Finadiet. Configura y prueba Carrier y Sportline. PENDIENTE DE DEFINIR: rol definitivo, skills y capacidad real.",
+      "horas_dia": 4
+    },
+    {
+      "id": "axton",
+      "alias": "Axton",
+      "skills": [],
+      "rol": "configuracion",
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "custom": true
+    },
+    {
+      "id": "guille",
+      "alias": "Guille",
+      "skills": [],
+      "rol": "configuracion",
+      "capacidad_horas_semana": 40,
+      "buffer_pct": 0,
+      "custom": true
+    }
+  ],
+  "proyectos": [
+    {
+      "id": "tim",
+      "nombre": "TIM",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": "Primera cuenta en el board (ene 2026). Relevamiento Leo."
+    },
+    {
+      "id": "piano",
+      "nombre": "Piano",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": "Relevamiento Leo, configuracion Moni."
+    },
+    {
+      "id": "lowsedo",
+      "nombre": "Lowsedo",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 3,
+      "quick_win": false,
+      "especial": false,
+      "_nota": "3 entidades."
+    },
+    {
+      "id": "marval",
+      "nombre": "Marval",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": ""
+    },
+    {
+      "id": "campari",
+      "nombre": "Campari",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": ""
+    },
+    {
+      "id": "copetro",
+      "nombre": "Copetro",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": ""
+    },
+    {
+      "id": "dla",
+      "nombre": "DLA",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": ""
+    },
+    {
+      "id": "carrier",
+      "nombre": "Carrier",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 2,
+      "quick_win": false,
+      "especial": false,
+      "_nota": "2 entidades."
+    },
+    {
+      "id": "sportline",
+      "nombre": "Sportline",
+      "complejidad": null,
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": false,
+      "especial": false,
+      "_nota": "La mas compleja - template estandar no aplica del todo."
+    },
+    {
+      "id": "bonafide",
+      "nombre": "Bonafide",
+      "complejidad": "baja",
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": true,
+      "especial": false,
+      "_nota": "<10 empleados. Tier chico (factor 0.25)."
+    },
+    {
+      "id": "gsma",
+      "nombre": "GSMA",
+      "complejidad": "baja",
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": true,
+      "especial": false,
+      "_nota": "<10 empleados. Tier chico (factor 0.25)."
+    },
+    {
+      "id": "aysa",
+      "nombre": "Aysa",
+      "complejidad": "baja",
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": true,
+      "especial": false,
+      "_nota": "<10 empleados. Tier chico (factor 0.25)."
+    },
+    {
+      "id": "ford",
+      "nombre": "Ford",
+      "complejidad": "baja",
+      "depende_retro": null,
+      "entidades": 1,
+      "quick_win": true,
+      "especial": false,
+      "_nota": "<10 empleados. Tier chico (factor 0.25)."
+    }
+  ],
+  "asignaciones": [
+    {
+      "id": "tim-corrida",
+      "proyecto_id": "tim",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "piano-corrida",
+      "proyecto_id": "piano",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "dla-corrida",
+      "proyecto_id": "dla",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "gsma-corrida",
+      "proyecto_id": "gsma",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "bonafide-corrida",
+      "proyecto_id": "bonafide",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "copetro-corrida",
+      "proyecto_id": "copetro",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "campari-corrida",
+      "proyecto_id": "campari",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "lowsedo-corrida",
+      "proyecto_id": "lowsedo",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "marval-corrida",
+      "proyecto_id": "marval",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "sportline-corrida",
+      "proyecto_id": "sportline",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "aysa-corrida",
+      "proyecto_id": "aysa",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "ford-corrida",
+      "proyecto_id": "ford",
+      "tipo": "Relevamiento",
+      "persona_id": "guille",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "carrier-corrida",
+      "proyecto_id": "carrier",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-14",
+      "fin": "2026-09-18",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.1,
+      "predecesoras": [],
+      "es_bloqueo": false,
+      "_nota": "Corrida inicial en Claude Code (semana unica para las 13 cuentas). Dimensiona, dispara definiciones con Axton y preguntas al analista, crea la EA."
+    },
+    {
+      "id": "tim-repaso",
+      "proyecto_id": "tim",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-21",
+      "fin": "2026-09-22",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "tim-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "tim-config-w",
+      "proyecto_id": "tim",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-09-23",
+      "fin": "2026-09-28",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "tim-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "tim-config-m",
+      "proyecto_id": "tim",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-09-23",
+      "fin": "2026-09-25",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "tim-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "tim-pruebas-g",
+      "proyecto_id": "tim",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-29",
+      "fin": "2026-10-08",
+      "duracion_dias": 8,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "tim-config-w",
+        "tim-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "tim-pruebas-m",
+      "proyecto_id": "tim",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2026-09-29",
+      "fin": "2026-10-01",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "tim-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "tim-pruebas-w",
+      "proyecto_id": "tim",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2026-09-29",
+      "fin": "2026-10-02",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "tim-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "piano-repaso",
+      "proyecto_id": "piano",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-10-19",
+      "fin": "2026-10-20",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "piano-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "piano-config-w",
+      "proyecto_id": "piano",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-10-26",
+      "fin": "2026-10-29",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "piano-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "piano-config-m",
+      "proyecto_id": "piano",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-10-26",
+      "fin": "2026-10-28",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "piano-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "piano-pruebas-g",
+      "proyecto_id": "piano",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2026-11-02",
+      "fin": "2026-11-11",
+      "duracion_dias": 8,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "piano-config-w",
+        "piano-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "piano-pruebas-m",
+      "proyecto_id": "piano",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2026-11-02",
+      "fin": "2026-11-04",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "piano-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "piano-pruebas-w",
+      "proyecto_id": "piano",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2026-11-02",
+      "fin": "2026-11-05",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "piano-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "dla-repaso",
+      "proyecto_id": "dla",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-09-28",
+      "fin": "2026-09-30",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "dla-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "dla-config-w",
+      "proyecto_id": "dla",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-10-05",
+      "fin": "2026-10-14",
+      "duracion_dias": 7,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "dla-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "dla-config-m",
+      "proyecto_id": "dla",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-10-05",
+      "fin": "2026-10-09",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "dla-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "dla-pruebas-g",
+      "proyecto_id": "dla",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2026-10-19",
+      "fin": "2026-10-30",
+      "duracion_dias": 10,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "dla-config-w",
+        "dla-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "dla-pruebas-m",
+      "proyecto_id": "dla",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2026-10-19",
+      "fin": "2026-10-22",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "dla-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "dla-pruebas-w",
+      "proyecto_id": "dla",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2026-10-19",
+      "fin": "2026-10-23",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "dla-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "gsma-repaso",
+      "proyecto_id": "gsma",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-11-16",
+      "fin": "2026-11-16",
+      "duracion_dias": 1,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "gsma-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "gsma-config-w",
+      "proyecto_id": "gsma",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-11-23",
+      "fin": "2026-11-24",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "gsma-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "gsma-config-m",
+      "proyecto_id": "gsma",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-11-23",
+      "fin": "2026-11-24",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "gsma-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "gsma-pruebas-g",
+      "proyecto_id": "gsma",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2026-11-30",
+      "fin": "2026-12-03",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "gsma-config-w",
+        "gsma-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "gsma-pruebas-m",
+      "proyecto_id": "gsma",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2026-11-30",
+      "fin": "2026-12-01",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "gsma-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "gsma-pruebas-w",
+      "proyecto_id": "gsma",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2026-11-30",
+      "fin": "2026-12-01",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "gsma-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "bonafide-repaso",
+      "proyecto_id": "bonafide",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-11-30",
+      "fin": "2026-11-30",
+      "duracion_dias": 1,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "bonafide-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "bonafide-config-w",
+      "proyecto_id": "bonafide",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-12-07",
+      "fin": "2026-12-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "bonafide-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "bonafide-config-m",
+      "proyecto_id": "bonafide",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-12-07",
+      "fin": "2026-12-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "bonafide-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "bonafide-pruebas-g",
+      "proyecto_id": "bonafide",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-17",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "bonafide-config-w",
+        "bonafide-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "bonafide-pruebas-m",
+      "proyecto_id": "bonafide",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-15",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "bonafide-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "bonafide-pruebas-w",
+      "proyecto_id": "bonafide",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-15",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "bonafide-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "copetro-repaso",
+      "proyecto_id": "copetro",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-12-07",
+      "fin": "2026-12-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "copetro-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "copetro-config-w",
+      "proyecto_id": "copetro",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-17",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "copetro-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "copetro-config-m",
+      "proyecto_id": "copetro",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-16",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "copetro-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "copetro-pruebas-g",
+      "proyecto_id": "copetro",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-13",
+      "duracion_dias": 8,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "copetro-config-w",
+        "copetro-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "copetro-pruebas-m",
+      "proyecto_id": "copetro",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-06",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "copetro-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "copetro-pruebas-w",
+      "proyecto_id": "copetro",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-07",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "copetro-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "campari-repaso",
+      "proyecto_id": "campari",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2026-12-07",
+      "fin": "2026-12-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "campari-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "campari-config-w",
+      "proyecto_id": "campari",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-17",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "campari-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "campari-config-m",
+      "proyecto_id": "campari",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2026-12-14",
+      "fin": "2026-12-16",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "campari-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "campari-pruebas-g",
+      "proyecto_id": "campari",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-13",
+      "duracion_dias": 8,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "campari-config-w",
+        "campari-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "campari-pruebas-m",
+      "proyecto_id": "campari",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-06",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "campari-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "campari-pruebas-w",
+      "proyecto_id": "campari",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-07",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "campari-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "lowsedo-repaso",
+      "proyecto_id": "lowsedo",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-11",
+      "fin": "2027-01-13",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "lowsedo-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "lowsedo-config-w",
+      "proyecto_id": "lowsedo",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-01-18",
+      "fin": "2027-01-26",
+      "duracion_dias": 7,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "lowsedo-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "lowsedo-config-m",
+      "proyecto_id": "lowsedo",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-01-18",
+      "fin": "2027-01-22",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "lowsedo-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "lowsedo-pruebas-g",
+      "proyecto_id": "lowsedo",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-02-01",
+      "fin": "2027-02-16",
+      "duracion_dias": 10,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "lowsedo-config-w",
+        "lowsedo-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "lowsedo-pruebas-m",
+      "proyecto_id": "lowsedo",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-02-01",
+      "fin": "2027-02-04",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "lowsedo-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "lowsedo-pruebas-w",
+      "proyecto_id": "lowsedo",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-02-01",
+      "fin": "2027-02-05",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "lowsedo-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "marval-repaso",
+      "proyecto_id": "marval",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-04",
+      "fin": "2027-01-06",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "marval-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "marval-config-w",
+      "proyecto_id": "marval",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-01-11",
+      "fin": "2027-01-19",
+      "duracion_dias": 7,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "marval-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "marval-config-m",
+      "proyecto_id": "marval",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-01-11",
+      "fin": "2027-01-15",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "marval-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "marval-pruebas-g",
+      "proyecto_id": "marval",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-25",
+      "fin": "2027-02-05",
+      "duracion_dias": 10,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "marval-config-w",
+        "marval-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "marval-pruebas-m",
+      "proyecto_id": "marval",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-01-25",
+      "fin": "2027-01-28",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "marval-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "marval-pruebas-w",
+      "proyecto_id": "marval",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-01-25",
+      "fin": "2027-01-29",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "marval-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "sportline-repaso",
+      "proyecto_id": "sportline",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-01-25",
+      "fin": "2027-01-27",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "sportline-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "sportline-config-w",
+      "proyecto_id": "sportline",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-02-01",
+      "fin": "2027-02-11",
+      "duracion_dias": 7,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "sportline-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "sportline-config-m",
+      "proyecto_id": "sportline",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-02-01",
+      "fin": "2027-02-05",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "sportline-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "sportline-pruebas-g",
+      "proyecto_id": "sportline",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-02-22",
+      "fin": "2027-03-05",
+      "duracion_dias": 10,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "sportline-config-w",
+        "sportline-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "sportline-pruebas-m",
+      "proyecto_id": "sportline",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-02-22",
+      "fin": "2027-02-25",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "sportline-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "sportline-pruebas-w",
+      "proyecto_id": "sportline",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-02-22",
+      "fin": "2027-02-26",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "sportline-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "aysa-repaso",
+      "proyecto_id": "aysa",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-02-22",
+      "fin": "2027-02-22",
+      "duracion_dias": 1,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "aysa-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "aysa-config-w",
+      "proyecto_id": "aysa",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-03-01",
+      "fin": "2027-03-02",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "aysa-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "aysa-config-m",
+      "proyecto_id": "aysa",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-03-01",
+      "fin": "2027-03-02",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "aysa-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "aysa-pruebas-g",
+      "proyecto_id": "aysa",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-11",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "aysa-config-w",
+        "aysa-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "aysa-pruebas-m",
+      "proyecto_id": "aysa",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "aysa-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "aysa-pruebas-w",
+      "proyecto_id": "aysa",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "aysa-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "ford-repaso",
+      "proyecto_id": "ford",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-02-22",
+      "fin": "2027-02-22",
+      "duracion_dias": 1,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "ford-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "ford-config-w",
+      "proyecto_id": "ford",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-03-01",
+      "fin": "2027-03-02",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "ford-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "ford-config-m",
+      "proyecto_id": "ford",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-03-01",
+      "fin": "2027-03-02",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "ford-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "ford-pruebas-g",
+      "proyecto_id": "ford",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-11",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "ford-config-w",
+        "ford-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "ford-pruebas-m",
+      "proyecto_id": "ford",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "ford-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "ford-pruebas-w",
+      "proyecto_id": "ford",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-09",
+      "duracion_dias": 2,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "ford-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    },
+    {
+      "id": "carrier-repaso",
+      "proyecto_id": "carrier",
+      "tipo": "Relevamiento",
+      "persona_id": "gaby_f",
+      "inicio": "2027-03-08",
+      "fin": "2027-03-10",
+      "duracion_dias": 3,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "carrier-corrida"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Repaso: re-corrida acotada (tickets, contabilidad, nomina, conceptos nuevos desde la corrida inicial) + analisis del informe y preguntas al analista."
+    },
+    {
+      "id": "carrier-config-w",
+      "proyecto_id": "carrier",
+      "tipo": "Configuracion",
+      "persona_id": "guille",
+      "inicio": "2027-03-15",
+      "fin": "2027-03-23",
+      "duracion_dias": 7,
+      "dedicacion_pct": 0.6,
+      "predecesoras": [
+        "carrier-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Willy: conceptos y formulas + imputacion contable + codigo de lo no estandar."
+    },
+    {
+      "id": "carrier-config-m",
+      "proyecto_id": "carrier",
+      "tipo": "Configuracion",
+      "persona_id": "moni",
+      "inicio": "2027-03-15",
+      "fin": "2027-03-19",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.5,
+      "predecesoras": [
+        "carrier-repaso"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Moni: alta EA, tablas, importadores, acumuladores, validacion de salidas estandar con Axton. En paralelo con Willy."
+    },
+    {
+      "id": "carrier-pruebas-g",
+      "proyecto_id": "carrier",
+      "tipo": "Pruebas",
+      "persona_id": "gaby_f",
+      "inicio": "2027-03-29",
+      "fin": "2027-04-12",
+      "duracion_dias": 10,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "carrier-config-w",
+        "carrier-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "UAT (data ficticia) + Paralelo (mes cerrado) + Actualizacion final. Corre el comparador en Claude Code, documenta, coordina con el analista."
+    },
+    {
+      "id": "carrier-pruebas-m",
+      "proyecto_id": "carrier",
+      "tipo": "Pruebas",
+      "persona_id": "moni",
+      "inicio": "2027-03-29",
+      "fin": "2027-04-01",
+      "duracion_dias": 4,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "carrier-config-m"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Carga de casos/novedades y proceso en Axton; recarga de acumuladores al ultimo mes cerrado."
+    },
+    {
+      "id": "carrier-pruebas-w",
+      "proyecto_id": "carrier",
+      "tipo": "Pruebas",
+      "persona_id": "guille",
+      "inicio": "2027-03-29",
+      "fin": "2027-04-05",
+      "duracion_dias": 5,
+      "dedicacion_pct": 0.3,
+      "predecesoras": [
+        "carrier-config-w"
+      ],
+      "es_bloqueo": false,
+      "_nota": "Resolucion de desvios del comparador."
+    }
+  ],
+  "config": {
+    "_doc": "Configuracion global del simulador. Estas son las PERILLAS que se mueven para hacer 'que pasa si'.",
+    "unidades": {
+      "horas_por_dia": 8,
+      "dias_por_semana": 5,
+      "_nota": "1 semana plena = 5 dias = 40 hs."
+    },
+    "fechas_clave": {
+      "transicion_susana_toyota": null,
+      "retro_ready_axton": "2026-09-10",
+      "_nota": "transicion_susana_toyota: PERILLA principal (Inicio Toyota).",
+      "_nota_retro": "Retroactivos de Axton confirmados en vivo el 10/09/2026 (Willy). Deja de ser dependencia."
+    },
+    "pisos_soporte_horas_semana": {
+      "moni": null,
+      "leo": null,
+      "_nota": "Horas semanales reservadas para soporte. Regla de piso = roadmap (no MVP)."
+    },
+    "feriados_nacionales_2026": [
+      {
+        "fecha": "2026-01-01",
+        "nombre": "Año Nuevo"
+      },
+      {
+        "fecha": "2026-02-16",
+        "nombre": "Carnaval"
+      },
+      {
+        "fecha": "2026-02-17",
+        "nombre": "Carnaval"
+      },
+      {
+        "fecha": "2026-03-24",
+        "nombre": "Dia de la Memoria"
+      },
+      {
+        "fecha": "2026-04-02",
+        "nombre": "Dia del Veterano y de los Caidos en Malvinas"
+      },
+      {
+        "fecha": "2026-04-03",
+        "nombre": "Viernes Santo"
+      },
+      {
+        "fecha": "2026-05-01",
+        "nombre": "Dia del Trabajador"
+      },
+      {
+        "fecha": "2026-05-25",
+        "nombre": "Dia de la Revolucion de Mayo"
+      },
+      {
+        "fecha": "2026-06-15",
+        "nombre": "Paso a la Inmortalidad del Gral. Guemes"
+      },
+      {
+        "fecha": "2026-06-20",
+        "nombre": "Dia de la Bandera (Belgrano)"
+      },
+      {
+        "fecha": "2026-07-09",
+        "nombre": "Dia de la Independencia"
+      },
+      {
+        "fecha": "2026-08-17",
+        "nombre": "Paso a la Inmortalidad del Gral. San Martin"
+      },
+      {
+        "fecha": "2026-10-12",
+        "nombre": "Dia del Respeto a la Diversidad Cultural"
+      },
+      {
+        "fecha": "2026-11-20",
+        "nombre": "Dia de la Soberania Nacional"
+      },
+      {
+        "fecha": "2026-12-08",
+        "nombre": "Inmaculada Concepcion de Maria"
+      },
+      {
+        "fecha": "2026-12-25",
+        "nombre": "Navidad"
+      }
+    ],
+    "_feriados_nota": "Feriados nacionales 2026.",
+    "horizonte": {
+      "desde": "2026-06-01",
+      "hasta": "2027-10-31"
+    },
+    "template_estandar": {
+      "_doc": "Baseline derivado del tablero Monday EMPRESA - MMAAAA (board 18420861674). Cuenta estandar de 1 entidad. Aplica al ~80% de las cuentas. Sportline y TASA quedan fuera por complejidad.",
+      "fuente": "Monday board 18420861674 / subitems 18420861681, columna de horas",
+      "horas_relevador": 55.5,
+      "horas_configurador": 159,
+      "horas_axton_externo": 18,
+      "dias_habiles_span": 23,
+      "solapamiento_relev_config_dias": 6,
+      "fases": {
+        "Relevamiento": {
+          "dias": 7,
+          "horas": 55.5,
+          "offset": 0,
+          "ded": 1
+        },
+        "Configuracion": {
+          "dias": 10,
+          "horas": 71,
+          "offset": 1,
+          "ded": 0.89
+        },
+        "Pruebas": {
+          "dias": 12,
+          "horas": 88,
+          "offset": 11,
+          "ded": 0.92
+        }
+      },
+      "_supuestos_a_confirmar": [
+        "4 hs de TRACK/TEST de entregables Axton dentro de Configuracion (estimacion, no medido)",
+        "BP2 Formato asiento (16 hs): sin definir si lo hace Axton o Gaby+Manager en Claude. Hoy contabilizado como Axton (externo).",
+        "1 sola ronda de paralelo (decision explicita del Manager: si se posterga, se posterga)",
+        "Sin multiplicador por complejidad ni por entidad extra (Carrier 2, Lowsedo 3)",
+        "Feriados 2027 no cargados: Marval y TASA cruzan a 2027"
+      ],
+      "_reparto_axton": {
+        "BP2 Recibos de sueldo": "Axton (1 h)",
+        "BP2 Acreditacion bancaria": "Axton (1 h)",
+        "BP2 Formato asiento": "SIN DEFINIR - Axton o H&A (16 h)",
+        "BP2 Redefinicion de cuentas": "Moni (16 h)",
+        "BP2 Archivos sindicato": "Moni (2 h)"
+      }
+    },
+    "feriados_nacionales_2027": [
+      {
+        "fecha": "2027-01-01",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-02-08",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-02-09",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-03-24",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-03-26",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-04-02",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-05-01",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-05-25",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-06-14",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-06-20",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-07-09",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-08-16",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-10-11",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-11-22",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-12-08",
+        "nombre": "(estimado)"
+      },
+      {
+        "fecha": "2027-12-25",
+        "nombre": "(estimado)"
+      }
+    ],
+    "horas_por_fase": {
+      "_doc": "Horas de esfuerzo por fase. Fuente: tablero Monday 18420861674 (EMPRESA - MMAAAA), columna de horas.",
+      "estandar": {
+        "Relevamiento": 55.5,
+        "Configuracion": 71,
+        "Pruebas": 88
+      },
+      "chica": {
+        "Relevamiento": 37.1,
+        "Configuracion": 67.1,
+        "Pruebas": 45.2
+      },
+      "_chica_nota": "Cuentas de <10 empleados. Fijo + 0.25 x variable. HIPOTESIS sin medir.",
+      "_criterio_chica": "proyecto.complejidad === 'baja'"
+    },
+    "disponibilidad": {
+      "_doc": "Fraccion de la jornada de 8 hs que cada persona dedica a migracion, por ano. Perilla.",
+      "por_persona_ano": {
+        "susi": {
+          "2026": 0.7,
+          "2027": 0.9
+        },
+        "moni": {
+          "2026": 0.8,
+          "2027": 0.6
+        },
+        "gaby_f": {
+          "2026": 0.5,
+          "2027": 0.5
+        },
+        "lau": {
+          "2026": 1,
+          "2027": 1
+        },
+        "axton": {
+          "2026": 1,
+          "2027": 1
+        },
+        "guille": {
+          "2026": 0.6,
+          "2027": 0.6
+        }
+      },
+      "default": 1,
+      "_nota": "Moni BAJA en 2027: su soporte Axton crece a medida que las cuentas salen en vivo. Gaby no sube: son 20 hs/sem contractuales, no disponibilidad variable.",
+      "_nota_guille": "Willy no es full-time de migraciones: 0.6 es la perilla a validar."
+    },
+    "cartera_legacy_axton": {
+      "_doc": "Cuentas que ya estaban en Axton ANTES de este programa de migracion Meta4->Axton (fuente: tablero Monday 'Axton', vista por consultor). No pasan por Relevamiento/Configuracion/Pruebas: entran directo como 'ya en vivo' en los insights de avance.",
+      "_nota": "Coty NO figura en 'cuentas': es una cuenta del programa (ver proyectos.json/asignaciones.json), no legacy. El tablero Axton ya la lista como migrada aunque el plan simulado recien la termine unos dias despues de hoy; 'cuentas_programa_ya_en_vivo' registra esa excepcion puntual. El total de cuentas ya en Axton hoy es 9 (este array) + Coty = 10.",
+      "cuentas": [
+        {
+          "nombre": "Geopagos",
+          "entidades": 1
+        },
+        {
+          "nombre": "Poincenot",
+          "entidades": 2
+        },
+        {
+          "nombre": "Siasa Logística",
+          "entidades": 1
+        },
+        {
+          "nombre": "COELSA",
+          "entidades": 1
+        },
+        {
+          "nombre": "Red Bull",
+          "entidades": 1
+        },
+        {
+          "nombre": "Merz",
+          "entidades": 1
+        },
+        {
+          "nombre": "Plastic Omnium Pilar",
+          "entidades": 1
+        },
+        {
+          "nombre": "Epiroc",
+          "entidades": 1
+        },
+        {
+          "nombre": "Internos",
+          "entidades": 4
+        }
+      ],
+      "_cuentas_programa_ya_en_vivo_doc": "IDs de proyectos.json que el tablero Axton ya muestra como migrados hoy, aunque el plan simulado calcule una fecha de salida un poco posterior a hoy. Ajusta solo el KPI 'ya en vivo hoy' de los insights; no cambia ninguna fecha del plan ni el resto de la app.",
+      "cuentas_programa_ya_en_vivo": [
+        "coty"
+      ]
+    },
+    "salidas_en_vivo_fuera_del_plan": {
+      "_doc": "Cuentas que salen en vivo dentro del horizonte pero NO pasan por las fases del JSON (ya configuradas). Cuentan contra el tope de salidas por mes.",
+      "cuentas": [
+        {
+          "nombre": "Plastic Omnium Florida",
+          "alias": "POF",
+          "sale_en_vivo": "2026-09"
+        },
+        {
+          "nombre": "Finadiet",
+          "sale_en_vivo": "2026-10"
+        }
+      ]
+    },
+    "reglas_calendario": {
+      "inicio_siempre_lunes": true,
+      "nunca_feriado": true,
+      "tope_salidas_en_vivo_por_mes": 2,
+      "_nota": "Definido 10/09/2026. Tier chico (complejidad baja) = 3 dias por fase. El tope de 2 por mes incluye POF y Finadiet."
+    },
+    "_version": {
+      "v": "v3-propuesta",
+      "fecha": "2026-09-10",
+      "cambios": "PROPUESTA opcion C para revisar en el mockup. Calendario armado hacia atras desde el corte de novedades del mes de salida (limite = corte - 5 habiles). Moni entra como configuradora en paralelo con Willy. Tipos de fase conservados (Relevamiento/Configuracion/Pruebas); las subfases van en _nota. Tope 2 salidas/mes, diciembre solo GSMA+Bonafide, sin configuracion entre el 21/12 y el 08/01, marzo con 3 porque dos son tier chico."
+    },
+    "salidas_en_vivo_propuestas": {
+      "tim": "2026-10",
+      "piano": "2026-11",
+      "dla": "2026-11",
+      "gsma": "2026-12",
+      "bonafide": "2026-12",
+      "copetro": "2027-01",
+      "campari": "2027-01",
+      "lowsedo": "2027-02",
+      "marval": "2027-02",
+      "sportline": "2027-03",
+      "aysa": "2027-03",
+      "ford": "2027-03",
+      "carrier": "2027-04",
+      "_fuera_del_plan": {
+        "POF": "2026-09",
+        "Finadiet": "2026-10"
+      }
+    },
+    "cortes_novedades_dia": {
+      "tim": 19,
+      "piano": 20,
+      "dla": 11,
+      "gsma": 13,
+      "bonafide": 25,
+      "copetro": 24,
+      "campari": 20,
+      "lowsedo": 24,
+      "marval": 18,
+      "sportline": 18,
+      "aysa": 27,
+      "ford": 24,
+      "carrier": 20,
+      "_fuente": "Notion, Priorizacion de migracion, entrada 09/09/2026 (Aysa y Ford: corte de julio)"
+    },
+    "tiers_v3": {
+      "chica": [
+        "gsma",
+        "bonafide",
+        "aysa",
+        "ford"
+      ],
+      "std": [
+        "tim",
+        "piano",
+        "copetro",
+        "campari"
+      ],
+      "grande": [
+        "dla",
+        "lowsedo",
+        "sportline",
+        "marval",
+        "carrier"
+      ],
+      "duraciones_dias": {
+        "chica": {
+          "rep": 1,
+          "cw": 2,
+          "cm": 2,
+          "pg": 4,
+          "pm": 2,
+          "pw": 2
+        },
+        "std": {
+          "rep": 2,
+          "cw": 4,
+          "cm": 3,
+          "pg": 8,
+          "pm": 3,
+          "pw": 4
+        },
+        "grande": {
+          "rep": 3,
+          "cw": 7,
+          "cm": 5,
+          "pg": 10,
+          "pm": 4,
+          "pw": 5
+        }
+      },
+      "blackout_config": [
+        "2026-12-21",
+        "2027-01-08"
+      ]
+    },
+    "capacidad": {
+      "_doc": "Modelo de capacidad (brief 10/09/2026 s.2). Todo en horas: horas_dia x dias habiles x dedicacion.",
+      "horas_dia_default": 7,
+      "margen_minimo_habiles": 5,
+      "aviso_semanal_tolerancia": 1.15,
+      "moni_soporte_axton": {
+        "base": 0.8,
+        "cuentas_base": 10,
+        "caida_por_cuenta": 0.02,
+        "piso": 0.5,
+        "_nota": "disponibilidad = max(piso, base - caida x (cuentas_en_axton - cuentas_base)). Perilla, calibrar con la ticketera."
+      }
+    }
+  }
+}

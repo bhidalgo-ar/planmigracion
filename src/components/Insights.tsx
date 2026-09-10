@@ -6,7 +6,7 @@ import { formatFecha, formatFechaCorta, toISO } from '../utils/dates'
 import { ORDEN_FASES, TIPO_LABEL } from '../theme/fases'
 import type { TipoFase } from '../types'
 import {
-  cargaPorPersona, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
+  cargaPorPersona, cuentasFueraDelPlan, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
   type CuentaMigracion,
 } from '../insightsMigracion'
 
@@ -38,15 +38,20 @@ export function Insights() {
   const overrideKey = overrideIds.join('|')
 
   const d = useMemo(() => {
-    const cuentas = cuentasMigracion(proyectos, asignaciones)
+    // El mes de salida sale del plan (config.salidas_en_vivo_propuestas). POF y Finadiet
+    // salen en vivo sin fases en el simulador: cuentan en trimestres y en la cartera.
+    const cuentas = cuentasMigracion(proyectos, asignaciones, config)
+    const fuera = cuentasFueraDelPlan(config)
+    const todas = [...cuentas, ...fuera]
     return {
       cuentas,
-      trimestres: migracionPorTrimestre(cuentas),
+      fuera,
+      trimestres: migracionPorTrimestre(todas),
       carga: cargaPorPersona(personas, cuentas),
-      r: resumenMigracion(cuentas, hoyISO, new Set(overrideIds)),
+      r: resumenMigracion(todas, hoyISO, new Set(overrideIds)),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personas, proyectos, asignaciones, hoyISO, overrideKey])
+  }, [personas, proyectos, asignaciones, config, hoyISO, overrideKey])
 
   function irACuenta(id: string) {
     seleccionarCliente(id)
@@ -68,10 +73,13 @@ export function Insights() {
             : null}
         />
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 14 }}>
-          <Kpi label="Cuentas del programa" valor={d.r.totalCuentas}
-            nota={d.r.sinPlanificar ? `${d.r.planificadas} planificadas` : 'todas planificadas'} />
+          <Kpi label="Cuentas del programa" valor={d.cuentas.length}
+            nota={[
+              d.r.sinPlanificar ? `${d.r.planificadas - d.fuera.length} planificadas` : 'todas planificadas',
+              d.fuera.length ? `+ ${d.fuera.length} fuera del simulador` : '',
+            ].filter(Boolean).join(' · ')} />
           <Kpi label="Cartera en Axton hoy" valor={`${legacyCount + d.r.enVivoHoy}/${legacyCount + d.r.totalCuentas}`}
-            nota={`${legacyCount} legacy + ${d.r.enVivoHoy} migrada${d.r.enVivoHoy !== 1 ? 's' : ''} por este programa`} />
+            nota={`${legacyCount} legacy + ${d.r.enVivoHoy} salida${d.r.enVivoHoy !== 1 ? 's' : ''} en vivo${d.fuera.length ? ' (incluye fuera del simulador)' : ''}`} />
           <Kpi label="Primera salida del programa" valor={d.r.primeraSalida ? formatFechaCorta(d.r.primeraSalida) : '—'}
             nota={d.r.primeraSalida ? `año ${d.r.primeraSalida.slice(0, 4)}` : ''} />
           <Kpi label="Arranque del plan" valor={d.r.inicioPrograma ? formatFechaCorta(d.r.inicioPrograma) : '—'}

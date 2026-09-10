@@ -34,6 +34,15 @@ function conFallbackDeSeed(config: Partial<Config> | undefined): Config {
     disponibilidad: c.disponibilidad ?? seedConfig.disponibilidad,
     template_estandar: c.template_estandar ?? seedConfig.template_estandar,
     cartera_legacy_axton: c.cartera_legacy_axton ?? seedConfig.cartera_legacy_axton,
+    // Capa de calendario y capacidad (plan v3). `equipo_confidencial` NO se rellena
+    // nunca: si el plan importado no lo trae, no existe (brief 10/09/2026 §3.3).
+    salidas_en_vivo_propuestas: c.salidas_en_vivo_propuestas ?? seedConfig.salidas_en_vivo_propuestas,
+    cortes_novedades_dia: c.cortes_novedades_dia ?? seedConfig.cortes_novedades_dia,
+    salidas_en_vivo_fuera_del_plan: c.salidas_en_vivo_fuera_del_plan ?? seedConfig.salidas_en_vivo_fuera_del_plan,
+    tiers_v3: c.tiers_v3 ?? seedConfig.tiers_v3,
+    reglas_calendario: c.reglas_calendario ?? seedConfig.reglas_calendario,
+    capacidad: c.capacidad ?? seedConfig.capacidad,
+    insumos: c.insumos ?? seedConfig.insumos,
   } as Config
 }
 
@@ -88,7 +97,7 @@ function horasDeFase(config: Config, proyecto: Proyecto | null | undefined, tipo
   const tabla = config.horas_por_fase ?? seedConfig.horas_por_fase
   if (!tabla) return null
   // Cuenta chica = <10 empleados. Criterio del dato, no del código: complejidad 'baja'.
-  const esChica = (proyecto?.complejidad as unknown) === 'baja'
+  const esChica = proyecto?.complejidad === 'baja'
   const horas = (esChica ? tabla.chica : tabla.estandar)?.[tipo]
   return typeof horas === 'number' ? horas : null
 }

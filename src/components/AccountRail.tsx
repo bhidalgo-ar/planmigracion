@@ -17,6 +17,7 @@ export function AccountRail() {
   const colorPorProyecto = useMemo(() => {
     const sevPorAsig = new Map<string, 'rojo' | 'ambar'>()
     for (const v of violaciones) {
+      if (v.severidad === 'info') continue
       const prev = sevPorAsig.get(v.asignacion_id)
       if (v.severidad === 'rojo' || prev !== 'rojo') sevPorAsig.set(v.asignacion_id, v.severidad)
     }

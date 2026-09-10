@@ -18,14 +18,6 @@
       "_nota": "Full-time. Absorbe configuracion estandar. Su soporte Axton se refleja en config.disponibilidad: 80% en 2026, 60% en 2027 (baja a medida que las cuentas salen en vivo)."
     },
     {
-      "id": "leo",
-      "alias": "Leo",
-      "skills": ["relevamiento", "soporte", "meta4"],
-      "capacidad_horas_semana": 40,
-      "buffer_pct": 0,
-      "_nota": "Full-time. Soporte Meta4 + relevamiento. Su soporte Meta4 se refleja en config.disponibilidad: 70% en 2026, 90% en 2027."
-    },
-    {
       "id": "lau",
       "alias": "Lau",
       "skills": ["relevamiento", "testeo"],
@@ -39,7 +31,8 @@
       "skills": [],
       "capacidad_horas_semana": 20,
       "buffer_pct": 0,
-      "_nota": "Media jornada: 20 hs/sem contractuales (4 hs/dia = disponibilidad 0.50 fija en config.disponibilidad, no sube con los anos). PENDIENTE DE DEFINIR: rol definitivo y skills."
+      "horas_dia": 4,
+      "_nota": "Media jornada: 20 hs/sem contractuales = horas_dia 4 (jornada fija, no una fraccion de 7; su disponibilidad para capacidad es 1.0 sobre esas 4 hs). PENDIENTE DE DEFINIR: rol definitivo y skills."
     },
     {
       "id": "axton",

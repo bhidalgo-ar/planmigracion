@@ -121,7 +121,7 @@ export function PanelInsights() {
             </Dato>
             <Nota>
               {r.cuello
-                ? `Cuello de botella: ${r.cuello.alias} con ${r.cuello.semanas} semana${r.cuello.semanas !== 1 ? 's' : ''} sobreasignada${r.cuello.semanas !== 1 ? 's' : ''}.`
+                ? `Cuello de botella: ${r.cuello.alias} con ${r.cuello.meses} mes${r.cuello.meses !== 1 ? 'es' : ''} por encima de su capacidad.`
                 : `${r.cuentasPlanificadas}/${r.totalCuentas} cuentas planificadas · ${r.enCurso} fase${r.enCurso !== 1 ? 's' : ''} en curso hoy.`}
             </Nota>
             {r.personasSinCarga.length > 0 && (
