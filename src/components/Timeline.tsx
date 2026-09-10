@@ -134,7 +134,7 @@ export function Timeline() {
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad,
-    ordenPersonas, personasOcultas,
+    ordenPersonas, personasOcultas, previsualizacion,
   } = useUIStore()
 
   // Filas que se ven, en el orden elegido por el usuario. Todo el render y la
@@ -692,7 +692,9 @@ export function Timeline() {
                   paddingLeft: 9, paddingRight: 10,
                   overflow: 'hidden', fontSize: BAR_H > 34 ? 11.5 : 10, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: a.es_bloqueo ? 'default' : 'grab',
-                  opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55) : (atenuada ? 0.38 : 1),
+                  opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55)
+                    : previsualizacion?.proyectoId === a.proyecto_id ? 0.22
+                    : (atenuada ? 0.38 : 1),
                   zIndex: arrastrando ? 15 : 10,
                   transition: arrastrando ? 'none' : 'left var(--t-fast) var(--ease), top var(--t-fast) var(--ease), width var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease)',
                   userSelect: 'none',
@@ -710,6 +712,22 @@ export function Timeline() {
                     style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
                 )}
               </div>
+            )
+          })}
+
+          {/* Fases fantasma: dónde quedaría la cuenta si saliera en el mes que el mouse está tocando en el panel. */}
+          {previsualizacion?.asignaciones.map(a => {
+            const row = filaDe.get(filaIdDe(a))
+            if (row == null) return null
+            const left = dateToX(a.inicio)
+            const width = Math.max(MIN_BAR_W, dateToX(a.fin) + pxPerDay - left)
+            const top = row * ROW_H + (ROW_H - BAR_H) / 2
+            return (
+              <div key={`prev-${a.id}`} title={`${a.inicio} → ${a.fin}`} style={{
+                position: 'absolute', left, top, width, height: BAR_H, zIndex: 12, pointerEvents: 'none',
+                borderRadius: BAR_H > 34 ? 8 : 6, border: `2px dashed ${TIPO_COLOR[a.tipo]}`,
+                background: 'var(--white)', opacity: 0.92, boxSizing: 'border-box',
+              }} />
             )
           })}
         </div>
