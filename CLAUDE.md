@@ -16,7 +16,11 @@ backend, desplegado a GitHub Pages desde `main`. El plan vive en un JSON que se 
 exporta; el seed de `data/` es solo un punto de partida.
 
 Cuatro pestañas más una:
-- **Timeline**: personas en filas, semanas en columnas, fases como barras arrastrables.
+- **Timeline**: por default **una fila por cuenta** (ordenadas por mes de salida, con tier y
+  conflictos), sus fases como barras arrastrables con las iniciales de quién las hace, y debajo,
+  pegada al borde inferior y en el mismo eje, la **banda de carga semanal** de cada persona con
+  fases (verde / ámbar / rojo por % de su capacidad; `cargaSemanal`). El switch "Por persona"
+  vuelve a la vista original de una fila por persona con el tinte de carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración, trimestre a trimestre, y la ola.
 - **Equipo**: para el equipo de payroll. Horas por persona y mes contra capacidad, el
   solapamiento explicado en prosa, quién hace qué en cada cuenta, salidas por mes, insumos.

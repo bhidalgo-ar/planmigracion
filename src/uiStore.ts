@@ -11,6 +11,12 @@ export type SortCuentas = 'fecha' | 'nombre'
 export type ModoMovimiento = 'flexible' | 'estricto'
 /** Alto de cada fila de persona en el timeline. El equipo es chico: por defecto cómoda. */
 export type Densidad = 'compacta' | 'comoda' | 'amplia'
+/**
+ * Qué es cada fila del timeline. 'cuenta' = una fila por cuenta con sus 4 fases y la carga
+ * semanal del equipo debajo (el objeto que se mueve es la cuenta). 'persona' = la vista
+ * original, una fila por persona.
+ */
+export type ModoFilas = 'cuenta' | 'persona'
 
 /** Alto de fila y de barra (px) por densidad. */
 export const DENSIDAD_PX: Record<Densidad, { row: number; bar: number }> = {
@@ -57,6 +63,7 @@ interface UIState {
   irHoyToken: number
   modoMovimiento: ModoMovimiento
   densidad: Densidad
+  modoFilas: ModoFilas
   insightsAbierto: boolean
   /** Orden manual de las filas de persona en el timeline (ids). Vacío = orden del store. */
   ordenPersonas: string[]
@@ -85,6 +92,7 @@ interface UIState {
   irHoy: () => void
   setModoMovimiento: (m: ModoMovimiento) => void
   setDensidad: (d: Densidad) => void
+  setModoFilas: (m: ModoFilas) => void
   toggleInsights: () => void
   abrirModal: (m: Exclude<Modal, null>) => void
   cerrarModal: () => void
@@ -111,7 +119,9 @@ export const useUIStore = create<UIState>((set) => ({
   sortCuentas: 'fecha',
   irHoyToken: 0,
   modoMovimiento: 'flexible',
-  densidad: 'comoda',
+  // Compacta por default: con 13 cuentas en filas, 76 px por fila no entran en una pantalla.
+  densidad: 'compacta',
+  modoFilas: 'cuenta',
   insightsAbierto: true,
   ordenPersonas: [],
   // Las filas sin ninguna fase arrancan ocultas: con el plan v3, Susi, Lau y Axton ocupaban
@@ -134,6 +144,7 @@ export const useUIStore = create<UIState>((set) => ({
   irHoy: () => set(s => ({ irHoyToken: s.irHoyToken + 1 })),
   setModoMovimiento: (modoMovimiento) => set({ modoMovimiento }),
   setDensidad: (densidad) => set({ densidad }),
+  setModoFilas: (modoFilas) => set({ modoFilas }),
   toggleInsights: () => set(s => ({ insightsAbierto: !s.insightsAbierto })),
   abrirModal: (modal) => set({ modal }),
   cerrarModal: () => set({ modal: null }),
