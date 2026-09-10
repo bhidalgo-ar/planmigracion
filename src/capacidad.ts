@@ -131,6 +131,20 @@ export function diasHabilesDelMes(mesISO: string, feriados: ReadonlySet<string>)
   return diasHabilesEntre(`${mesISO}-01`, ultimoDiaDelMesISO(mesISO), feriados).length
 }
 
+/**
+ * Días hábiles en que una persona está de vacaciones, como set de fechas ISO. Salen de los
+ * bloqueos `tipo: 'Vacaciones'` de esa persona. Otros bloqueos (corrida inicial,
+ * supervisión) son trabajo reservado, no ausencia: no cuentan acá.
+ */
+export function diasDeVacaciones(personaId: string, asignaciones: Asignacion[], feriados: ReadonlySet<string>): Set<string> {
+  const out = new Set<string>()
+  for (const a of asignaciones) {
+    if (a.persona_id !== personaId || a.tipo !== 'Vacaciones') continue
+    for (const d of diasHabilesEntre(a.inicio, a.fin, feriados)) out.add(toISO(d))
+  }
+  return out
+}
+
 /** Horas que una fase consume en un mes dado. Los bloqueos (vacaciones) no son carga. */
 export function horasFaseEnMes(
   asig: Asignacion, mesISO: string, persona: Persona | undefined, feriados: ReadonlySet<string>, config: Config,
@@ -201,9 +215,13 @@ export function cargaMensual(personas: Persona[], asignaciones: Asignacion[], co
   for (const p of personas) {
     const hd = horasDiaDe(p, config)
     const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
     for (const mes of meses) {
       const disp = disponibilidadMes(p.id, mes, config, undefined, p)
-      const capacidad = diasHabilesDelMes(mes, feriados) * hd * disp
+      // Los días de vacaciones no son capacidad: se restan de los hábiles del mes.
+      let ausentes = 0
+      for (const iso of vacaciones) if (mesDe(iso) === mes) ausentes++
+      const capacidad = Math.max(0, diasHabilesDelMes(mes, feriados) - ausentes) * hd * disp
       const porCuenta: Record<string, number> = {}
       let horas = 0
       for (const a of propias) {
@@ -235,6 +253,7 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
   for (const p of personas) {
     const hd = horasDiaDe(p, config)
     const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
     const dispCache = new Map<string, number>()
     const dispDe = (mes: string) => {
       let v = dispCache.get(mes)
@@ -247,7 +266,9 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
         const d = addDays(lunes, i)
         if (!esHabil(d, feriados)) continue
         const iso = toISO(d)
-        capacidad += hd * dispDe(mesDe(iso))
+        // Un día de vacaciones no aporta capacidad; las horas planificadas ese día sí cuentan
+        // (ese choque es justamente lo que marca la regla `vacaciones`).
+        if (!vacaciones.has(iso)) capacidad += hd * dispDe(mesDe(iso))
         for (const a of propias) if (a.inicio <= iso && a.fin >= iso) horas += hd * a.dedicacion_pct
       }
       out.push({ personaId: p.id, semana: toISO(lunes), horas: red(horas), capacidad: red(capacidad) })

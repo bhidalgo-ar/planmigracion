@@ -206,8 +206,9 @@ export type SeveridadViolacion = 'rojo' | 'ambar' | 'info'
  *  margen        Pruebas cierra a menos de N hábiles del corte de novedades
  *  blackout      una Configuración toca el blackout de fin de año
  *  dependencia   Pruebas arranca antes de que cierre la Configuración de su cuenta
+ *  vacaciones    una fase cae sobre las vacaciones de quien la hace (rojo)
  */
-export type TipoRegla = 'carga_mes' | 'carga_semana' | 'tope_salidas' | 'margen' | 'blackout' | 'dependencia'
+export type TipoRegla = 'carga_mes' | 'carga_semana' | 'tope_salidas' | 'margen' | 'blackout' | 'dependencia' | 'vacaciones'
 
 export interface Violacion {
   tipo: TipoRegla

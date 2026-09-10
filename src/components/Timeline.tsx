@@ -179,7 +179,7 @@ export function Timeline() {
     const s = new Set<string>()
     if (!mostrarConflictos) return s
     for (const v of violaciones)
-      if (v.severidad === 'rojo' && (v.tipo === 'dependencia' || v.tipo === 'margen' || v.tipo === 'blackout') && v.asignacion_id)
+      if (v.severidad === 'rojo' && (v.tipo === 'dependencia' || v.tipo === 'margen' || v.tipo === 'blackout' || v.tipo === 'vacaciones') && v.asignacion_id)
         s.add(v.asignacion_id)
     return s
   }, [violaciones, mostrarConflictos])
@@ -693,7 +693,7 @@ export function Timeline() {
                   overflow: 'hidden', fontSize: BAR_H > 34 ? 11.5 : 10, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: a.es_bloqueo ? 'default' : 'grab',
                   opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55)
-                    : previsualizacion?.proyectoId === a.proyecto_id ? 0.22
+                    : previsualizacion?.asignaciones.some(x => x.id === a.id) ? 0.22
                     : (atenuada ? 0.38 : 1),
                   zIndex: arrastrando ? 15 : 10,
                   transition: arrastrando ? 'none' : 'left var(--t-fast) var(--ease), top var(--t-fast) var(--ease), width var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease)',

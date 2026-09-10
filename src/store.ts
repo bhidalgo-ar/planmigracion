@@ -3,14 +3,17 @@ import { persist } from 'zustand/middleware'
 import { addDays, differenceInDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, RolPersona, TipoFase, Violacion } from './types'
 import {
-  calcularFin, calcularFinPorHoras, feriadosDeConfig, getMondayOfWeek,
+  calcularFin, calcularFinPorHoras, diasHabiles, feriadosDeConfig, getMondayOfWeek,
   seSuperponen, siguienteDiaHabil, toISO,
 } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
 import { estaDesbloqueado } from './confidencial'
 import { validarPlan, type ResultadoValidacion } from './validacionPlan'
 import { ORDEN_FASES } from './theme/fases'
-import { aplicarPlan, configConSalida, describirMovimiento, MOTIVO_TEXTO, planificarCuenta, type ReporteMovimiento } from './planificador'
+import {
+  aplicarPlan, aplicarTraspaso, configConSalida, describirMovimiento, describirTraspaso, MOTIVO_TEXTO, planificarCuenta,
+  type ReporteMovimiento, type ReporteTraspaso, type Traspaso,
+} from './planificador'
 import { mesSalidaDe } from './capacidad'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
@@ -301,6 +304,18 @@ interface SimuladorState {
   /** Rearma TODAS las cuentas con mes de salida y corte desde su corte. Equivale a correr el script Python. */
   replanificarDesdeElCorte: () => { replanificadas: number; sinCorte: string[]; sinLugar: string[] }
   addPersona: (alias: string, rol: RolPersona | null) => void
+  /**
+   * Carga vacaciones de una persona como bloqueo `tipo: 'Vacaciones'`: restan capacidad del
+   * mes y de la semana, y una fase que las pise dispara la regla `vacaciones`.
+   */
+  addVacaciones: (personaId: string, inicio: string, fin: string) => { ok: boolean; motivo?: string }
+  /** Borra una asignación por id (hoy se usa para las vacaciones). */
+  removeAsignacion: (id: string) => void
+  /**
+   * Le pasa a otra persona las fases de una (todas, o de un tipo, o desde un mes). Solo cambia
+   * quién las hace; fechas y horas quedan igual. Devuelve qué conflictos aparecen y desaparecen.
+   */
+  traspasarFases: (t: Traspaso) => ReporteTraspaso
   removePersona: (id: string, force?: boolean) => { ok: boolean; motivo?: string }
   renamePersona: (id: string, alias: string) => void
   addProyecto: (nombre: string, inicio: string) => string
@@ -515,6 +530,59 @@ export const useSimuladorStore = create<SimuladorState>()(
           }
         })
         return reporte
+      },
+
+      addVacaciones(personaId, inicio, fin) {
+        if (!inicio || !fin) return { ok: false, motivo: 'Faltan las fechas.' }
+        if (fin < inicio) return { ok: false, motivo: 'La fecha de fin es anterior a la de inicio.' }
+        let salida: { ok: boolean; motivo?: string } = { ok: true }
+        set(state => {
+          if (!state.personas.some(p => p.id === personaId)) { salida = { ok: false, motivo: 'La persona no existe en el plan.' }; return {} }
+          const feriados = feriadosDeConfig(state.config)
+          const ids = new Set(state.asignaciones.map(a => a.id))
+          let id = `vac-${personaId}-${inicio}`
+          let n = 2
+          while (ids.has(id)) id = `vac-${personaId}-${inicio}_${n++}`
+          const nueva: Asignacion = {
+            id, proyecto_id: null, tipo: 'Vacaciones', persona_id: personaId, inicio, fin,
+            duracion_dias: diasHabiles(inicio, fin, feriados), dedicacion_pct: 1, predecesoras: [],
+            es_bloqueo: true, _nombre: 'Vacaciones',
+          }
+          const asignaciones = [...state.asignaciones, nueva]
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return salida
+      },
+
+      traspasarFases(t) {
+        const { asignaciones: antes, personas, config, proyectos } = get()
+        const reporte = describirTraspaso(antes, t, personas, config, proyectos)
+        if (reporte.fases === 0) return reporte
+        set(state => {
+          const asignaciones = aplicarTraspaso(state.asignaciones, t)
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return reporte
+      },
+
+      removeAsignacion(id) {
+        set(state => {
+          if (!state.asignaciones.some(a => a.id === id)) return {}
+          const asignaciones = state.asignaciones.filter(a => a.id !== id)
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
       },
 
       // Alta de recurso: SOLO alias + rol (enum). Nunca nombres reales/PII (regla dura CLAUDE.md §5).

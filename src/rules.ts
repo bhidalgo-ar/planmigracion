@@ -16,6 +16,7 @@ import {
  *  margen        rojo   Pruebas cierra a menos de N hábiles del corte de novedades del mes de salida
  *  blackout      rojo   una Configuración toca el blackout de fin de año
  *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta
+ *  vacaciones    rojo   una fase cae sobre las vacaciones de quien la hace
  *
  * Lo que NO es conflicto: dos personas configurando la misma cuenta a la vez, o una persona
  * en dos cuentas la misma semana con dedicación parcial. El solapamiento es el modelo; lo que
@@ -334,6 +335,37 @@ export function checkDependenciaConfigPruebas(asignaciones: Asignacion[], proyec
   return out
 }
 
+const FASE_CON_ARTICULO: Record<string, string> = {
+  Relevamiento: 'el relevamiento', Configuracion: 'la configuración', Pruebas: 'las pruebas', Cierre: 'el cierre', Vacaciones: 'las vacaciones',
+}
+
+/**
+ * Regla dura: una fase no puede caer sobre las vacaciones de quien la hace. Se cuelga de
+ * la fase (no del bloqueo) para que el panel de la cuenta la muestre. No se resuelve sola:
+ * mover la cuenta o reasignar la fase es decisión de quien planifica.
+ */
+export function checkVacaciones(asignaciones: Asignacion[], personas: Persona[], proyectos: Proyecto[]): Violacion[] {
+  const out: Violacion[] = []
+  const vacaciones = asignaciones.filter(a => a.tipo === 'Vacaciones')
+  if (!vacaciones.length) return out
+  for (const a of asignaciones) {
+    if (a.es_bloqueo) continue
+    for (const v of vacaciones) {
+      if (v.persona_id !== a.persona_id || a.inicio > v.fin || a.fin < v.inicio) continue
+      const alias = personas.find(p => p.id === a.persona_id)?.alias ?? a.persona_id
+      out.push({
+        tipo: 'vacaciones',
+        asignacion_id: a.id,
+        persona_id: a.persona_id,
+        proyecto_id: a.proyecto_id ?? undefined,
+        severidad: 'rojo',
+        mensaje: `${alias} tiene ${FASE_CON_ARTICULO[a.tipo] ?? a.tipo} de ${nombreCuenta(a.proyecto_id, proyectos)} del ${ddmm(a.inicio)} al ${ddmm(a.fin)} y está de vacaciones del ${ddmm(v.inicio)} al ${ddmm(v.fin)}`,
+      })
+    }
+  }
+  return out
+}
+
 export function computeViolaciones(
   asignaciones: Asignacion[],
   personas: Persona[],
@@ -341,6 +373,7 @@ export function computeViolaciones(
   proyectos: Proyecto[],
 ): Violacion[] {
   return [
+    ...checkVacaciones(asignaciones, personas, proyectos),
     ...checkDependenciaConfigPruebas(asignaciones, proyectos),
     ...checkMargenYBlackout(asignaciones, config, proyectos),
     ...checkTopeSalidas(asignaciones, config, proyectos),
