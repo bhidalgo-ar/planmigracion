@@ -244,24 +244,49 @@ export function lecturaTickets(filas: FilaTicket[]): string {
   return `${porPeso.cliente} concentra escalados y retrabajo; ${porCriticas.cliente} tiene la tasa de críticas más alta (${Math.round(porCriticas.pct_criticas)} %).`
 }
 
-export interface FilaEquipoHoy { cliente: string; analista: string; sistema: string; complejidad?: string | null; pays?: number | null }
+export interface FilaEquipoHoy { cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null }
+export interface ConteoSistema { meta4: number; axton: number; otros: number }
 
-/** Distribución de clientes por analista y por sistema; null si el bloque está en [FALTA]. */
-export function equipoHoy(config: Config): { filas: FilaEquipoHoy[]; porAnalista: Array<{ analista: string; meta4: number; axton: number; otros: number }>; fuente?: string; corte?: string } | null {
+function clasificarSistema(sistema: string): keyof ConteoSistema {
+  const s = (sistema ?? '').toLowerCase().replace(/\s/g, '')
+  return s.startsWith('meta') || s === 'm4' ? 'meta4' : s.startsWith('axton') ? 'axton' : 'otros'
+}
+
+function agrupar(filas: FilaEquipoHoy[], clave: (f: FilaEquipoHoy) => string): Array<{ nombre: string } & ConteoSistema> {
+  const m = new Map<string, ConteoSistema>()
+  for (const f of filas) {
+    const k = clave(f)
+    const e = m.get(k) ?? { meta4: 0, axton: 0, otros: 0 }
+    e[clasificarSistema(f.sistema)]++
+    m.set(k, e)
+  }
+  return [...m.entries()].map(([nombre, e]) => ({ nombre, ...e }))
+    .sort((a, b) => (b.meta4 + b.axton + b.otros) - (a.meta4 + a.axton + a.otros) || a.nombre.localeCompare(b.nombre))
+}
+
+/**
+ * Distribución de clientes por analista, por líder de equipo y por sistema; null si el
+ * bloque está en [FALTA]. El total por sistema es lo que dice cuánto soporte se da a cada
+ * herramienta (Meta4 → Susana, Axton → Moni).
+ */
+export function equipoHoy(config: Config): {
+  filas: FilaEquipoHoy[]
+  porAnalista: Array<{ nombre: string } & ConteoSistema>
+  porLider: Array<{ nombre: string } & ConteoSistema>
+  total: ConteoSistema
+  fuente?: string; corte?: string; nota?: string
+} | null {
   const b = config.insumos?.equipo_payroll_hoy
   if (!b || !Array.isArray(b.filas) || !b.filas.length) return null
-  const m = new Map<string, { meta4: number; axton: number; otros: number }>()
-  for (const f of b.filas) {
-    const e = m.get(f.analista) ?? { meta4: 0, axton: 0, otros: 0 }
-    const s = (f.sistema ?? '').toLowerCase().replace(/\s/g, '')
-    if (s.startsWith('meta')) e.meta4++
-    else if (s.startsWith('axton')) e.axton++
-    else e.otros++
-    m.set(f.analista, e)
+  const filas = b.filas as FilaEquipoHoy[]
+  const total: ConteoSistema = { meta4: 0, axton: 0, otros: 0 }
+  for (const f of filas) total[clasificarSistema(f.sistema)]++
+  return {
+    filas,
+    porAnalista: agrupar(filas, f => f.analista),
+    porLider: agrupar(filas.filter(f => f.lider), f => f.lider as string),
+    total, fuente: b.fuente, corte: b.corte, nota: b._nota,
   }
-  const porAnalista = [...m.entries()].map(([analista, e]) => ({ analista, ...e }))
-    .sort((a, b) => (b.meta4 + b.axton + b.otros) - (a.meta4 + a.axton + a.otros))
-  return { filas: b.filas, porAnalista, fuente: b.fuente, corte: b.corte }
 }
 
 /** Violaciones de carga de una persona en un mes, para enlazar la prosa con la regla. */

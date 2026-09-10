@@ -329,16 +329,28 @@ function TicketsCard({ filas }: { filas: Array<{ cliente: string; tickets: numbe
 }
 
 function EquipoHoyCard({ datos }: { datos: NonNullable<ReturnType<typeof equipoHoy>> }) {
-  const max = Math.max(1, ...datos.porAnalista.map(a => a.meta4 + a.axton + a.otros))
+  const [porLider, setPorLider] = useState(false)
+  const grupos = porLider ? datos.porLider : datos.porAnalista
+  const max = Math.max(1, ...grupos.map(a => a.meta4 + a.axton + a.otros))
+  const t = datos.total
   return (
     <div>
+      {/* El número que manda: cuántas cuentas soporta cada herramienta hoy */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
+        <div><span className="num" style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>{t.meta4}</span> <span style={{ fontSize: 11.5, color: 'var(--t2)' }}>en Meta4</span></div>
+        <div><span className="num" style={{ fontSize: 22, fontWeight: 800, color: 'var(--viz-axton)' }}>{t.axton}</span> <span style={{ fontSize: 11.5, color: 'var(--t2)' }}>en Axton</span></div>
+        {t.otros > 0 && <div><span className="num" style={{ fontSize: 22, fontWeight: 800, color: 'var(--t3)' }}>{t.otros}</span> <span style={{ fontSize: 11.5, color: 'var(--t2)' }}>otros</span></div>}
+        <button onClick={() => setPorLider(v => !v)} style={{ marginLeft: 'auto', alignSelf: 'center', padding: '3px 10px', border: '1.5px solid var(--line)', borderRadius: 9999, background: 'var(--white)', color: 'var(--t2)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          {porLider ? 'Por analista' : 'Por equipo'}
+        </button>
+      </div>
       <Leyenda series={[{ key: 'm', label: 'Meta4', color: 'var(--viz-meta4)' }, { key: 'a', label: 'Axton', color: 'var(--viz-axton)' }]} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {datos.porAnalista.map(a => (
-          <div key={a.analista}>
+        {grupos.map(a => (
+          <div key={a.nombre}>
             <div style={{ display: 'flex', gap: 6, fontSize: 11.5, marginBottom: 2 }}>
-              <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{a.analista}</span>
-              <span className="num" style={{ marginLeft: 'auto', color: 'var(--t2)' }}>{a.meta4} Meta4 · {a.axton} Axton{a.otros ? ` · ${a.otros} otros` : ''}</span>
+              <span style={{ fontWeight: 700, color: a.nombre.startsWith('[FALTA') ? 'var(--warn-tx)' : 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nombre}</span>
+              <span className="num" style={{ marginLeft: 'auto', color: 'var(--t2)', whiteSpace: 'nowrap' }}>{a.meta4} Meta4 · {a.axton} Axton{a.otros ? ` · ${a.otros} otros` : ''}</span>
             </div>
             <div style={{ display: 'flex', gap: 2, height: 10 }}>
               {a.meta4 > 0 && <div style={{ width: `${(a.meta4 / max) * 100}%`, background: 'var(--viz-meta4)', borderRadius: 2 }} />}
@@ -348,6 +360,7 @@ function EquipoHoyCard({ datos }: { datos: NonNullable<ReturnType<typeof equipoH
           </div>
         ))}
       </div>
+      {datos.nota && <div style={{ marginTop: 10, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>{datos.nota}</div>}
     </div>
   )
 }
