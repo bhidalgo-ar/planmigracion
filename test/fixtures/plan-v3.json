@@ -1963,6 +1963,104 @@
         "piso": 0.5,
         "_nota": "disponibilidad = max(piso, base - caida x (cuentas_en_axton - cuentas_base)). Perilla, calibrar con la ticketera."
       }
+    },
+    "insumos": {
+      "tickets_meta4_ytd": {
+        "fuente": "Ticketera Soporte, board 5171238580, Herramienta = Meta 4, YTD 2026",
+        "corte": "2026-09-08",
+        "filas": [
+          {
+            "cliente": "Marval",
+            "tickets": 72,
+            "pct_criticas": 72.2,
+            "peso": 120,
+            "escalados": 19
+          },
+          {
+            "cliente": "DLA",
+            "tickets": 57,
+            "pct_criticas": 29.8,
+            "peso": 43,
+            "escalados": 15
+          },
+          {
+            "cliente": "Carrier",
+            "tickets": 52,
+            "pct_criticas": 40.4,
+            "peso": 51,
+            "escalados": 8
+          },
+          {
+            "cliente": "Copetro",
+            "tickets": 40,
+            "pct_criticas": 77.5,
+            "peso": 55,
+            "escalados": 3
+          },
+          {
+            "cliente": "TIM",
+            "tickets": 32,
+            "pct_criticas": 53.1,
+            "peso": 9,
+            "escalados": 5
+          },
+          {
+            "cliente": "Lowsedo",
+            "tickets": 19,
+            "pct_criticas": 42.1,
+            "peso": 10,
+            "escalados": 5
+          },
+          {
+            "cliente": "Piano",
+            "tickets": 9,
+            "pct_criticas": 55.6,
+            "peso": 2,
+            "escalados": 1
+          },
+          {
+            "cliente": "TPA",
+            "tickets": 8,
+            "pct_criticas": 50.0,
+            "peso": 14,
+            "escalados": 0
+          },
+          {
+            "cliente": "Bonafide",
+            "tickets": 7,
+            "pct_criticas": 28.6,
+            "peso": 3,
+            "escalados": 0
+          },
+          {
+            "cliente": "Campari",
+            "tickets": 5,
+            "pct_criticas": 60.0,
+            "peso": 0,
+            "escalados": 0
+          },
+          {
+            "cliente": "GSMA",
+            "tickets": 4,
+            "pct_criticas": 25.0,
+            "peso": 1,
+            "escalados": 0
+          },
+          {
+            "cliente": "PGI",
+            "tickets": 3,
+            "pct_criticas": 66.7,
+            "peso": 0,
+            "escalados": 0
+          }
+        ],
+        "_nota": "Peso = # Conversaciones x # Reabierto (proxy de retrabajo). Complejidad = formula 'Prioridad' del board (Urgencia + Impacto + Escalado)."
+      },
+      "equipo_payroll_hoy": {
+        "fuente": "Matrix Complejidad Clientes, board 6552205482",
+        "corte": "[FALTA: fecha de extraccion]",
+        "filas": "[FALTA: una fila por cliente con analista responsable (alias), sistema (Meta4/Axton), complejidad y pays. Se extrae de monday en modo lectura antes de construir la vista; no se inventa.]"
+      }
     }
   }
 }

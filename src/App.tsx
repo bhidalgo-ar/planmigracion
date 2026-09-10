@@ -4,6 +4,7 @@ import { Timeline } from './components/Timeline'
 import { DetailPanel } from './components/DetailPanel'
 import { ConfigPanel } from './components/ConfigPanel'
 import { Insights } from './components/Insights'
+import { Equipo } from './components/Equipo'
 import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
@@ -17,6 +18,7 @@ const CAMPOS_EDITABLES = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 const TABS: { v: Vista; label: string }[] = [
   { v: 'timeline', label: '📅 Timeline' },
   { v: 'insights', label: '📊 Insights' },
+  { v: 'equipo', label: '👥 Equipo' },
 ]
 
 export default function App() {
@@ -103,6 +105,8 @@ export default function App() {
             </div>
             <PanelInsights />
           </div>
+        ) : vista === 'equipo' ? (
+          <Equipo />
         ) : (
           <Insights />
         )}
