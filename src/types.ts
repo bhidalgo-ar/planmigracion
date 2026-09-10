@@ -135,7 +135,8 @@ export interface Config {
     equipo_payroll_hoy?: {
       fuente?: string
       corte?: string
-      filas: Array<{ cliente: string; analista: string; sistema: string; complejidad?: string | null; pays?: number | null }> | string
+      filas: Array<{ cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null }> | string
+      _nota?: string
     }
   }
   /**

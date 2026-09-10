@@ -100,14 +100,19 @@ eq('12 clientes en la tabla de tickets', filas.length, 12)
 eq('lectura: Marval concentra, Copetro críticas', lecturaTickets(filas),
   'Marval concentra escalados y retrabajo; Copetro tiene la tasa de críticas más alta (78 %).')
 eq('sin filas, sin lectura', lecturaTickets([]), '')
-eq('equipo hoy en [FALTA] devuelve null', equipoHoy(config), null)
-check('con filas cargadas arma la distribución por analista', (() => {
+eq('equipo hoy en [FALTA] devuelve null', equipoHoy({ ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: '[FALTA]' } } }), null)
+const hoy = equipoHoy(config)!
+eq('el v3 trae 25 clientes activos del equipo (sin Bajas, sin Aysa/Ford)', hoy.filas.length, 25)
+eq('15 en Meta4 y 10 en Axton', `${hoy.total.meta4}/${hoy.total.axton}/${hoy.total.otros}`, '15/10/0')
+check('la distribución por analista viene ordenada por cantidad', hoy.porAnalista.every((a, i) => i === 0 || (hoy.porAnalista[i - 1].meta4 + hoy.porAnalista[i - 1].axton) >= (a.meta4 + a.axton)))
+eq('Sergio lleva 5 cuentas Meta4', hoy.porAnalista.find(a => a.nombre === 'Sergio')!.meta4, 5)
+eq('por equipo: Candela lleva 13', hoy.porLider.find(a => a.nombre === 'Candela')!.meta4 + hoy.porLider.find(a => a.nombre === 'Candela')!.axton, 13)
+check('con filas mínimas también agrupa', (() => {
   const c: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [
-    { cliente: 'A', analista: 'moni', sistema: 'Axton' }, { cliente: 'B', analista: 'moni', sistema: 'Meta4' }, { cliente: 'C', analista: 'susi', sistema: 'Meta 4' },
+    { cliente: 'A', analista: 'x', sistema: 'Axton' }, { cliente: 'B', analista: 'x', sistema: 'M4' }, { cliente: 'C', analista: 'y', sistema: 'Meta 4' },
   ] } } }
   const h = equipoHoy(c)!
-  const moni = h.porAnalista.find(a => a.analista === 'moni')!
-  return h.porAnalista[0].analista === 'moni' && moni.meta4 === 1 && moni.axton === 1 && h.porAnalista[1].meta4 === 1
+  return h.porAnalista[0].nombre === 'x' && h.porAnalista[0].meta4 === 1 && h.porAnalista[0].axton === 1 && h.total.meta4 === 2
 })())
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)

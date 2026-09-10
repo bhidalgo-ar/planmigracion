@@ -2057,9 +2057,211 @@
         "_nota": "Peso = # Conversaciones x # Reabierto (proxy de retrabajo). Complejidad = formula 'Prioridad' del board (Urgencia + Impacto + Escalado)."
       },
       "equipo_payroll_hoy": {
-        "fuente": "Matrix Complejidad Clientes, board 6552205482",
-        "corte": "[FALTA: fecha de extraccion]",
-        "filas": "[FALTA: una fila por cliente con analista responsable (alias), sistema (Meta4/Axton), complejidad y pays. Se extrae de monday en modo lectura antes de construir la vista; no se inventa.]"
+        "fuente": "Matrix Complejidad Clientes, board 6552205482 (lectura 10/09/2026; ultima actualizacion del board 20/08/2026)",
+        "corte": "2026-09-10",
+        "_nota": "Clientes activos del equipo de payroll. Fuera: las 7 Bajas, y Aysa y Ford (los lleva Outsourcing). TPA y Toyota en Meta4 con Team TASA. Complejidad = rating 1-5 del board; pays = columna Pays; lider = columna Jef.",
+        "filas": [
+          {
+            "cliente": "TIM",
+            "analista": "Agustina R.",
+            "sistema": "Meta4",
+            "lider": "Candela",
+            "complejidad": 2,
+            "pays": 165
+          },
+          {
+            "cliente": "DLA",
+            "analista": "Agustina R.",
+            "sistema": "Meta4",
+            "lider": "Candela",
+            "complejidad": 3,
+            "pays": 280
+          },
+          {
+            "cliente": "Finadiet",
+            "analista": "Candela",
+            "sistema": "Meta4",
+            "lider": "Candela",
+            "complejidad": 3,
+            "pays": 362
+          },
+          {
+            "cliente": "Plastic Omnium Florida",
+            "analista": "Candela",
+            "sistema": "Meta4",
+            "lider": "Candela",
+            "complejidad": 4,
+            "pays": 119
+          },
+          {
+            "cliente": "Piano",
+            "analista": "Araceli",
+            "sistema": "Meta4",
+            "lider": "Melina",
+            "complejidad": 1,
+            "pays": 23
+          },
+          {
+            "cliente": "Marval",
+            "analista": "Araceli",
+            "sistema": "Meta4",
+            "lider": "Melina",
+            "complejidad": 3,
+            "pays": 580
+          },
+          {
+            "cliente": "Sportline",
+            "analista": "Florencia",
+            "sistema": "Meta4",
+            "lider": "Melina",
+            "complejidad": 5,
+            "pays": 623
+          },
+          {
+            "cliente": "Carrier",
+            "analista": "Melina",
+            "sistema": "Meta4",
+            "lider": "Melina",
+            "complejidad": 4,
+            "pays": 424
+          },
+          {
+            "cliente": "Lowsedo",
+            "analista": "Sergio",
+            "sistema": "Meta4",
+            "lider": "Matías",
+            "complejidad": 2,
+            "pays": 72
+          },
+          {
+            "cliente": "Bonafide",
+            "analista": "Sergio",
+            "sistema": "Meta4",
+            "lider": "Matías",
+            "complejidad": 1,
+            "pays": 7
+          },
+          {
+            "cliente": "Campari",
+            "analista": "Sergio",
+            "sistema": "Meta4",
+            "lider": "Matías",
+            "complejidad": 3,
+            "pays": 135
+          },
+          {
+            "cliente": "GSMA",
+            "analista": "Sergio",
+            "sistema": "Meta4",
+            "lider": "Matías",
+            "complejidad": 1,
+            "pays": 9
+          },
+          {
+            "cliente": "Copetro",
+            "analista": "Sergio",
+            "sistema": "Meta4",
+            "lider": "Matías",
+            "complejidad": 4,
+            "pays": 120
+          },
+          {
+            "cliente": "TPA",
+            "analista": "Team TASA",
+            "sistema": "Meta4",
+            "lider": "Franco",
+            "complejidad": 3,
+            "pays": 50
+          },
+          {
+            "cliente": "Toyota",
+            "analista": "Team TASA",
+            "sistema": "Meta4",
+            "lider": "Franco",
+            "complejidad": 5,
+            "pays": 8000
+          },
+          {
+            "cliente": "Siasa Logística",
+            "analista": "Celeste",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 3,
+            "pays": 130
+          },
+          {
+            "cliente": "COELSA",
+            "analista": "Celeste",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 2,
+            "pays": 278
+          },
+          {
+            "cliente": "Red Bull",
+            "analista": "Celeste",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 1,
+            "pays": 60
+          },
+          {
+            "cliente": "Merz",
+            "analista": "Celeste",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 1,
+            "pays": 44
+          },
+          {
+            "cliente": "Plastic Omnium Pilar",
+            "analista": "Micaela",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 4,
+            "pays": 370
+          },
+          {
+            "cliente": "Epiroc",
+            "analista": "Micaela",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 2,
+            "pays": 46
+          },
+          {
+            "cliente": "Coty",
+            "analista": "Micaela",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 2,
+            "pays": 116
+          },
+          {
+            "cliente": "Geopagos",
+            "analista": "Agustina R.",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 2,
+            "pays": 220
+          },
+          {
+            "cliente": "Poincenot",
+            "analista": "Agustina R.",
+            "sistema": "Axton",
+            "lider": "Candela",
+            "complejidad": 1,
+            "pays": 84
+          },
+          {
+            "cliente": "Internos",
+            "analista": "[FALTA: consultor actual; el board dice Natacha, etiqueta desactivada]",
+            "sistema": "Axton",
+            "lider": "[FALTA]",
+            "complejidad": 1,
+            "pays": 47
+          }
+        ]
       }
     }
   }
