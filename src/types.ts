@@ -100,8 +100,22 @@ export interface Config {
    * el código ignora: la fuente de esas cuentas es `salidas_en_vivo_fuera_del_plan`.
    */
   salidas_en_vivo_propuestas?: Record<string, string | Record<string, string>>
-  /** Día del mes del corte de novedades de cada cuenta: `{ tim: 19, ... }`. */
+  /** Día del mes del corte de novedades de cada cuenta: `{ tim: 19, ... }`. Fallback cuando no hay fecha del mes. */
   cortes_novedades_dia?: Record<string, number | string>
+  /**
+   * Corte de novedades por cuenta y período: `{ copetro: { '2026-10': '2026-10-16', ... } }`.
+   * Sale de los cronogramas de monday (ítem "Recepción de Novedades"); es el ancla del mes
+   * de salida: la primera ronda del período (1Q, v1, ronda 1). Manda sobre el día fijo.
+   */
+  cortes_novedades_fechas?: Record<string, Record<string, string>>
+  /** Detalle informativo de las rondas por cuenta (qué ronda es el ancla y de dónde salió cada fecha). */
+  cortes_novedades_detalle?: Record<string, {
+    ancla?: string
+    rondas?: string[]
+    /** período → ronda → 'YYYY-MM-DD (monday)' | 'YYYY-MM-DD (estimado)' */
+    por_periodo?: Record<string, Record<string, string>>
+    [k: string]: unknown
+  }>
   /** Cuentas que salen en vivo dentro del horizonte sin pasar por fases (ya configuradas). */
   salidas_en_vivo_fuera_del_plan?: {
     cuentas: Array<{ nombre: string; alias?: string; sale_en_vivo: string }>

@@ -162,18 +162,52 @@ export function checkTopeSalidas(asignaciones: Asignacion[], config: Config, pro
   return out
 }
 
-/** Corte de novedades de una cuenta en su mes de salida, corrido hacia atrás si cae en día no hábil. */
-export function fechaCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): string | null {
-  const dia = config.cortes_novedades_dia?.[proyectoId]
-  if (typeof dia !== 'number') return null
-  const ultimo = ultimoDiaDelMes(mesISO).getDate()
-  let d = parseISO(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`)
+const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
+
+/** Corre una fecha hacia atrás hasta el primer día hábil (ella misma si ya lo es). */
+function habilAnteriorOIgual(iso: string, feriados: ReadonlySet<string>): string {
+  let d = parseISO(iso)
   for (let i = 0; i < 14; i++) {
     const dow = d.getDay()
     if (dow !== 0 && dow !== 6 && !feriados.has(toISO(d))) break
     d = addDays(d, -1)
   }
   return toISO(d)
+}
+
+/**
+ * Corte de novedades de una cuenta en un mes. Primero la fecha concreta de ese período
+ * (`cortes_novedades_fechas`, leída de los cronogramas de monday); si el plan no la trae,
+ * el día fijo (`cortes_novedades_dia`). En los dos casos corrido hacia atrás si cae en
+ * día no hábil.
+ */
+export function fechaCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): string | null {
+  const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
+  if (typeof exacta === 'string' && RE_FECHA.test(exacta)) return habilAnteriorOIgual(exacta, feriados)
+  const dia = config.cortes_novedades_dia?.[proyectoId]
+  if (typeof dia !== 'number') return null
+  const ultimo = ultimoDiaDelMes(mesISO).getDate()
+  return habilAnteriorOIgual(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`, feriados)
+}
+
+export interface OrigenCorte {
+  fecha: string
+  /** monday = el ítem ya existe en el cronograma · estimado = proyectado desde 2026 · dia_fijo = regla vieja */
+  origen: 'monday' | 'estimado' | 'dia_fijo'
+  /** Qué ronda es el ancla ('1Q', 'v1', 'ronda 1', 'mensual'); null con el día fijo. */
+  ronda: string | null
+}
+
+/** El corte con su procedencia, para explicarlo en pantalla. */
+export function origenCorteDe(proyectoId: string, mesISO: string, config: Config, feriados: ReadonlySet<string>): OrigenCorte | null {
+  const fecha = fechaCorteDe(proyectoId, mesISO, config, feriados)
+  if (!fecha) return null
+  const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
+  if (typeof exacta !== 'string') return { fecha, origen: 'dia_fijo', ronda: null }
+  const det = config.cortes_novedades_detalle?.[proyectoId]
+  const ronda = typeof det?.ancla === 'string' ? det.ancla : null
+  const txt = ronda ? det?.por_periodo?.[mesISO]?.[ronda] : undefined
+  return { fecha, origen: typeof txt === 'string' && txt.includes('monday') ? 'monday' : 'estimado', ronda }
 }
 
 /**

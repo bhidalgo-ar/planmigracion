@@ -7,7 +7,7 @@ import type { Asignacion, Persona, Proyecto, TipoFase, Violacion } from '../type
 import { tierDe, TIER_LABEL, type Tier } from '../insightsEquipo'
 import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
 import { feriadosDeConfig, formatFechaCorta, toISO } from '../utils/dates'
-import { ddmm, fechaCorteDe, margenesPorCuenta, nombreMes } from '../rules'
+import { ddmm, margenesPorCuenta, nombreMes, origenCorteDe } from '../rules'
 import { mesSalidaDe } from '../capacidad'
 import { mesesCandidatos, planificarCuenta, simularDestinos, type Destino } from '../planificador'
 
@@ -145,7 +145,9 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
   const feriados = useMemo(() => feriadosDeConfig(config), [config])
   const mesActual = mesSalidaDe(proyecto.id, config)
   const tieneCorte = typeof config.cortes_novedades_dia?.[proyecto.id] === 'number'
-  const corte = mesActual && tieneCorte ? fechaCorteDe(proyecto.id, mesActual, config, feriados) : null
+    || Object.keys(config.cortes_novedades_fechas?.[proyecto.id] ?? {}).length > 0
+  const corteInfo = mesActual && tieneCorte ? origenCorteDe(proyecto.id, mesActual, config, feriados) : null
+  const ORIGEN_TXT = { monday: 'fecha del cronograma', estimado: 'estimado', dia_fijo: 'día fijo' } as const
   const margen = useMemo(
     () => margenesPorCuenta(asignaciones, config, proyectos).find(m => m.proyectoId === proyecto.id)?.habiles ?? null,
     [asignaciones, config, proyectos, proyecto.id],
@@ -178,7 +180,12 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>{mesActual ? nombreMes(mesActual) : 'sin definir'}</span>
       </div>
       <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {corte && <span>Corte de novedades <b style={{ color: 'var(--ink)' }}>{ddmm(corte)}</b></span>}
+        {corteInfo && (
+          <span title={corteInfo.origen === 'monday' ? 'El ítem ya está cargado en el cronograma de monday' : corteInfo.origen === 'estimado' ? 'Proyectado desde los cortes reales de 2026, corrido al hábil anterior' : 'Regla vieja: día fijo del mes'}>
+            Corte de novedades <b style={{ color: 'var(--ink)' }}>{ddmm(corteInfo.fecha)}</b>
+            <span style={{ color: 'var(--t3)' }}>{corteInfo.ronda ? ` · ${corteInfo.ronda}` : ''} · {ORIGEN_TXT[corteInfo.origen]}</span>
+          </span>
+        )}
         {margen !== null && (
           <span>Margen <b style={{ color: margen < minimo ? 'var(--error-tx)' : 'var(--ink)' }}>{margen} hábil{margen !== 1 ? 'es' : ''}</b> hasta el corte</span>
         )}
