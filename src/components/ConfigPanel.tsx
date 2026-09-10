@@ -31,7 +31,7 @@ export function ConfigPanel() {
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
     setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad,
-    ocultarPersonasSinCarga,
+    ocultarPersonasSinCarga, modoFilas, setModoFilas,
   } = useUIStore()
   const [masAbierto, setMasAbierto] = useState(false)
   const masRef = useRef<HTMLDivElement>(null)
@@ -116,6 +116,17 @@ export function ConfigPanel() {
             <button key={z.value} onClick={() => setZoom(z.value)}
               style={{ padding: '4px 11px', border: 'none', background: zoom === z.value ? 'var(--celeste)' : 'var(--white)', color: zoom === z.value ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               {z.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Qué es cada fila: una cuenta con sus fases y la carga del equipo debajo, o una persona (vista original) */}
+        <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden', flexShrink: 0 }}
+          title="Por cuenta: una fila por cuenta con sus fases y la carga semanal del equipo debajo. Por persona: una fila por persona.">
+          {([['cuenta', 'Por cuenta'], ['persona', 'Por persona']] as const).map(([v, l]) => (
+            <button key={v} onClick={() => setModoFilas(v)}
+              style={{ padding: '4px 11px', border: 'none', background: modoFilas === v ? 'var(--celeste)' : 'var(--white)', color: modoFilas === v ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              {l}
             </button>
           ))}
         </div>
