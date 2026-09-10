@@ -195,7 +195,7 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
             {destinos.map(d => {
               const e = ESTILO_DESTINO[d.estado]
               const title = d.actual
-                ? `Mes actual · corte ${d.corte ? ddmm(d.corte) : '—'} · margen ${d.margen ?? '—'}`
+                ? `Mes actual · corte ${d.corte ? ddmm(d.corte) : '—'} · margen ${d.margen ?? '—'} hábiles`
                 : d.estado === 'gris'
                   ? d.motivo ?? ''
                   : `${d.motivo ?? 'Sin conflictos nuevos'} · corte ${d.corte ? ddmm(d.corte) : '—'} · margen ${d.margen ?? '—'} hábiles${d.deltaRojos < 0 ? ` · resuelve ${-d.deltaRojos} conflicto${-d.deltaRojos !== 1 ? 's' : ''}` : ''}`
