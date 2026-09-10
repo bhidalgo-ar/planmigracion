@@ -6,7 +6,7 @@ import { formatFecha, formatFechaCorta, toISO } from '../utils/dates'
 import { ORDEN_FASES, TIPO_LABEL } from '../theme/fases'
 import type { TipoFase } from '../types'
 import {
-  cargaPorPersona, cuentasFueraDelPlan, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
+  cuentasFueraDelPlan, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
   type CuentaMigracion,
 } from '../insightsMigracion'
 
@@ -27,7 +27,7 @@ const VIZ_FASE: Record<TipoFase, string> = {
  * barra superior, que están siempre a la vista.
  */
 export function Insights() {
-  const { personas, proyectos, asignaciones, config } = useSimuladorStore()
+  const { proyectos, asignaciones, config } = useSimuladorStore()
   const seleccionarCliente = useSimuladorStore(s => s.seleccionarCliente)
   const setVista = useUIStore(s => s.setVista)
 
@@ -47,11 +47,10 @@ export function Insights() {
       cuentas,
       fuera,
       trimestres: migracionPorTrimestre(todas),
-      carga: cargaPorPersona(personas, cuentas),
       r: resumenMigracion(todas, hoyISO, new Set(overrideIds)),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personas, proyectos, asignaciones, config, hoyISO, overrideKey])
+  }, [proyectos, asignaciones, config, hoyISO, overrideKey])
 
   function irACuenta(id: string) {
     seleccionarCliente(id)
@@ -87,10 +86,9 @@ export function Insights() {
         </div>
       </div>
 
-      {/* ── Fila media: avance por trimestre + reparto del equipo ───────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)', gap: 18, marginBottom: 18 }}>
+      {/* ── Fila media: avance por trimestre (el reparto del equipo vive en la pestaña Equipo) ── */}
+      <div style={{ marginBottom: 18 }}>
         <TrimestresCard trimestres={d.trimestres} totalPrograma={d.r.totalCuentas} legacyCount={legacyCount} />
-        <EquipoCard carga={d.carga} />
       </div>
 
       {/* ── Abajo, a lo ancho: la ola ──────────────────────────────────────── */}
@@ -337,67 +335,6 @@ function TablaTrimestres({ trimestres, legacyCount }: {
   )
 }
 
-// ══ Equipo ════════════════════════════════════════════════════════════════════
-
-/**
- * Cuántas cuentas toma cada persona (el número, que es la pregunta) y en qué papel
- * (la barra, desglosada por fase). Dos unidades distintas, cada una rotulada.
- */
-function EquipoCard({ carga }: { carga: ReturnType<typeof cargaPorPersona> }) {
-  const conCarga = carga.filter(c => c.fases > 0)
-  const sinCarga = carga.filter(c => c.fases === 0)
-  const maxFases = Math.max(1, ...conCarga.map(c => c.fases))
-
-  const seriesFase = ORDEN_FASES.map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))
-
-  return (
-    <Card titulo="Quién hace cada cuenta" subtitulo="El número son cuentas distintas · la barra, sus fases">
-      <Leyenda series={seriesFase} />
-      {conCarga.length === 0 ? (
-        <Vacio>Nadie tiene fases asignadas todavía.</Vacio>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginTop: 4 }}>
-          {conCarga.map(c => (
-            <div key={c.id}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>{c.alias}</span>
-                <span className="num" style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--celeste-dark)' }}>
-                  {c.cuentas}
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--t2)' }}>cuenta{c.cuentas !== 1 ? 's' : ''}</span>
-                <span className="num" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--t3)' }}>
-                  {c.fases} fase{c.fases !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {/* Barra apilada por fase: 2px de gap en superficie, punta redondeada. */}
-              <div style={{ display: 'flex', gap: 2, height: 10, alignItems: 'stretch' }}
-                title={ORDEN_FASES.map(t => `${TIPO_LABEL[t]}: ${c.porTipo[t]}`).join(' · ')}>
-                {ORDEN_FASES.map((t, i) => {
-                  const n = c.porTipo[t]
-                  if (!n) return null
-                  const esUltimo = ORDEN_FASES.slice(i + 1).every(x => !c.porTipo[x])
-                  return (
-                    <div key={t} style={{
-                      width: `${(n / maxFases) * 100}%`,
-                      background: VIZ_FASE[t],
-                      borderRadius: esUltimo ? '2px 4px 4px 2px' : 2,
-                    }} />
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-          {sinCarga.length > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
-              Sin fases asignadas: {sinCarga.map(c => c.alias).join(', ')}.
-            </span>
-          )}
-        </div>
-      )}
-    </Card>
-  )
-}
-
 // ══ Ola de migración ══════════════════════════════════════════════════════════
 
 /**
@@ -558,7 +495,7 @@ function Hero({ label, valor, nota, alerta }: { label: string; valor: string; no
   )
 }
 
-function Kpi({ label, valor, nota }: { label: string; valor: string | number; nota?: string }) {
+export function Kpi({ label, valor, nota }: { label: string; valor: string | number; nota?: string }) {
   return (
     <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: '12px 14px', boxShadow: 'var(--sh-sm)' }}>
       <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
@@ -568,7 +505,7 @@ function Kpi({ label, valor, nota }: { label: string; valor: string | number; no
   )
 }
 
-function Card({ titulo, subtitulo, accion, children }: {
+export function Card({ titulo, subtitulo, accion, children }: {
   titulo: string; subtitulo?: string; accion?: ReactNode; children: ReactNode
 }) {
   return (
@@ -586,7 +523,7 @@ function Card({ titulo, subtitulo, accion, children }: {
 }
 
 /** Leyenda: siempre presente con 2+ series, para que la identidad no dependa del color. */
-function Leyenda({ series }: { series: Array<{ key: string; label: string; color: string }> }) {
+export function Leyenda({ series }: { series: Array<{ key: string; label: string; color: string }> }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
       {series.map(s => (
@@ -621,14 +558,14 @@ function BotonTabla({ activo, onClick }: { activo: boolean; onClick: () => void 
   )
 }
 
-const Vacio = ({ children }: { children: ReactNode }) => (
+export const Vacio = ({ children }: { children: ReactNode }) => (
   <span style={{ fontSize: 12, color: 'var(--t3)', fontStyle: 'italic' } as CSSProperties}>{children}</span>
 )
 
-function Th({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
+export function Th({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
   return <th style={{ textAlign: align, padding: '4px 6px', fontSize: 10, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</th>
 }
 
-function Td({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
+export function Td({ children, align = 'right' }: { children: ReactNode; align?: 'left' | 'right' }) {
   return <td style={{ textAlign: align, padding: '4px 6px', color: 'var(--t1)' }}>{children}</td>
 }
