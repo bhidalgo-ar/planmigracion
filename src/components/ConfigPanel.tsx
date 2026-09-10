@@ -23,7 +23,7 @@ const PRESETS: { label: string; fecha: string }[] = [
 
 export function ConfigPanel() {
   const {
-    config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, importarJSON,
+    config, updateConfigFecha, violaciones, resetToSeed, exportarJSON, exportOmiteConfidencial, importarJSON,
     clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes,
     recalcularDuraciones,
   } = useSimuladorStore()
@@ -89,6 +89,9 @@ export function ConfigPanel() {
 
   function handleExport() {
     setMasAbierto(false)
+    if (exportOmiteConfidencial()) {
+      alert('El plan se exporta SIN el bloque confidencial (equipo_confidencial): la pestaña "Disponibilidad del equipo" está bloqueada en esta sesión. Desbloqueala antes de exportar si lo necesitás en el archivo.')
+    }
     const blob = new Blob([exportarJSON()], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

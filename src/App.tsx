@@ -5,6 +5,8 @@ import { DetailPanel } from './components/DetailPanel'
 import { ConfigPanel } from './components/ConfigPanel'
 import { Insights } from './components/Insights'
 import { Equipo } from './components/Equipo'
+import { Confidencial } from './components/Confidencial'
+import { tieneBloqueConfidencial } from './confidencial'
 import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
@@ -23,6 +25,10 @@ const TABS: { v: Vista; label: string }[] = [
 
 export default function App() {
   const { vista, setVista, modal, resumenAbierto, timelineFull } = useUIStore()
+  // La pestaña confidencial existe solo si el plan cargado trae el bloque (nunca viene del seed).
+  const hayConfidencial = useSimuladorStore(s => tieneBloqueConfidencial(s.config))
+  const tabs = hayConfidencial ? [...TABS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad del equipo' }] : TABS
+  useEffect(() => { if (vista === 'confidencial' && !hayConfidencial) setVista('timeline') }, [vista, hayConfidencial, setVista])
   const [darkMode, setDarkMode] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark')
 
   function toggleTheme() {
@@ -65,7 +71,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 6, marginLeft: 20 }}>
-          {TABS.map(({ v, label }) => (
+          {tabs.map(({ v, label }) => (
             <button key={v} onClick={() => setVista(v)} style={{
               padding: '6px 16px', borderRadius: 9999,
               border: vista === v ? 'none' : '1px solid var(--line)',
@@ -107,6 +113,8 @@ export default function App() {
           </div>
         ) : vista === 'equipo' ? (
           <Equipo />
+        ) : vista === 'confidencial' && hayConfidencial ? (
+          <Confidencial />
         ) : (
           <Insights />
         )}
