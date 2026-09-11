@@ -15,9 +15,10 @@ hasta que diga lo contrario:
 - **La fórmula de Moni no cambia.** La curva por tickets da casi lo mismo que la perilla actual
   (`max(0,5; 0,8 − 0,02 × (cuentas en Axton − 10))`): 0,78 → 0,50 en los dos casos. Se deja la
   perilla y la pestaña muestra los tickets al lado, como validación. Cambiarla es otra decisión.
-- **La base de Susi son las 15 cuentas del programa** (13 con fases + POF y Finadiet): ~56 tickets
-  por mes en 2026. Toyota y TPA (Team TASA, ~12 tickets por mes) quedan fuera de la base; si Susi
-  también los soporta, la base sube y nunca llega al 100 %. `[FALTA: quién soporta Toyota y TPA]`.
+- ~~**La base de Susi son las 15 cuentas del programa**~~ **RESUELTO por Willy el 11/09:** Susi
+  también soporta Toyota y TPA, que no migran. Su base pasa a 68,2 tickets por mes (56,4 del
+  programa + 11,8 de Toyota y TPA) y esos 11,8 se quedan con ella para siempre: **su techo es
+  83 %**, no 100 %. Implementado con `soporte_tickets.meta4_no_migra`.
 - **La tabla "Tickets Meta4 en el año" se queda** al pie de Equipo como insumo.
 
 ---
@@ -127,10 +128,11 @@ hasta que diga lo contrario:
 - **Automático:** `npm test` verde (570 + los nuevos), `tsc --noEmit` limpio, CI del PR verde.
 - **Con el v8 en el navegador, antes de decir "listo":**
   - Equipo: la matriz dice Agustina Ch. 5 meses en dos sistemas (nov a mar), Sergio 4,
-    Agustina R. 2, Candela 1, Melina, Araceli y Florencia "—"; Aysa y Ford con
-    `[FALTA: analista]`.
-  - Disponibilidad: Susi 70 % en sep 26, 7 % en oct, 30 % en nov, 51 % en ene, 80 % en mar,
-    100 % desde abr 27; Moni 78 % → 50 %; Leo y Lucas con barra en sep y "—" desde oct.
+    Agustina R. 2, Candela 1, Melina, Araceli y Florencia "—"; Aysa y Ford listadas como
+    Eventuales; el total de abril dice 25 en Axton y 2 en Meta 4 (Toyota y TPA).
+  - Disponibilidad: Susi 70 % en sep 26, 6 % en oct, 25 % en nov, 42 % en ene, 67 % en mar y
+    **83 % desde abr 27, su techo** (Toyota y TPA no migran); Moni 78 % → 50 %; Leo y Lucas con
+    barra en sep y "—" desde oct.
   - Insights sin la ola; barra con Vista solo en Timeline y sin ella en las otras pestañas.
   - Con el v7 (sin bloques nuevos): la app se ve como hoy salvo el rediseño visual, y donde
     faltan tickets dice `[FALTA]`.

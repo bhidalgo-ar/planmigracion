@@ -153,6 +153,8 @@ export interface FilaEquipoHoy {
   pays?: number | null
   /** Quien lleva la cuenta HOY, si la columna `analista` de la Matrix quedó vieja. */
   analista_destino?: string | null
+  /** Otro equipo de H&A la liquida (Aysa y Ford: Eventuales): no es carga del equipo de payroll. */
+  equipo_externo?: string | null
 }
 
 function clasificarSistema(sistema: string): 'meta4' | 'axton' | 'otros' {
@@ -200,6 +202,8 @@ export interface MatrizAnalistas {
   soloAxton: FilaAnalista[]
   /** Cuentas que migran y no tienen fila en la Matrix: nadie sabe quién las liquida. */
   sinAnalista: string[]
+  /** Cuentas que liquida otro equipo de H&A (Eventuales), fuera del equipo de payroll. */
+  otrosEquipos: Array<{ cuenta: string; equipo: string }>
   totales: TotalMes[]
   fuente?: string
   corte?: string
@@ -231,8 +235,17 @@ export function matrizAnalistas(proyectos: Proyecto[], asignaciones: Asignacion[
   const salidaDe = (cliente: string) => { const k = claveNombre(cliente); return salidas.find(s => s.claves.includes(k)) ?? null }
 
   const cubiertas = new Set<string>()
+  const otrosEquipos: Array<{ cuenta: string; equipo: string }> = []
   const porAnalista = new Map<string, FilaAnalista>()
   for (const f of b.filas as FilaEquipoHoy[]) {
+    // Lo que liquida otro equipo de H&A no es carga del equipo de payroll: no arma fila.
+    const externo = typeof f.equipo_externo === 'string' ? f.equipo_externo.trim() : ''
+    if (externo) {
+      const s = salidaDe(f.cliente)
+      if (s) cubiertas.add(s.nombre)
+      otrosEquipos.push({ cuenta: s?.nombre ?? f.cliente, equipo: externo })
+      continue
+    }
     const destino = typeof f.analista_destino === 'string' ? f.analista_destino.trim() : ''
     const quien = destino || (f.analista ?? '').trim() || '[FALTA: analista]'
     const sist = clasificarSistema(f.sistema)
@@ -262,7 +275,8 @@ export function matrizAnalistas(proyectos: Proyecto[], asignaciones: Asignacion[
     ticketsMeta4: ticketsMeta4Restantes(mes, config),
     salen: salidas.filter(s => s.mes === mes).map(s => s.nombre),
   }))
-  return { meses, filas, soloAxton, sinAnalista, totales, fuente: b.fuente, corte: b.corte }
+  otrosEquipos.sort((a, b) => a.cuenta.localeCompare(b.cuenta, 'es'))
+  return { meses, filas, soloAxton, sinAnalista, otrosEquipos, totales, fuente: b.fuente, corte: b.corte }
 }
 
 /** Violaciones de carga de una persona en un mes, para enlazar la prosa con la regla. */

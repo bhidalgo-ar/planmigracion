@@ -148,6 +148,15 @@ titulo('Lectura de la transición con la ticketera')
 const lecturaTk = lecturaTransicion(configTickets, personas)!
 check('dice que los tickets de hoy son su día completo y cuánto le queda en octubre', lecturaTk.texto.includes('~11 tickets por mes de hoy') && lecturaTk.texto.includes('en octubre de 2026 le queda 73 %'), lecturaTk.texto)
 check('y cuándo llega al 100 %', lecturaTk.texto.includes('llega al 100 % en noviembre de 2026'), lecturaTk.texto)
+// Con Toyota en Meta 4 para siempre (2 tickets/mes sobre una base de 13), Susi tiene techo.
+const conTecho: Config = {
+  ...configTickets,
+  soporte_tickets: { ...configTickets.soporte_tickets!, meta4_no_migra: { Toyota: 20 } },
+  capacidad: { ...configTickets.capacidad!, susi_soporte_meta4: { desde: '2026-10', base_tickets_mes: 13 } },
+}
+const lecturaTecho = lecturaTransicion(conTecho, personas)!
+check('con Toyota en Meta 4 para siempre, dice el techo y por qué', lecturaTecho.texto.includes('no pasa del 85 %') && lecturaTecho.texto.includes('Toyota se quedan en Meta4'), lecturaTecho.texto)
+check('ya no promete el 100 %', !lecturaTecho.texto.includes('100 %'), lecturaTecho.texto)
 check('sin ticketera, el texto es el de siempre', !lecturaTransicion(configCon, personas)!.texto.includes('tickets'))
 
 titulo('Export — el bloque sale solo con la sesión desbloqueada')

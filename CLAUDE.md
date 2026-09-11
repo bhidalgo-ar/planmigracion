@@ -26,7 +26,9 @@ Cuatro pestañas más una:
 - **Equipo**: para el equipo de payroll. Primero **cómo liquida cada analista mes a mes**
   (cuentas en Meta 4 y en Axton al cierre de cada mes, celdas ámbar = meses en dos sistemas;
   `matrizAnalistas`, que cruza `config.insumos.equipo_payroll_hoy` con el mes de salida; quien
-  lleva la cuenta hoy es `analista_destino` si existe, si no `analista`). Después, horas por
+  lleva la cuenta hoy es `analista_destino` si existe, si no `analista`; una fila con
+  `equipo_externo` la liquida otro equipo de H&A (Aysa y Ford: Eventuales) y no cuenta como
+  carga del equipo de payroll). Después, horas por
   persona y mes contra capacidad, una fila por persona a todo el ancho, con la prosa del mes al
   clic. Cierra con la tabla de tickets Meta 4.
 - **La barra** va en tres grupos por uso: *Vista* (zoom como desplegable, Por cuenta / Por
@@ -63,9 +65,12 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
   quien tiene `horas_dia` propio, 1,0; el resto, `config.disponibilidad` por año.
 - **Tickets de soporte** (`config.soporte_tickets`, leído de la Ticketera Soporte de monday con
   `Herramientas-Tecnicas/scripts/tickets_soporte_desde_monday.py`): tickets del año por cuenta
-  que migra (clave = id de proyecto o alias de las fuera del plan) y por cuenta ya en Axton.
+  que migra (clave = id de proyecto o alias de las fuera del plan), por cuenta ya en Axton, y
+  `meta4_no_migra` (Toyota y TPA: se quedan en Meta 4 para siempre y las soporta Susana).
   `ticketsMeta4Restantes(mes)` y `ticketsAxton(mes)` en `capacidad.ts` dividen por
-  `meses_medidos`; una cuenta que sale se lleva sus tickets a Axton. Sin el bloque, devuelven
+  `meses_medidos`; una cuenta que sale se lleva sus tickets a Axton, y las de `meta4_no_migra`
+  suman a todos los meses: son el piso del soporte (`ticketsMeta4Piso`), así que **Susi tiene
+  techo y nunca llega al 100 %** (con el v8, 83 % desde abril de 2027). Sin el bloque, devuelven
   null y la pantalla dice [FALTA]: nunca se estima.
 
 **Mes de salida en vivo es dato** (`config.salidas_en_vivo_propuestas`), no se deduce del

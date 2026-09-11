@@ -5,7 +5,7 @@
  */
 
 import type { Config, Persona } from '../src/types'
-import { cuentasEnMeta4, disponibilidadMes, ticketsAxton, ticketsMeta4Restantes } from '../src/capacidad'
+import { cuentasEnMeta4, disponibilidadMes, ticketsAxton, ticketsMeta4Piso, ticketsMeta4Restantes } from '../src/capacidad'
 import planV3 from './fixtures/plan-v3.json'
 
 let fallos = 0
@@ -70,6 +70,25 @@ check('nunca baja de 0 aunque queden más tickets que la base', disponibilidadMe
 eq('el bloque confidencial con `migracion` explícito sigue mandando', disponibilidadMes('susi', '2026-10', { ...conTickets, equipo_confidencial: { dedicacion_por_mes: { susi: { '2026-10': { migracion: 0.42 } } } } }, undefined, susi), 0.42)
 eq('otra persona no se ve afectada por el bloque de Susi', disponibilidadMes('guille', '2026-10', conTickets), 0.6)
 eq('con persona_id distinto, aplica a esa persona', disponibilidadMes('lau', '2026-10', { ...conTickets, capacidad: { ...conTickets.capacidad!, susi_soporte_meta4: { desde: '2026-10', base_tickets_mes: 11, persona_id: 'lau' } } }), 1 - 3 / 11)
+
+titulo('Cuentas que se quedan en Meta 4 para siempre (Toyota y TPA, que soporta Susana)')
+// Toyota 20 tickets en 10 meses = 2 por mes, para siempre. Base de Susi 13 = 11 del programa + 2.
+const conNoMigra: Config = {
+  ...conTickets,
+  soporte_tickets: { ...conTickets.soporte_tickets!, meta4_no_migra: { Toyota: 20 } },
+  capacidad: { ...conTickets.capacidad!, susi_soporte_meta4: { desde: '2026-10', base_tickets_mes: 13 } },
+}
+cerca('el piso son 2 tickets por mes', ticketsMeta4Piso(conNoMigra), 2)
+eq('sin ticketera no hay piso', ticketsMeta4Piso(configV3), null)
+eq('sin meta4_no_migra el piso es 0', ticketsMeta4Piso(conTickets), 0)
+eq('aparecen como cuenta en Meta 4 con mes null (no salen nunca)', cuentasEnMeta4('2027-12', conNoMigra).map(c => `${c.clave}:${c.mes}`).join(','), 'Toyota:null')
+eq('y suman a las del programa', cuentasEnMeta4('2026-09', conNoMigra).length, cuentasEnMeta4('2026-09', conTickets).length + 1)
+cerca('sus tickets suman todos los meses: sep 9 + 2', ticketsMeta4Restantes('2026-09', conNoMigra), 11)
+cerca('nov, con el programa afuera, quedan los 2 del piso', ticketsMeta4Restantes('2026-11', conNoMigra), 2)
+cerca('no pasan a Axton: los tickets de Axton no cambian', ticketsAxton('2026-11', conNoMigra), 21)
+cerca('Susi en oct: 1 − (3 + 2) / 13', disponibilidadMes('susi', '2026-10', conNoMigra, undefined, susi), 1 - 5 / 13)
+cerca('Susi toca su techo en nov: 1 − 2 / 13, no el 100 %', disponibilidadMes('susi', '2026-11', conNoMigra, undefined, susi), 1 - 2 / 13)
+check('y no sube más por mucho que pase el tiempo', disponibilidadMes('susi', '2028-12', conNoMigra, undefined, susi) === disponibilidadMes('susi', '2026-11', conNoMigra, undefined, susi))
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)
 process.exit(fallos === 0 ? 0 : 1)
