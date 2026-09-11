@@ -1,13 +1,14 @@
 /**
  * Tests de la lógica de la pestaña Equipo (src/insightsEquipo.ts) sobre el plan v3
  * corregido. Los totales por persona tienen que coincidir con `cargaMensual`, que es la
- * única fuente de la matemática de horas.
+ * única fuente de la matemática de horas. La matriz por analista cruza la Matrix de
+ * clientes con el mes de salida de cada cuenta.
  */
 
 import type { Asignacion, Config, Persona, Proyecto } from '../src/types'
 import { cargaMensual } from '../src/capacidad'
 import {
-  cargaEquipo, cuentasEquipo, equipoHoy, franjaSalidas, fraseDelMes, lecturaTickets, mesesDelPrograma, tierDe,
+  cargaEquipo, fraseDelMes, lecturaTickets, matrizAnalistas, mesesDelPrograma, tierDe,
 } from '../src/insightsEquipo'
 import planV3 from './fixtures/plan-v3.json'
 
@@ -63,57 +64,63 @@ check('diciembre: configura Copetro y Campari a la vez', fraseDic.includes('conf
 check('un mes vacío da cadena vacía', fraseDelMes('X', { ...enero, porCuenta: {}, horas: 0 }, asignaciones, proyectos) === '')
 check('ninguna frase muestra un id', carga.every(c => c.meses.every(m => !/-(config|pruebas|repaso|corrida)/.test(fraseDelMes(c.alias, m, asignaciones, proyectos)))))
 
-titulo('cuentasEquipo — B3: quién hace qué')
-const cuentas = cuentasEquipo(proyectos, asignaciones, config)
-eq('13 cuentas con fases', cuentas.length, 13)
-eq('la primera en salir es TIM', cuentas[0].id, 'tim')
-eq('la última es Carrier', cuentas[cuentas.length - 1].id, 'carrier')
-eq('TIM es estándar', cuentas[0].tier, 'std')
+titulo('tierDe')
 eq('GSMA es chica', tierDe('gsma', config), 'chica')
-eq('TIM: corte 19/10', cuentas[0].corte, '2026-10-19')
-eq('TIM: margen 6 hábiles', cuentas[0].margen, 6)
-check('todas con margen ok en el v3', cuentas.every(c => c.estadoMargen === 'ok'), cuentas.map(c => `${c.id}:${c.margen}`).join(' '))
-check('las personas de TIM son Gaby, Willy y Moni', cuentas[0].personas.sort().join(',') === 'gaby_f,guille,moni')
-check('las fases vienen ordenadas por inicio', cuentas.every(c => c.fases.every((f, i) => i === 0 || c.fases[i - 1].inicio <= f.inicio)))
+eq('TIM es estándar', tierDe('tim', config), 'std')
+eq('una cuenta desconocida no tiene tier', tierDe('nadie', config), null)
 
-titulo('franjaSalidas — B4')
-const franja = franjaSalidas(proyectos, asignaciones, config)
-eq('una fila por mes del programa', franja.length, meses.length)
-const sep = franja.find(f => f.mes === '2026-09')!
-eq('septiembre: solo POF, fuera del simulador', `${sep.salidas.length} ${sep.salidas[0].nombre} ${sep.salidas[0].fueraDelPlan}`, '1 POF true')
-const oct = franja.find(f => f.mes === '2026-10')!
-eq('octubre: TIM + Finadiet = 2/2', `${oct.salidas.length}/${oct.tope}`, '2/2')
-eq('octubre está ok', oct.estado, 'ok')
-const mar = franja.find(f => f.mes === '2027-03')!
-eq('marzo: 3 salidas permitidas', mar.estadoTope, 'permitido')
-eq('marzo se pinta ámbar', mar.estado, 'ambar')
-check('ningún mes en rojo con el v3', franja.every(f => f.estado !== 'rojo'))
-check('las cuentas del plan traen margen y corte', oct.salidas.filter(s => !s.fueraDelPlan).every(s => s.margen != null && s.corte != null))
-check('con 4 salidas el mes queda rojo', (() => {
-  const c: Config = { ...config, salidas_en_vivo_propuestas: { ...config.salidas_en_vivo_propuestas, carrier: '2027-03' } }
-  return franjaSalidas(proyectos, asignaciones, c).find(f => f.mes === '2027-03')!.estado === 'rojo'
+titulo('matrizAnalistas — B3: cómo liquida cada analista, mes a mes')
+// En el v3: TIM sale oct, Piano y DLA nov, GSMA y Bonafide dic, Copetro y Campari ene,
+// Lowsedo y Marval feb, Sportline/Aysa/Ford mar, Carrier abr; POF sep y Finadiet oct.
+const m = matrizAnalistas(proyectos, asignaciones, config)!
+check('con la Matrix cargada hay matriz', m !== null)
+eq('los meses son los del programa', m.meses.join(','), meses.join(','))
+const fila = (a: string) => m.filas.find(f => f.analista === a)!
+eq('Araceli: Piano sale en nov y Marval en feb → 3 meses en dos sistemas (nov, dic, ene)', fila('Araceli').mesesDobles, 3)
+eq('Agustina R.: TIM oct y DLA nov con 2 cuentas Axton → 2 meses (sep, oct)', fila('Agustina R.').mesesDobles, 2)
+eq('Sergio: 5 en Meta 4, salen dic/ene/feb → 2 meses (dic, ene)', fila('Sergio').mesesDobles, 2)
+eq('Candela: POF sep con Finadiet todavía en Meta 4 → 1 mes', fila('Candela').mesesDobles, 1)
+eq('Melina: solo Carrier, nunca en dos sistemas', fila('Melina').mesesDobles, 0)
+eq('Team TASA: Toyota y TPA no migran, siguen en Meta 4 sin mes doble', fila('Team TASA').mesesDobles, 0)
+check('las filas vienen ordenadas por meses en dos sistemas', m.filas.every((f, i) => i === 0 || m.filas[i - 1].mesesDobles >= f.mesesDobles))
+eq('Sergio en diciembre: 3 en Meta 4 y 2 en Axton', `${fila('Sergio').meses[3].meta4.length}/${fila('Sergio').meses[3].axton.length}`, '3/2')
+check('la celda dice qué cuentas', fila('Sergio').meses[3].axton.sort().join(',') === 'Bonafide,GSMA')
+eq('Agustina R. en noviembre ya liquida todo en Axton', fila('Agustina R.').meses[2].meta4.length, 0)
+eq('Team TASA en abril sigue con 2 en Meta 4', fila('Team TASA').meses[7].meta4.length, 2)
+check('Celeste y Micaela son 100 % Axton', m.soloAxton.map(f => f.analista).includes('Celeste') && m.soloAxton.map(f => f.analista).includes('Micaela'))
+eq('Aysa y Ford migran pero no tienen fila en la Matrix', m.sinAnalista.join(','), 'Aysa,Ford')
+eq('totales sep: 11 en Axton (9 legacy + Coty + POF)', m.totales[0].axton, 11)
+eq('totales sep: 14 en Meta 4', m.totales[0].meta4, 14)
+eq('totales abr: 25 en Axton y 0 en Meta 4', `${m.totales[7].axton}/${m.totales[7].meta4}`, '25/0')
+eq('sin ticketera, los tickets quedan en null', m.totales[0].ticketsAxton, null)
+eq('en septiembre sale POF', m.totales[0].salen.join(','), 'POF')
+eq('en octubre salen TIM y Finadiet', m.totales[1].salen.sort().join(','), 'Finadiet,TIM')
+
+titulo('matrizAnalistas — analista_destino es quien la lleva hoy')
+const conDestino: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [
+  { cliente: 'TIM', analista: 'Vieja', sistema: 'Meta4', analista_destino: 'Nueva' },
+  { cliente: 'DLA', analista: 'Vieja', sistema: 'Meta4' },
+  { cliente: 'Geopagos', analista: 'Nueva', sistema: 'Axton' },
+] } } }
+const md = matrizAnalistas(proyectos, asignaciones, conDestino)!
+eq('TIM aparece en la fila de la nueva analista', md.filas.find(f => f.analista === 'Nueva')!.meses[0].meta4.join(','), 'TIM')
+eq('y la vieja se queda solo con DLA', md.filas.find(f => f.analista === 'Vieja')!.meses[0].meta4.join(','), 'DLA')
+eq('la nueva queda en dos sistemas en sep (TIM en Meta 4, Geopagos en Axton)', md.filas.find(f => f.analista === 'Nueva')!.mesesDobles, 1)
+check('las cuentas que no están en esa Matrix quedan sin analista', md.sinAnalista.length === 13 && md.sinAnalista.includes('Piano'))
+eq('sin Matrix no hay matriz', matrizAnalistas(proyectos, asignaciones, { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: '[FALTA]' } } }), null)
+check('el nombre matchea sin acentos ni mayúsculas', (() => {
+  const c: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [{ cliente: 'plastic omnium florida', analista: 'A', sistema: 'Meta 4' }] } } }
+  const x = matrizAnalistas(proyectos, asignaciones, c)!
+  const f = [...x.filas, ...x.soloAxton][0]
+  return f.meses[0].axton.join(',') === 'POF' && !x.sinAnalista.includes('POF')
 })())
 
-titulo('insumos — B5')
+titulo('lecturaTickets — insumo')
 const filas = config.insumos!.tickets_meta4_ytd!.filas
 eq('12 clientes en la tabla de tickets', filas.length, 12)
 eq('lectura: Marval concentra, Copetro críticas', lecturaTickets(filas),
   'Marval concentra escalados y retrabajo; Copetro tiene la tasa de críticas más alta (78 %).')
 eq('sin filas, sin lectura', lecturaTickets([]), '')
-eq('equipo hoy en [FALTA] devuelve null', equipoHoy({ ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: '[FALTA]' } } }), null)
-const hoy = equipoHoy(config)!
-eq('el v3 trae 25 clientes activos del equipo (sin Bajas, sin Aysa/Ford)', hoy.filas.length, 25)
-eq('15 en Meta4 y 10 en Axton', `${hoy.total.meta4}/${hoy.total.axton}/${hoy.total.otros}`, '15/10/0')
-check('la distribución por analista viene ordenada por cantidad', hoy.porAnalista.every((a, i) => i === 0 || (hoy.porAnalista[i - 1].meta4 + hoy.porAnalista[i - 1].axton) >= (a.meta4 + a.axton)))
-eq('Sergio lleva 5 cuentas Meta4', hoy.porAnalista.find(a => a.nombre === 'Sergio')!.meta4, 5)
-eq('por equipo: Candela lleva 13', hoy.porLider.find(a => a.nombre === 'Candela')!.meta4 + hoy.porLider.find(a => a.nombre === 'Candela')!.axton, 13)
-check('con filas mínimas también agrupa', (() => {
-  const c: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [
-    { cliente: 'A', analista: 'x', sistema: 'Axton' }, { cliente: 'B', analista: 'x', sistema: 'M4' }, { cliente: 'C', analista: 'y', sistema: 'Meta 4' },
-  ] } } }
-  const h = equipoHoy(c)!
-  return h.porAnalista[0].nombre === 'x' && h.porAnalista[0].meta4 === 1 && h.porAnalista[0].axton === 1 && h.total.meta4 === 2
-})())
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)
 process.exit(fallos === 0 ? 0 : 1)

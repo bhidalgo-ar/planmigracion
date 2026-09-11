@@ -1,5 +1,6 @@
-import type { Config, EquipoConfidencial, Persona, ValorOFalta } from './types'
-import { horasDiaDe, mesesEntre } from './capacidad'
+import type { Asignacion, Config, EquipoConfidencial, Persona, ValorOFalta } from './types'
+import { cuentasEnAxton, cuentasEnMeta4, disponibilidadMes, horasDiaDe, mesesEntre, ticketsAxton, ticketsMeta4Restantes } from './capacidad'
+import { mesesDelPrograma } from './insightsEquipo'
 
 /**
  * Pestaña confidencial "Disponibilidad del equipo" (brief 10/09/2026 §3.3).
@@ -92,6 +93,8 @@ export interface FilaConfidencial {
   alias: string
   horasDia: number
   meses: CeldaMes[]
+  /** true si las fracciones las calculó la app (Susi por tickets, Moni por su fórmula) en vez de venir del bloque. */
+  calculada?: boolean
 }
 
 function esFalta(v: ValorOFalta | undefined | null): boolean {
@@ -142,6 +145,65 @@ export function filasConfidencial(config: Config, personas: Persona[]): FilaConf
   })
 }
 
+/**
+ * Las mismas filas que `filasConfidencial`, pero con lo que la app sabe calcular: Susi se
+ * reparte entre soporte Meta 4 y migración según los tickets que quedan (si el plan trae
+ * `capacidad.susi_soporte_meta4` y `soporte_tickets`); Moni entre soporte Axton y migración
+ * según su fórmula. El resto muestra el bloque tal cual. Un mes sin entrada en el bloque
+ * sigue vacío ("—"): la persona no está ese mes.
+ */
+export function filasReparto(config: Config, personas: Persona[]): FilaConfidencial[] {
+  return filasConfidencial(config, personas).map(f => {
+    const frenteSoporte: Frente | null =
+      f.personaId === (config.capacidad?.susi_soporte_meta4?.persona_id ?? 'susi') && config.capacidad?.susi_soporte_meta4 && config.soporte_tickets ? 'meta4_soporte'
+      : f.personaId === 'moni' && config.capacidad?.moni_soporte_axton ? 'axton_soporte'
+      : null
+    if (!frenteSoporte) return f
+    const persona = personas.find(p => p.id === f.personaId)
+    return {
+      ...f,
+      calculada: true,
+      meses: f.meses.map(m => {
+        if (m.vacio) return m
+        const d = disponibilidadMes(f.personaId, m.mes, config, undefined, persona)
+        const frentes = { meta4_soporte: null, axton_soporte: null, migracion: null, toyota: null, otros: null } as Record<Frente, number | null>
+        frentes[frenteSoporte] = Math.max(0, Math.min(1, 1 - d))
+        frentes.migracion = Math.max(0, Math.min(1, d))
+        return { ...m, frentes, conFaltas: false, faltas: [] }
+      }),
+    }
+  })
+}
+
+export interface MesSoporte {
+  mes: string
+  /** Tickets por mes que siguen en Meta 4; null si el plan no trae la ticketera. */
+  ticketsMeta4: number | null
+  cuentasMeta4: number
+  dispSusi: number
+  ticketsAxton: number | null
+  cuentasAxton: number
+  dispMoni: number
+}
+
+/**
+ * Qué libera Meta 4 y qué carga Axton, mes a mes del programa: tickets y cuentas de cada
+ * lado, con la disponibilidad para migración de Susi y de Moni que sale de eso.
+ */
+export function soporteMesAMes(config: Config, personas: Persona[], asignaciones: Asignacion[]): MesSoporte[] {
+  const susi = personas.find(p => p.id === (config.capacidad?.susi_soporte_meta4?.persona_id ?? 'susi'))
+  const moni = personas.find(p => p.id === 'moni')
+  return mesesDelPrograma(asignaciones, config).map(mes => ({
+    mes,
+    ticketsMeta4: ticketsMeta4Restantes(mes, config),
+    cuentasMeta4: cuentasEnMeta4(mes, config).length,
+    dispSusi: disponibilidadMes(susi?.id ?? 'susi', mes, config, undefined, susi),
+    ticketsAxton: ticketsAxton(mes, config),
+    cuentasAxton: cuentasEnAxton(mes, config),
+    dispMoni: disponibilidadMes('moni', mes, config, undefined, moni),
+  }))
+}
+
 export interface LecturaTransicion {
   /** 'YYYY-MM' o null si está en [FALTA]. */
   desde: string | null
@@ -179,8 +241,20 @@ export function lecturaTransicion(config: Config, personas: Persona[]): LecturaT
   }
 
   const mesTexto = desde ? nombreMesLargo(desde) : '[FALTA: mes]'
-  const texto = `Desde ${mesTexto}, Susana toma el soporte Meta4 de ${lista || '[FALTA: personas]'}; ` +
+  let texto = `Desde ${mesTexto}, Susana toma el soporte Meta4 de ${lista || '[FALTA: personas]'}; ` +
     (horas !== null ? `quedan libres ${horas} h por semana.` : 'quedan libres [FALTA: horas/semana de soporte Meta4 del mes anterior].')
+
+  // Con la ticketera cargada, la lectura sigue con lo que eso significa para Susana: los
+  // tickets de hoy son su día completo y cada cuenta que sale le devuelve una parte.
+  const susi = config.equipo_confidencial && config.capacidad?.susi_soporte_meta4
+  if (desde && susi && config.soporte_tickets && typeof susi.base_tickets_mes === 'number' && susi.base_tickets_mes > 0) {
+    const pct = (mes: string) => Math.round(disponibilidadMes(susi.persona_id ?? 'susi', mes, config) * 100)
+    const inicio = susi.desde >= desde ? susi.desde : desde
+    const horizonte = mesesEntre(`${inicio}-01`, `${Number(inicio.slice(0, 4)) + 2}-12-01`)
+    const lleno = horizonte.find(m => pct(m) >= 100) ?? null
+    texto += ` Los ~${Math.round(susi.base_tickets_mes)} tickets por mes de hoy pasan a ser su día completo: en ${nombreMesLargo(inicio)} le queda ${pct(inicio)} % para configurar` +
+      (lleno ? `, y llega al 100 % en ${nombreMesLargo(lleno)}, cuando no queda ninguna cuenta en Meta4.` : '; no llega al 100 % dentro del horizonte.')
+  }
   return { desde, tomaDe, horasSemanaLiberadas: horas, texto }
 }
 
