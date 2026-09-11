@@ -4,3 +4,6 @@ dist/
 .env.local
 .env.*.local
 *.log
+
+# planes locales de Willy para probar en dev (traen el bloque confidencial): nunca al repo
+public/_local/

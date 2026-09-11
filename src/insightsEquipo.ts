@@ -1,7 +1,8 @@
 import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from './types'
-import { cargaMensual, horasDiaDe, mesSalidaDe, mesesEntre, salidasFueraDelPlan, type CargaMensual } from './capacidad'
-import { fechaCorteDe, margenesPorCuenta, nombreMes, salidasPorMes } from './rules'
-import { feriadosDeConfig } from './utils/dates'
+import {
+  cargaMensual, cuentasEnAxton, cuentasEnMeta4, horasDiaDe, mesSalidaDe, mesesEntre, salidasFueraDelPlan,
+  ticketsAxton, ticketsMeta4Restantes, type CargaMensual,
+} from './capacidad'
 
 /**
  * Lectura del EQUIPO de payroll para la pestaña Equipo: qué le pasa a cada persona mes a
@@ -121,111 +122,6 @@ export function tierDe(proyectoId: string, config: Config): Tier | null {
   return null
 }
 
-export interface FaseEnCuenta {
-  id: string
-  tipo: TipoFase
-  persona_id: string
-  inicio: string
-  fin: string
-  dedicacion_pct: number
-}
-
-export interface CuentaEquipo {
-  id: string
-  nombre: string
-  tier: Tier | null
-  mesSalida: string | null
-  corte: string | null
-  finPruebas: string | null
-  /** Hábiles entre el fin de Pruebas y el corte (convención de `rules.ts`). */
-  margen: number | null
-  estadoMargen: 'ok' | 'rojo' | 'sin_dato'
-  fases: FaseEnCuenta[]
-  /** Personas con fases en la cuenta, en orden de aparición. */
-  personas: string[]
-}
-
-/** Una fila por cuenta con fases, ordenada por mes de salida (las sin mes al final). */
-export function cuentasEquipo(proyectos: Proyecto[], asignaciones: Asignacion[], config: Config): CuentaEquipo[] {
-  const minimo = config.capacidad?.margen_minimo_habiles ?? 5
-  const margenes = new Map(margenesPorCuenta(asignaciones, config, proyectos).map(m => [m.proyectoId, m]))
-  const out: CuentaEquipo[] = []
-  for (const p of proyectos) {
-    const fases = asignaciones
-      .filter(a => a.proyecto_id === p.id && !a.es_bloqueo)
-      .map(a => ({ id: a.id, tipo: a.tipo, persona_id: a.persona_id, inicio: a.inicio, fin: a.fin, dedicacion_pct: a.dedicacion_pct }))
-      .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
-    if (!fases.length) continue
-    const m = margenes.get(p.id)
-    const personas: string[] = []
-    for (const f of fases) if (!personas.includes(f.persona_id)) personas.push(f.persona_id)
-    out.push({
-      id: p.id, nombre: p.nombre, tier: tierDe(p.id, config),
-      mesSalida: m?.mesSalida ?? mesSalidaDe(p.id, config),
-      corte: m?.corte ?? null, finPruebas: m?.finPruebas ?? null,
-      margen: m?.habiles ?? null,
-      estadoMargen: m?.habiles == null ? 'sin_dato' : m.habiles >= minimo ? 'ok' : 'rojo',
-      fases, personas,
-    })
-  }
-  return out.sort((a, b) => {
-    const ka = a.mesSalida ?? '9999', kb = b.mesSalida ?? '9999'
-    return ka < kb ? -1 : ka > kb ? 1 : a.nombre.localeCompare(b.nombre)
-  })
-}
-
-// ── B4: la franja de salidas ──────────────────────────────────────────────────
-
-export interface SalidaMes {
-  id: string | null
-  nombre: string
-  fueraDelPlan: boolean
-  tier: Tier | null
-  corte: string | null
-  margen: number | null
-  estado: 'ok' | 'rojo' | 'sin_dato'
-}
-
-export interface FranjaMes {
-  mes: string
-  label: string
-  salidas: SalidaMes[]
-  tope: number | null
-  /** 'ok' si entra en el tope; 'permitido' si son 3 con 2 chicas; 'rojo' si se pasa. */
-  estadoTope: 'ok' | 'permitido' | 'rojo'
-  /** Peor estado del mes: tope y márgenes. */
-  estado: 'ok' | 'ambar' | 'rojo'
-}
-
-export function franjaSalidas(proyectos: Proyecto[], asignaciones: Asignacion[], config: Config): FranjaMes[] {
-  const meses = mesesDelPrograma(asignaciones, config)
-  const porMes = salidasPorMes(config, proyectos)
-  const margenes = new Map(margenesPorCuenta(asignaciones, config, proyectos).map(m => [m.proyectoId, m]))
-  const tope = config.reglas_calendario?.tope_salidas_en_vivo_por_mes ?? null
-  const minimo = config.capacidad?.margen_minimo_habiles ?? 5
-  const feriados = feriadosDeConfig(config)
-  const chicas = new Set(config.tiers_v3?.chica ?? [])
-
-  return meses.map(mes => {
-    const salidas: SalidaMes[] = (porMes.get(mes) ?? []).map(s => {
-      if (!s.id) return { id: null, nombre: s.nombre, fueraDelPlan: true, tier: null, corte: null, margen: null, estado: 'ok' as const }
-      const m = margenes.get(s.id)
-      const margen = m?.habiles ?? null
-      return {
-        id: s.id, nombre: s.nombre, fueraDelPlan: false, tier: tierDe(s.id, config),
-        corte: m?.corte ?? fechaCorteDe(s.id, mes, config, feriados), margen,
-        estado: margen == null ? 'sin_dato' : margen >= minimo ? 'ok' : 'rojo',
-      }
-    })
-    const nChicas = salidas.filter(s => s.id && chicas.has(s.id)).length
-    const estadoTope: FranjaMes['estadoTope'] = tope == null || salidas.length <= tope
-      ? 'ok' : salidas.length === 3 && nChicas >= 2 ? 'permitido' : 'rojo'
-    const hayMargenRojo = salidas.some(s => s.estado === 'rojo')
-    const estado: FranjaMes['estado'] = estadoTope === 'rojo' || hayMargenRojo ? 'rojo' : estadoTope === 'permitido' ? 'ambar' : 'ok'
-    return { mes, label: nombreMes(mes), salidas, tope, estadoTope, estado }
-  })
-}
-
 // ── B5: insumos ───────────────────────────────────────────────────────────────
 
 export interface FilaTicket { cliente: string; tickets: number; pct_criticas: number; peso: number; escalados: number }
@@ -246,49 +142,127 @@ export function lecturaTickets(filas: FilaTicket[]): string {
   return `${porPeso.cliente} concentra escalados y retrabajo; ${porCriticas.cliente} tiene la tasa de críticas más alta (${Math.round(porCriticas.pct_criticas)} %).`
 }
 
-export interface FilaEquipoHoy { cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null }
-export interface ConteoSistema { meta4: number; axton: number; otros: number }
+// ── B3: cómo liquida cada analista, mes a mes ─────────────────────────────────
 
-function clasificarSistema(sistema: string): keyof ConteoSistema {
+export interface FilaEquipoHoy {
+  cliente: string
+  analista: string
+  sistema: string
+  lider?: string | null
+  complejidad?: string | number | null
+  pays?: number | null
+  /** Quien lleva la cuenta HOY, si la columna `analista` de la Matrix quedó vieja. */
+  analista_destino?: string | null
+}
+
+function clasificarSistema(sistema: string): 'meta4' | 'axton' | 'otros' {
   const s = (sistema ?? '').toLowerCase().replace(/\s/g, '')
   return s.startsWith('meta') || s === 'm4' ? 'meta4' : s.startsWith('axton') ? 'axton' : 'otros'
 }
 
-function agrupar(filas: FilaEquipoHoy[], clave: (f: FilaEquipoHoy) => string): Array<{ nombre: string } & ConteoSistema> {
-  const m = new Map<string, ConteoSistema>()
-  for (const f of filas) {
-    const k = clave(f)
-    const e = m.get(k) ?? { meta4: 0, axton: 0, otros: 0 }
-    e[clasificarSistema(f.sistema)]++
-    m.set(k, e)
-  }
-  return [...m.entries()].map(([nombre, e]) => ({ nombre, ...e }))
-    .sort((a, b) => (b.meta4 + b.axton + b.otros) - (a.meta4 + a.axton + a.otros) || a.nombre.localeCompare(b.nombre))
+/** Para matchear el nombre de la Matrix con la cuenta del plan: minúsculas, sin acentos, solo letras y números. */
+function claveNombre(s: string): string {
+  return (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+}
+
+export interface CeldaAnalista {
+  mes: string
+  /** Nombres de las cuentas que ese mes liquida en cada sistema. */
+  meta4: string[]
+  axton: string[]
+}
+
+export interface FilaAnalista {
+  analista: string
+  cuentasHoy: number
+  meses: CeldaAnalista[]
+  /** Meses del programa en los que liquida en los dos sistemas a la vez. */
+  mesesDobles: number
+}
+
+export interface TotalMes {
+  mes: string
+  /** Cuentas en Axton al cierre del mes (legacy + salidas). */
+  axton: number
+  /** Cuentas del programa (y fuera del plan) que siguen en Meta 4. */
+  meta4: number
+  ticketsAxton: number | null
+  ticketsMeta4: number | null
+  /** Cuentas que salen en vivo ese mes. */
+  salen: string[]
+}
+
+export interface MatrizAnalistas {
+  meses: string[]
+  /** Analistas que en algún mes liquidan en Meta 4, ordenados por meses en dos sistemas. */
+  filas: FilaAnalista[]
+  /** Analistas 100 % Axton todo el programa. */
+  soloAxton: FilaAnalista[]
+  /** Cuentas que migran y no tienen fila en la Matrix: nadie sabe quién las liquida. */
+  sinAnalista: string[]
+  totales: TotalMes[]
+  fuente?: string
+  corte?: string
 }
 
 /**
- * Distribución de clientes por analista, por líder de equipo y por sistema; null si el
- * bloque está en [FALTA]. El total por sistema es lo que dice cuánto soporte se da a cada
- * herramienta (Meta4 → Susana, Axton → Moni).
+ * Cuántas cuentas liquida cada analista en Meta 4 y en Axton al cierre de cada mes del
+ * programa. Cruza la Matrix (`config.insumos.equipo_payroll_hoy`) con el mes de salida de
+ * cada cuenta: quien la lleva hoy es `analista_destino` si existe, si no `analista`, y la
+ * cuenta no cambia de manos al migrar. El objetivo que mide es cuántos meses cada analista
+ * liquida en dos sistemas a la vez. null si el plan no trae la Matrix.
  */
-export function equipoHoy(config: Config): {
-  filas: FilaEquipoHoy[]
-  porAnalista: Array<{ nombre: string } & ConteoSistema>
-  porLider: Array<{ nombre: string } & ConteoSistema>
-  total: ConteoSistema
-  fuente?: string; corte?: string; nota?: string
-} | null {
+export function matrizAnalistas(proyectos: Proyecto[], asignaciones: Asignacion[], config: Config): MatrizAnalistas | null {
   const b = config.insumos?.equipo_payroll_hoy
   if (!b || !Array.isArray(b.filas) || !b.filas.length) return null
-  const filas = b.filas as FilaEquipoHoy[]
-  const total: ConteoSistema = { meta4: 0, axton: 0, otros: 0 }
-  for (const f of filas) total[clasificarSistema(f.sistema)]++
-  return {
-    filas,
-    porAnalista: agrupar(filas, f => f.analista),
-    porLider: agrupar(filas.filter(f => f.lider), f => f.lider as string),
-    total, fuente: b.fuente, corte: b.corte, nota: b._nota,
+  const meses = mesesDelPrograma(asignaciones, config)
+  if (!meses.length) return null
+
+  // Cuentas que migran, con su mes: las del plan (por nombre y por id) y las fuera del plan.
+  const salidas: Array<{ nombre: string; mes: string; claves: string[] }> = []
+  for (const p of proyectos) {
+    const mes = mesSalidaDe(p.id, config)
+    if (mes) salidas.push({ nombre: p.nombre, mes, claves: [claveNombre(p.nombre), claveNombre(p.id)] })
   }
+  for (const c of config.salidas_en_vivo_fuera_del_plan?.cuentas ?? []) {
+    if (typeof c.sale_en_vivo !== 'string' || !/^\d{4}-\d{2}$/.test(c.sale_en_vivo)) continue
+    salidas.push({ nombre: c.alias ?? c.nombre, mes: c.sale_en_vivo, claves: [claveNombre(c.nombre), ...(c.alias ? [claveNombre(c.alias)] : [])] })
+  }
+  const salidaDe = (cliente: string) => { const k = claveNombre(cliente); return salidas.find(s => s.claves.includes(k)) ?? null }
+
+  const cubiertas = new Set<string>()
+  const porAnalista = new Map<string, FilaAnalista>()
+  for (const f of b.filas as FilaEquipoHoy[]) {
+    const destino = typeof f.analista_destino === 'string' ? f.analista_destino.trim() : ''
+    const quien = destino || (f.analista ?? '').trim() || '[FALTA: analista]'
+    const sist = clasificarSistema(f.sistema)
+    const salida = salidaDe(f.cliente)
+    if (salida) cubiertas.add(salida.nombre)
+    const nombre = salida?.nombre ?? f.cliente
+    const fila = porAnalista.get(quien) ?? { analista: quien, cuentasHoy: 0, meses: meses.map(mes => ({ mes, meta4: [], axton: [] })), mesesDobles: 0 }
+    fila.cuentasHoy++
+    for (const c of fila.meses) {
+      const enAxton = sist === 'axton' || (salida !== null && salida.mes <= c.mes)
+      if (enAxton) c.axton.push(nombre)
+      else if (sist === 'meta4' || salida) c.meta4.push(nombre)
+    }
+    porAnalista.set(quien, fila)
+  }
+  const todas = [...porAnalista.values()]
+  for (const f of todas) f.mesesDobles = f.meses.filter(c => c.meta4.length > 0 && c.axton.length > 0).length
+  const conMeta4 = (f: FilaAnalista) => f.meses.some(c => c.meta4.length > 0)
+  const filas = todas.filter(conMeta4).sort((a, b) => b.mesesDobles - a.mesesDobles || a.analista.localeCompare(b.analista, 'es'))
+  const soloAxton = todas.filter(f => !conMeta4(f)).sort((a, b) => a.analista.localeCompare(b.analista, 'es'))
+  const sinAnalista = salidas.filter(s => !cubiertas.has(s.nombre)).map(s => s.nombre).sort((a, b) => a.localeCompare(b, 'es'))
+  const totales: TotalMes[] = meses.map(mes => ({
+    mes,
+    axton: cuentasEnAxton(mes, config),
+    meta4: cuentasEnMeta4(mes, config).length,
+    ticketsAxton: ticketsAxton(mes, config),
+    ticketsMeta4: ticketsMeta4Restantes(mes, config),
+    salen: salidas.filter(s => s.mes === mes).map(s => s.nombre),
+  }))
+  return { meses, filas, soloAxton, sinAnalista, totales, fuente: b.fuente, corte: b.corte }
 }
 
 /** Violaciones de carga de una persona en un mes, para enlazar la prosa con la regla. */

@@ -17,11 +17,13 @@ const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
 ]
 
 /**
- * Barra de la app, en UNA fila a 1280 px. A la vista queda lo que se usa en una reunión:
- * zoom, Hoy, Personas, Deshacer, Resumen, Importar/Exportar y el chip de estado. Todo lo
- * demás (alto de fila, modo de arrastre, capas del timeline, planificador, vaciar, reset)
- * vive en "Más". La perilla "Inicio Toyota" y el botón "Recalcular duraciones" se sacaron:
- * TASA no está en el plan y el recálculo pisaba las dedicaciones del JSON.
+ * Barra de la app, en UNA fila a 1280 px, con los controles agrupados por para qué sirven:
+ *  - Vista: lo que cambia cómo se ve el timeline y nada más (zoom, filas por cuenta o por
+ *    persona, Hoy, Personas). Solo aparece en la pestaña Timeline: en las otras no hace nada.
+ *  - Plan: lo que cambia el plan (Deshacer, Replanificar desde el corte).
+ *  - Archivo: Importar, Exportar y el Resumen en PDF, que es lo que se lleva de la reunión.
+ * Lo que no se toca en una reunión (alto de fila, modo de arrastre, capas, planificador,
+ * vaciar, reset) vive en "···". Los chips de conflictos quedan a la derecha, siempre.
  */
 export function ConfigPanel() {
   const {
@@ -29,25 +31,29 @@ export function ConfigPanel() {
     clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes, replanificarDesdeElCorte,
   } = useSimuladorStore()
   const {
-    mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
+    vista, mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
     setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad,
     ocultarPersonasSinCarga, modoFilas, setModoFilas,
   } = useUIStore()
   const [masAbierto, setMasAbierto] = useState(false)
+  const [zoomAbierto, setZoomAbierto] = useState(false)
   const masRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<HTMLDivElement>(null)
 
+  const enTimeline = vista === 'timeline'
   const rojos = violaciones.filter(v => v.severidad === 'rojo').length
   const ambar = violaciones.filter(v => v.severidad === 'ambar').length
 
-  // Cierra el menú "Más" al hacer click afuera.
+  // Cierra los menús desplegables al hacer click afuera.
   useEffect(() => {
-    if (!masAbierto) return
+    if (!masAbierto && !zoomAbierto) return
     function onClick(e: MouseEvent) {
       if (masRef.current && !masRef.current.contains(e.target as Node)) setMasAbierto(false)
+      if (zoomRef.current && !zoomRef.current.contains(e.target as Node)) setZoomAbierto(false)
     }
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
-  }, [masAbierto])
+  }, [masAbierto, zoomAbierto])
 
   function handleAutoPlanificar() {
     setMasAbierto(false)
@@ -56,7 +62,6 @@ export function ConfigPanel() {
   }
 
   function handleReplanificar() {
-    setMasAbierto(false)
     const r = replanificarDesdeElCorte()
     const partes = [`${r.replanificadas} cuenta${r.replanificadas !== 1 ? 's' : ''} rearmada${r.replanificadas !== 1 ? 's' : ''} desde su corte.`]
     if (r.sinCorte.length) partes.push(`Sin corte de novedades (no se tocaron): ${r.sinCorte.join(', ')}.`)
@@ -107,78 +112,101 @@ export function ConfigPanel() {
     URL.revokeObjectURL(url)
   }
 
+  const zoomLabel = ZOOM_OPTS.find(z => z.value === zoom)?.label ?? 'Zoom'
+
   return (
     <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--line)', position: 'relative', zIndex: 40 }}>
-      <div style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap', minWidth: 0 }}>
-        {/* Nivel de zoom */}
-        <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden', flexShrink: 0 }}>
-          {ZOOM_OPTS.map(z => (
-            <button key={z.value} onClick={() => setZoom(z.value)}
-              style={{ padding: '4px 11px', border: 'none', background: zoom === z.value ? 'var(--celeste)' : 'var(--white)', color: zoom === z.value ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              {z.label}
-            </button>
-          ))}
-        </div>
+      <div style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
+        {enTimeline && (
+          <>
+            <Grupo label="Vista">
+              {/* Zoom como desplegable: se toca una vez por reunión, no merece cuatro botones. */}
+              <div ref={zoomRef} style={{ position: 'relative', flexShrink: 0 }}>
+                <button onClick={() => setZoomAbierto(v => !v)} style={{ ...pillBtn, display: 'flex', alignItems: 'center', gap: 5, ...(zoomAbierto ? activePill : {}) }} title="Escala de tiempo del timeline">
+                  {zoomLabel} <span style={{ fontSize: 9 }}>▾</span>
+                </button>
+                {zoomAbierto && (
+                  <div style={menuStyle}>
+                    {ZOOM_OPTS.map(z => (
+                      <MenuItem key={z.value} onClick={() => { setZoom(z.value); setZoomAbierto(false) }}>
+                        <span style={{ width: 14, display: 'inline-block', color: 'var(--celeste-dark)' }}>{zoom === z.value ? '✓' : ''}</span>{z.label}
+                      </MenuItem>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-        {/* Qué es cada fila: una cuenta con sus fases y la carga del equipo debajo, o una persona (vista original) */}
-        <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden', flexShrink: 0 }}
-          title="Por cuenta: una fila por cuenta con sus fases y la carga semanal del equipo debajo. Por persona: una fila por persona.">
-          {([['cuenta', 'Por cuenta'], ['persona', 'Por persona']] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setModoFilas(v)}
-              style={{ padding: '4px 11px', border: 'none', background: modoFilas === v ? 'var(--celeste)' : 'var(--white)', color: modoFilas === v ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              {l}
-            </button>
-          ))}
-        </div>
+              {/* Qué es cada fila: una cuenta con sus fases y la carga del equipo debajo, o una persona (vista original) */}
+              <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden', flexShrink: 0 }}
+                title="Por cuenta: una fila por cuenta con sus fases y la carga semanal del equipo debajo. Por persona: una fila por persona.">
+                {([['cuenta', 'Por cuenta'], ['persona', 'Por persona']] as const).map(([v, l]) => (
+                  <button key={v} onClick={() => setModoFilas(v)}
+                    style={{ padding: '4px 11px', border: 'none', background: modoFilas === v ? 'var(--celeste)' : 'var(--white)', color: modoFilas === v ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
 
-        <button onClick={irHoy} style={{ ...pillBtn, display: 'flex', alignItems: 'center', gap: 5, borderColor: 'var(--celeste-border)', color: 'var(--celeste-dark)', flexShrink: 0 }} title="Centrar el timeline en el día de hoy">
-          📍 Hoy
-        </button>
+              <button onClick={irHoy} style={{ ...pillBtn, display: 'flex', alignItems: 'center', gap: 5, borderColor: 'var(--celeste-border)', color: 'var(--celeste-dark)', flexShrink: 0 }} title="Centrar el timeline en el día de hoy">
+                📍 Hoy
+              </button>
 
-        <MenuPersonas />
+              <MenuPersonas />
+            </Grupo>
+            <Divider />
+          </>
+        )}
+
+        <Grupo label="Plan">
+          <button onClick={undo} disabled={!historial.length}
+            style={{ ...actionBtn, opacity: historial.length ? 1 : 0.45, cursor: historial.length ? 'pointer' : 'default' }}
+            title="Deshacer el último cambio (Ctrl+Z)">↩ Deshacer</button>
+          <button onClick={handleReplanificar} style={actionBtn}
+            title="Rearma las fechas de cada cuenta hacia atrás desde el corte de novedades de su mes de salida: margen mínimo, blackout, lunes y feriados. No cambia quién hace qué ni cuánto dura cada fase.">
+            🧭 Replanificar
+          </button>
+        </Grupo>
 
         <Divider />
 
-        <button onClick={undo} disabled={!historial.length}
-          style={{ ...actionBtn, opacity: historial.length ? 1 : 0.45, cursor: historial.length ? 'pointer' : 'default' }}
-          title="Deshacer el último cambio (Ctrl+Z)">↩ Deshacer</button>
-        <button onClick={() => setResumen(true)} style={{ ...actionBtn, background: 'var(--celeste)', color: '#fff', border: 'none' }} title="Resumen ejecutivo imprimible">📄 Resumen</button>
-        <button onClick={handleImport} style={actionBtn} title="Importar plan desde JSON (valida el archivo antes de cargarlo)">↑ Importar</button>
-        <button onClick={handleExport} style={actionBtn} title="Exportar plan como JSON">↓ Exportar</button>
+        <Grupo label="Archivo">
+          <button onClick={handleImport} style={actionBtn} title="Importar plan desde JSON (valida el archivo antes de cargarlo)">↑ Importar</button>
+          <button onClick={handleExport} style={actionBtn} title="Exportar plan como JSON">↓ Exportar</button>
+          <button onClick={() => setResumen(true)} style={{ ...actionBtn, background: 'var(--celeste)', color: '#fff', border: 'none' }} title="Resumen ejecutivo imprimible, para llevarse de la reunión">📄 Resumen PDF</button>
+        </Grupo>
 
-        {/* Menú "Más": lo que no se toca en una reunión. */}
+        {/* Menú "···": lo que no se toca en una reunión. */}
         <div ref={masRef} style={{ position: 'relative', flexShrink: 0 }}>
-          <button onClick={() => setMasAbierto(v => !v)} style={{ ...actionBtn, ...(masAbierto ? activePill : {}) }} title="Más opciones: vista del timeline, planificador, vaciar o resetear el plan">
-            ⋯ Más
+          <button onClick={() => setMasAbierto(v => !v)} style={{ ...actionBtn, padding: '5px 10px', ...(masAbierto ? activePill : {}) }} title="Más opciones: vista del timeline, planificador, vaciar o resetear el plan">
+            ···
           </button>
           {masAbierto && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 100, minWidth: 250,
-              background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 12, boxShadow: 'var(--sh)',
-              padding: 8, display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
-              <MenuTitulo>Timeline</MenuTitulo>
-              <MenuFila label="Alto de fila">
-                <Segmentos>
-                  {DENSIDAD_OPTS.map(d => (
-                    <Seg key={d.value} activo={densidad === d.value} onClick={() => setDensidad(d.value)} title={`Alto de fila ${d.value}`}>{d.label}</Seg>
-                  ))}
-                </Segmentos>
-              </MenuFila>
-              <MenuFila label="Al mover">
-                <Segmentos>
-                  <Seg activo={modoMovimiento === 'flexible'} onClick={() => setModoMovimiento('flexible')} title="Arrastrar mueve solo la tarea (Shift = esta fase y las siguientes)">⚡ Flexible</Seg>
-                  <Seg activo={modoMovimiento === 'estricto'} onClick={() => setModoMovimiento('estricto')} title="Arrastrar mueve esta fase y las siguientes de la cuenta (Shift = solo esta tarea)">🔗 Estricto</Seg>
-                </Segmentos>
-              </MenuFila>
-              <MenuCheck checked={mostrarConflictos} onClick={toggleConflictos}>Resaltar conflictos</MenuCheck>
-              <MenuCheck checked={mostrarCarga} onClick={toggleCarga}>Carga semanal</MenuCheck>
-              <MenuCheck checked={mostrarDep} onClick={toggleDep}>Dependencias</MenuCheck>
-              <MenuCheck checked={timelineFull} onClick={toggleTimelineFull}>Expandir timeline</MenuCheck>
-              <MenuDivider />
+            <div style={{ ...menuStyle, minWidth: 250 }}>
+              {enTimeline && (
+                <>
+                  <MenuTitulo>Timeline</MenuTitulo>
+                  <MenuFila label="Alto de fila">
+                    <Segmentos>
+                      {DENSIDAD_OPTS.map(d => (
+                        <Seg key={d.value} activo={densidad === d.value} onClick={() => setDensidad(d.value)} title={`Alto de fila ${d.value}`}>{d.label}</Seg>
+                      ))}
+                    </Segmentos>
+                  </MenuFila>
+                  <MenuFila label="Al mover">
+                    <Segmentos>
+                      <Seg activo={modoMovimiento === 'flexible'} onClick={() => setModoMovimiento('flexible')} title="Arrastrar mueve solo la tarea (Shift = esta fase y las siguientes)">⚡ Flexible</Seg>
+                      <Seg activo={modoMovimiento === 'estricto'} onClick={() => setModoMovimiento('estricto')} title="Arrastrar mueve esta fase y las siguientes de la cuenta (Shift = solo esta tarea)">🔗 Estricto</Seg>
+                    </Segmentos>
+                  </MenuFila>
+                  <MenuCheck checked={mostrarConflictos} onClick={toggleConflictos}>Resaltar conflictos</MenuCheck>
+                  <MenuCheck checked={mostrarCarga} onClick={toggleCarga}>Carga semanal</MenuCheck>
+                  <MenuCheck checked={mostrarDep} onClick={toggleDep}>Dependencias</MenuCheck>
+                  <MenuCheck checked={timelineFull} onClick={toggleTimelineFull}>Expandir timeline</MenuCheck>
+                  <MenuDivider />
+                </>
+              )}
               <MenuTitulo>Plan</MenuTitulo>
               <MenuItem onClick={handleAutoPlanificar} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin fases, buscando hueco libre.">🪄 Planificar pendientes</MenuItem>
-              <MenuItem onClick={handleReplanificar} title="Rearma las fechas de cada cuenta hacia atrás desde el corte de novedades de su mes de salida: margen mínimo, blackout, lunes y feriados. No cambia quién hace qué ni cuánto dura cada fase.">🧭 Replanificar desde el corte</MenuItem>
               <MenuItem
                 onClick={() => { setMasAbierto(false); if (asignaciones.length && confirm(`¿Eliminar las ${asignaciones.length} asignaciones? Las cuentas y el equipo se mantienen, pero quedan sin planificar.`)) clearAsignaciones() }}
                 disabled={!asignaciones.length} tono="error" title="Eliminar todas las asignaciones del plan">
@@ -200,6 +228,16 @@ export function ConfigPanel() {
           {rojos === 0 && ambar === 0 && <span style={chip('var(--ok-bg)', 'var(--ok-tx)', 'var(--ok-bd)')}>✓ Sin conflictos</span>}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Un grupo de controles con su rótulo chico a la izquierda ("Vista", "Plan", "Archivo"). */
+function Grupo({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--t3)', marginRight: 2 }}>{label}</span>
+      {children}
     </div>
   )
 }
@@ -273,6 +311,11 @@ function MenuItem({ children, onClick, disabled, tono, title }: {
   )
 }
 
+const menuStyle: CSSProperties = {
+  position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 100, minWidth: 150,
+  background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 12, boxShadow: 'var(--sh)',
+  padding: 8, display: 'flex', flexDirection: 'column', gap: 4,
+}
 const pillBtn: CSSProperties = {
   padding: '4px 11px', borderWidth: 1.5, borderStyle: 'solid', borderColor: 'var(--line)', borderRadius: 9999, background: 'var(--white)',
   cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t2)',

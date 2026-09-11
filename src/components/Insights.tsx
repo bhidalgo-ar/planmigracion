@@ -1,23 +1,10 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import { parseISO } from 'date-fns'
 import { useSimuladorStore } from '../store'
-import { useUIStore } from '../uiStore'
 import { formatFecha, formatFechaCorta, toISO } from '../utils/dates'
-import { ORDEN_FASES, TIPO_LABEL } from '../theme/fases'
-import type { TipoFase } from '../types'
 import {
   cuentasFueraDelPlan, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
-  type CuentaMigracion,
 } from '../insightsMigracion'
 
-/** Color de gráfico por fase. Paso propio para marcas finas (ver --viz-* en index.css). */
-const VIZ_FASE: Record<TipoFase, string> = {
-  Relevamiento: 'var(--viz-relev)',
-  Configuracion: 'var(--viz-config)',
-  Pruebas: 'var(--viz-vivo)',
-  Cierre: 'var(--viz-cierre)',
-  Vacaciones: 'var(--fase-bloqueo)',
-}
 
 /**
  * Vista Insights: cómo avanza la migración de Meta 4 a Axton.
@@ -29,8 +16,6 @@ const VIZ_FASE: Record<TipoFase, string> = {
  */
 export function Insights() {
   const { proyectos, asignaciones, config } = useSimuladorStore()
-  const seleccionarCliente = useSimuladorStore(s => s.seleccionarCliente)
-  const setVista = useUIStore(s => s.setVista)
 
   const hoyISO = toISO(new Date())
   const legacy = config.cartera_legacy_axton?.cuentas ?? []
@@ -52,11 +37,6 @@ export function Insights() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectos, asignaciones, config, hoyISO, overrideKey])
-
-  function irACuenta(id: string) {
-    seleccionarCliente(id)
-    setVista('timeline')
-  }
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: 24, background: 'var(--lienzo)' }}>
@@ -92,8 +72,6 @@ export function Insights() {
         <TrimestresCard trimestres={d.trimestres} totalPrograma={d.r.totalCuentas} legacyCount={legacyCount} />
       </div>
 
-      {/* ── Abajo, a lo ancho: la ola ──────────────────────────────────────── */}
-      <OlaCard cuentas={d.cuentas} hoyISO={hoyISO} onCuenta={irACuenta} />
     </div>
   )
 }
@@ -336,148 +314,6 @@ function TablaTrimestres({ trimestres, legacyCount }: {
   )
 }
 
-// ══ Ola de migración ══════════════════════════════════════════════════════════
-
-/**
- * Una fila por cuenta, ordenadas por fecha de salida a Axton: la migración se lee
- * como una escalera. Cada fase va en su propio carril, así se ve el solapamiento
- * entre relevamiento y configuración en vez de taparse. El rombo es el go-live.
- */
-function OlaCard({ cuentas, hoyISO, onCuenta }: {
-  cuentas: CuentaMigracion[]; hoyISO: string; onCuenta: (id: string) => void
-}) {
-  const conPlan = cuentas.filter(c => c.inicio && c.enVivo)
-    .sort((a, b) => (a.enVivo! < b.enVivo! ? -1 : a.enVivo! > b.enVivo! ? 1 : 0))
-  const sinPlan = cuentas.filter(c => !c.inicio || !c.enVivo)
-
-  if (conPlan.length === 0) {
-    return (
-      <Card titulo="Ola de migración">
-        <Vacio>Sin cuentas planificadas: acá se ve el orden en que van saliendo a Axton.</Vacio>
-      </Card>
-    )
-  }
-
-  const desde = conPlan.reduce((m, c) => (c.inicio! < m ? c.inicio! : m), conPlan[0].inicio!)
-  const hasta = conPlan.reduce((m, c) => (c.enVivo! > m ? c.enVivo! : m), conPlan[0].enVivo!)
-  const t0 = parseISO(desde).getTime()
-  const span = Math.max(1, parseISO(hasta).getTime() - t0)
-  const pct = (iso: string) => ((parseISO(iso).getTime() - t0) / span) * 100
-
-  // Límites de trimestre dentro del rango, para el grid y las etiquetas del eje.
-  const limites: Array<{ iso: string; label: string }> = []
-  const dDesde = parseISO(desde)
-  let anio = dDesde.getFullYear()
-  let trim = Math.floor(dDesde.getMonth() / 3) + 1
-  for (let i = 0; i < 40; i++) {
-    const iso = `${anio}-${String(trim * 3 - 2).padStart(2, '0')}-01`
-    if (iso > hasta) break
-    if (iso >= desde) limites.push({ iso, label: `T${trim} ${String(anio).slice(2)}` })
-    trim++
-    if (trim > 4) { trim = 1; anio++ }
-  }
-
-  const ROW_H = 20
-  const LANE_H = 5
-  const hoyPct = hoyISO >= desde && hoyISO <= hasta ? pct(hoyISO) : null
-  const NAME_W = 104
-
-  const seriesFase = ORDEN_FASES.map(t => ({ key: t, label: TIPO_LABEL[t], color: VIZ_FASE[t] }))
-
-  return (
-    <Card
-      titulo="Ola de migración"
-      subtitulo={`${conPlan.length} cuentas ordenadas por fecha de salida · ${formatFecha(desde)} → ${formatFecha(hasta)}`}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <Leyenda series={seriesFase} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Rombo />
-          <span style={{ fontSize: 11, color: 'var(--t2)' }}>Sale en vivo</span>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', marginTop: 6 }}>
-        <div style={{ width: NAME_W, flexShrink: 0 }} />
-        <div style={{ flex: 1, minWidth: 0, position: 'relative', height: 14 }}>
-          {limites.map(l => (
-            <span key={l.iso} className="num" style={{
-              position: 'absolute', left: `${pct(l.iso)}%`, fontSize: 10, color: 'var(--t3)',
-              fontWeight: 600, transform: 'translateX(2px)', whiteSpace: 'nowrap',
-            }}>{l.label}</span>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex' }}>
-        {/* Nombres */}
-        <div style={{ width: NAME_W, flexShrink: 0 }}>
-          {conPlan.map(c => (
-            <button key={c.id} onClick={() => onCuenta(c.id)}
-              title={`Ver ${c.nombre} en el timeline`}
-              style={{
-                height: ROW_H, width: '100%', display: 'flex', alignItems: 'center', gap: 5,
-                border: 'none', background: 'transparent', cursor: 'pointer', padding: '0 8px 0 0',
-                fontSize: 11.5, fontWeight: 600, color: 'var(--t1)', textAlign: 'left',
-              }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</span>
-              {c.especial && <span style={{ fontSize: 8.5, fontWeight: 800, color: 'var(--tasa)', flexShrink: 0 }}>TASA</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Carriles */}
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          {limites.map(l => (
-            <div key={l.iso} style={{
-              position: 'absolute', top: 0, bottom: 0, left: `${pct(l.iso)}%`,
-              borderLeft: '1px solid var(--viz-grid)', pointerEvents: 'none',
-            }} />
-          ))}
-          {hoyPct != null && (
-            <div style={{
-              position: 'absolute', top: 0, bottom: 0, left: `${hoyPct}%`,
-              borderLeft: '2px solid var(--celeste)', pointerEvents: 'none', zIndex: 2,
-            }} />
-          )}
-
-          {conPlan.map(c => (
-            <div key={c.id} style={{ height: ROW_H, position: 'relative' }}>
-              {c.fases.map(f => {
-                const lane = ORDEN_FASES.indexOf(f.tipo)
-                const top = lane < 0 ? ROW_H / 2 - LANE_H / 2 : 2 + lane * (LANE_H + 1)
-                const left = pct(f.inicio)
-                const width = Math.max(0.35, pct(f.fin) - left)
-                return (
-                  <div key={f.id}
-                    title={`${c.nombre} · ${TIPO_LABEL[f.tipo]}\n${formatFechaCorta(f.inicio)} → ${formatFechaCorta(f.fin)}`}
-                    style={{
-                      position: 'absolute', top, left: `${left}%`, width: `${width}%`, height: LANE_H,
-                      background: VIZ_FASE[f.tipo], borderRadius: 3,
-                    }} />
-                )
-              })}
-              {/* Rombo de go-live, con anillo de superficie para que se lea sobre el grid. */}
-              <div title={`${c.nombre} sale en vivo el ${formatFecha(c.enVivo!)}`}
-                style={{
-                  position: 'absolute', left: `${pct(c.enVivo!)}%`, top: ROW_H / 2 - 5,
-                  width: 10, height: 10, marginLeft: -5, transform: 'rotate(45deg)',
-                  background: 'var(--viz-vivo)', border: '2px solid var(--white)', borderRadius: 2, zIndex: 3,
-                }} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {sinPlan.length > 0 && (
-        <span style={{ fontSize: 11, color: 'var(--warn-tx)', marginTop: 8, display: 'block' }}>
-          ⚠ Sin planificar, fuera de la ola: {sinPlan.map(c => c.nombre).join(', ')}.
-        </span>
-      )}
-    </Card>
-  )
-}
-
 // ══ Piezas ════════════════════════════════════════════════════════════════════
 
 function Hero({ label, valor, nota, alerta }: { label: string; valor: string; nota: string; alerta: string | null }) {
@@ -534,15 +370,6 @@ export function Leyenda({ series }: { series: Array<{ key: string; label: string
         </div>
       ))}
     </div>
-  )
-}
-
-function Rombo() {
-  return (
-    <span style={{
-      width: 9, height: 9, background: 'var(--viz-vivo)', transform: 'rotate(45deg)',
-      borderRadius: 2, flexShrink: 0, display: 'inline-block',
-    }} />
   )
 }
 

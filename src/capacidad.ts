@@ -61,6 +61,58 @@ export function cuentasEnAxton(mesISO: string, config: Config): number {
   return legacy + yaEnVivo + salidas
 }
 
+/**
+ * Cuentas que al cierre de `mesISO` siguen en Meta 4: las del programa con mes de salida
+ * posterior y las fuera del plan que todavía no salieron. `clave` es con lo que se buscan sus
+ * tickets en `config.soporte_tickets.meta4_por_cuenta` (id de proyecto, o alias/nombre).
+ */
+export function cuentasEnMeta4(mesISO: string, config: Config): Array<{ clave: string; mes: string }> {
+  const out: Array<{ clave: string; mes: string }> = []
+  for (const [id, v] of Object.entries(config.salidas_en_vivo_propuestas ?? {})) {
+    if (id.startsWith('_') || typeof v !== 'string' || !RE_MES.test(v)) continue
+    if (v > mesISO) out.push({ clave: id, mes: v })
+  }
+  for (const c of salidasFueraDelPlan(config)) if (c.mes > mesISO) out.push({ clave: c.nombre, mes: c.mes })
+  return out
+}
+
+function ticketsDe(clave: string, tabla: Record<string, number> | undefined): number {
+  const v = tabla?.[clave]
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+
+/**
+ * Tickets por mes que siguen entrando por Meta 4 al cierre de `mesISO`: la suma de los tickets
+ * medidos de las cuentas que todavía no salieron, dividida por los meses medidos. Una cuenta
+ * sin fila en la ticketera cuenta 0 (Aysa y Ford: las lleva Outsourcing). null si el plan no
+ * trae `soporte_tickets`: entonces nadie estima, la pantalla dice [FALTA].
+ */
+export function ticketsMeta4Restantes(mesISO: string, config: Config): number | null {
+  const t = config.soporte_tickets
+  if (!t || !(typeof t.meses_medidos === 'number' && t.meses_medidos > 0)) return null
+  let suma = 0
+  for (const c of cuentasEnMeta4(mesISO, config)) suma += ticketsDe(c.clave, t.meta4_por_cuenta)
+  return suma / t.meses_medidos
+}
+
+/**
+ * Tickets por mes que atiende el soporte Axton al cierre de `mesISO`: los de las cuentas que ya
+ * están en Axton hoy más los que trajo cada cuenta que salió en vivo hasta ese mes (se asume
+ * que una cuenta genera en Axton los mismos tickets que generaba en Meta 4).
+ */
+export function ticketsAxton(mesISO: string, config: Config): number | null {
+  const t = config.soporte_tickets
+  if (!t || !(typeof t.meses_medidos === 'number' && t.meses_medidos > 0)) return null
+  let suma = 0
+  for (const v of Object.values(t.axton_hoy ?? {})) if (typeof v === 'number' && Number.isFinite(v)) suma += v
+  for (const [id, v] of Object.entries(config.salidas_en_vivo_propuestas ?? {})) {
+    if (id.startsWith('_') || typeof v !== 'string' || !RE_MES.test(v)) continue
+    if (v <= mesISO) suma += ticketsDe(id, t.meta4_por_cuenta)
+  }
+  for (const c of salidasFueraDelPlan(config)) if (c.mes <= mesISO) suma += ticketsDe(c.nombre, t.meta4_por_cuenta)
+  return suma / t.meses_medidos
+}
+
 /** Lee un número de un valor que puede ser "[FALTA]" u otra cosa; null si no es número. */
 function numeroONull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
@@ -85,6 +137,17 @@ export function disponibilidadMes(
 ): number {
   const conf = numeroONull(config.equipo_confidencial?.dedicacion_por_mes?.[personaId]?.[mesISO]?.migracion)
   if (conf !== null) return Math.max(0, Math.min(1, conf))
+
+  // Susi por tickets: desde la transición toma todo el soporte Meta 4 y los tickets de hoy son
+  // su día completo; cada cuenta que sale le devuelve su parte. Antes de la transición, la
+  // perilla por año de abajo.
+  const susi = config.capacidad?.susi_soporte_meta4
+  if (susi && personaId === (susi.persona_id ?? 'susi') && typeof susi.desde === 'string' && mesISO >= susi.desde) {
+    const restantes = ticketsMeta4Restantes(mesISO, config)
+    if (restantes !== null && typeof susi.base_tickets_mes === 'number' && susi.base_tickets_mes > 0) {
+      return Math.max(0, Math.min(1, 1 - restantes / susi.base_tickets_mes))
+    }
+  }
 
   const moni = config.capacidad?.moni_soporte_axton
   if (personaId === 'moni' && moni) {

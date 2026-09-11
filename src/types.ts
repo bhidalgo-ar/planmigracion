@@ -151,10 +151,17 @@ export interface Config {
     equipo_payroll_hoy?: {
       fuente?: string
       corte?: string
-      filas: Array<{ cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null }> | string
+      /** `analista_destino`, si está, es quien lleva la cuenta HOY (la columna `analista` de la Matrix puede haber quedado vieja). */
+      filas: Array<{ cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null; analista_destino?: string | null }> | string
       _nota?: string
     }
   }
+  /**
+   * Tickets de soporte por cuenta, leídos de la Ticketera Soporte de monday. Alimentan la
+   * disponibilidad de Susi (`capacidad.susi_soporte_meta4`) y la pestaña confidencial.
+   * Si el plan no lo trae, todo sigue como antes y la pestaña dice [FALTA].
+   */
+  soporte_tickets?: SoporteTickets
   /**
    * CONFIDENCIAL. Solo vive en el JSON local de Willy: nunca en `data/`, nunca en el
    * repo, nunca se rellena desde el seed. Si el plan importado no lo trae, la pestaña
@@ -178,7 +185,35 @@ export interface CapacidadConfig {
     piso: number
     _nota?: string
   }
+  /**
+   * Disponibilidad de Susi por tickets (Willy, 11/09/2026): desde `desde` toma todo el soporte
+   * Meta 4, y los `base_tickets_mes` tickets por mes de hoy son el 100 % de su día.
+   * disponibilidad(mes) = 1 − tickets Meta 4 que quedan ese mes / base_tickets_mes.
+   * Antes de `desde` rige la perilla por año. Necesita `config.soporte_tickets`.
+   */
+  susi_soporte_meta4?: {
+    desde: string
+    base_tickets_mes: number
+    /** Por si la persona no se llama `susi` en el plan. */
+    persona_id?: string
+    _nota?: string
+  }
   _doc?: string
+}
+
+/** Tickets del período por cuenta y herramienta (Ticketera Soporte, board 5171238580). */
+export interface SoporteTickets {
+  fuente?: string
+  corte?: string
+  /** Meses que cubre la medición (ej. 8,3 para 01/01 → 10/09). tickets por mes = tickets / meses_medidos. */
+  meses_medidos: number
+  /** Tickets Meta 4 del período por cuenta que migra: clave = id de proyecto, o alias/nombre de las fuera del plan. */
+  meta4_por_cuenta: Record<string, number>
+  /** Tickets Axton del período de las cuentas que ya están en Axton hoy, por nombre. */
+  axton_hoy: Record<string, number>
+  /** Tickets Meta 4 de cuentas que no migran en este programa (Toyota, TPA...). Informativo, no entra en ninguna cuenta. */
+  fuera_del_programa?: Record<string, number>
+  _nota?: string
 }
 
 /** Un valor que Willy todavía no cargó se escribe literalmente como "[FALTA]" (o "[FALTA: ...]"). */

@@ -21,13 +21,24 @@ Cuatro pestañas más una:
   pegada al borde inferior y en el mismo eje, la **banda de carga semanal** de cada persona con
   fases (verde / ámbar / rojo por % de su capacidad; `cargaSemanal`). El switch "Por persona"
   vuelve a la vista original de una fila por persona con el tinte de carga en la fila.
-- **Insights**: para gerencia. Cuándo termina la migración, trimestre a trimestre, y la ola.
-- **Equipo**: para el equipo de payroll. Horas por persona y mes contra capacidad, el
-  solapamiento explicado en prosa, quién hace qué en cada cuenta, salidas por mes, insumos.
+- **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
+  (La ola por cuenta se sacó el 11/09/2026: era lo mismo que el Timeline por cuenta.)
+- **Equipo**: para el equipo de payroll. Primero **cómo liquida cada analista mes a mes**
+  (cuentas en Meta 4 y en Axton al cierre de cada mes, celdas ámbar = meses en dos sistemas;
+  `matrizAnalistas`, que cruza `config.insumos.equipo_payroll_hoy` con el mes de salida; quien
+  lleva la cuenta hoy es `analista_destino` si existe, si no `analista`). Después, horas por
+  persona y mes contra capacidad, una fila por persona a todo el ancho, con la prosa del mes al
+  clic. Cierra con la tabla de tickets Meta 4.
+- **La barra** va en tres grupos por uso: *Vista* (zoom como desplegable, Por cuenta / Por
+  persona, Hoy, Personas; solo en Timeline), *Plan* (Deshacer, Replanificar desde el corte) y
+  *Archivo* (Importar, Exportar, Resumen PDF). Lo demás en "···".
 - **Resumen**: el mismo relato para gerencia, como video de 45 s (1920×1080). Todo lo que
   dice y dibuja sale del plan cargado (`src/resumen/`), nada está escrito en el componente.
 - **Disponibilidad del equipo** (confidencial): solo aparece si el plan importado trae
-  `config.equipo_confidencial`. Ver §5.
+  `config.equipo_confidencial`. Ver §5. Muestra cómo se reparte el día de cada persona mes a
+  mes (`filasReparto`: Susi y Moni calculadas, el resto lo que dice el bloque), qué libera
+  Meta 4 y qué carga Axton en tickets y cuentas (`soporteMesAMes`), y la lectura de la
+  transición de Susana.
 
 Qué NO es: no reemplaza a Monday (Monday sigue siendo la ejecución), no se conecta a su API,
 no maneja datos personales. TASA/Toyota y TPA están fuera del plan.
@@ -44,9 +55,18 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
 - `dedicacion_pct` es la fracción de esa jornada que una fase consume.
 - Horas de una fase en un mes = días hábiles de la fase en ese mes × horas_dia × dedicación.
 - Capacidad de una persona en un mes = días hábiles del mes × horas_dia × disponibilidad.
-- Disponibilidad por mes: bloque confidencial si lo hay; Moni por fórmula
+- Disponibilidad por mes: bloque confidencial si lo hay; **Susi por tickets** desde
+  `capacidad.susi_soporte_meta4.desde` (`1 − tickets Meta 4 que quedan / base_tickets_mes`:
+  desde la transición toma todo el soporte Meta 4 y los tickets de hoy son su día completo;
+  Willy, 11/09/2026); Moni por fórmula
   (`max(piso, base − caída × (cuentas en Axton − base))`, perillas en `config.capacidad`);
   quien tiene `horas_dia` propio, 1,0; el resto, `config.disponibilidad` por año.
+- **Tickets de soporte** (`config.soporte_tickets`, leído de la Ticketera Soporte de monday con
+  `Herramientas-Tecnicas/scripts/tickets_soporte_desde_monday.py`): tickets del año por cuenta
+  que migra (clave = id de proyecto o alias de las fuera del plan) y por cuenta ya en Axton.
+  `ticketsMeta4Restantes(mes)` y `ticketsAxton(mes)` en `capacidad.ts` dividen por
+  `meses_medidos`; una cuenta que sale se lleva sus tickets a Axton. Sin el bloque, devuelven
+  null y la pantalla dice [FALTA]: nunca se estima.
 
 **Mes de salida en vivo es dato** (`config.salidas_en_vivo_propuestas`), no se deduce del
 fin de las fases. POF y Finadiet salen sin fases (`salidas_en_vivo_fuera_del_plan`).
