@@ -1,7 +1,7 @@
 import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from './types'
 import {
   cargaMensual, cuentasEnAxton, cuentasEnMeta4, horasDiaDe, mesSalidaDe, mesesEntre, salidasFueraDelPlan,
-  ticketsAxton, ticketsMeta4Restantes, type CargaMensual,
+  ticketsAxton, ticketsMeta4Restantes, UMBRAL_AMBAR, type CargaMensual,
 } from './capacidad'
 
 /**
@@ -55,7 +55,7 @@ export function cargaEquipo(personas: Persona[], asignaciones: Asignacion[], con
     const filas: MesPersona[] = meses.map(mes => {
       const c = porMes.get(mes) ?? { personaId: p.id, mes, horas: 0, capacidad: 0, disponibilidad: 0, porCuenta: {} }
       const uso = c.capacidad > 0 ? c.horas / c.capacidad : 0
-      return { ...c, uso, estado: c.horas > c.capacidad + 0.01 ? 'rojo' : uso >= 0.85 ? 'ambar' : 'ok' }
+      return { ...c, uso, estado: c.horas > c.capacidad + 0.01 ? 'rojo' : uso >= UMBRAL_AMBAR ? 'ambar' : 'ok' }
     })
     const total = filas.reduce((s, f) => s + f.horas, 0)
     const pico = filas.reduce<MesPersona | null>((m, f) => (!m || f.horas > m.horas ? f : m), null)
