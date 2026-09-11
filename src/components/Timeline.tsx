@@ -25,6 +25,8 @@ const SNAP_DAYS: Record<ZoomLevel, number> = {
 const NAME_W  = 176
 const HEADER_H = 48
 const MIN_BAR_W = 8
+/** Separación vertical entre dos carriles (renglones) de la misma fila. */
+const GAP_CARRIL = 6
 
 /** 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto). */
 type DragMode = 'phase' | 'cascade' | 'resize'
@@ -213,6 +215,65 @@ export function Timeline() {
   const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
   const filaDe        = useMemo(() => new Map(filas.map((f, i) => [f.id, i])), [filas])
 
+  /**
+   * Carriles (renglones) dentro de una fila. En modo cuenta, dos personas trabajan la misma
+   * cuenta a la vez —el solapamiento es el diseño— y antes las barras se dibujaban una encima
+   * de la otra: se leía solo la de arriba. Acá cada fase va al primer carril donde no se pise
+   * con otra, y la fila crece de alto solo si hizo falta más de uno.
+   *
+   * En modo persona no se usa (una fila por persona, un carril): el arrastre vertical para
+   * reasignar depende de que todas las filas midan ROW_H.
+   */
+  const { carrilDe, carrilesDeFila } = useMemo(() => {
+    const carrilDe = new Map<string, number>()
+    const carrilesDeFila = new Map<string, number>()
+    if (!porCuenta) return { carrilDe, carrilesDeFila }
+
+    const porFila = new Map<string, Asignacion[]>()
+    for (const a of asignaciones) {
+      const k = a.proyecto_id ?? SIN_CUENTA
+      const arr = porFila.get(k)
+      if (arr) arr.push(a); else porFila.set(k, [a])
+    }
+    for (const [k, arr] of porFila) {
+      // Orden por inicio (y fin a igualdad) para que el reparto sea siempre el mismo.
+      const orden = [...arr].sort((x, y) =>
+        x.inicio < y.inicio ? -1 : x.inicio > y.inicio ? 1 : x.fin < y.fin ? -1 : x.fin > y.fin ? 1 : 0)
+      const finDeCarril: string[] = []   // hasta qué día quedó ocupado cada carril
+      for (const a of orden) {
+        // `fin` es inclusivo: si una termina el 10 y la otra abre el 11, comparten carril.
+        let c = finDeCarril.findIndex(fin => fin < a.inicio)
+        if (c === -1) { c = finDeCarril.length; finDeCarril.push(a.fin) }
+        else if (finDeCarril[c] < a.fin) finDeCarril[c] = a.fin
+        carrilDe.set(a.id, c)
+      }
+      carrilesDeFila.set(k, Math.max(1, finDeCarril.length))
+    }
+    return { carrilDe, carrilesDeFila }
+  }, [porCuenta, asignaciones])
+
+  /**
+   * Dónde empieza y cuánto mide cada fila. Con un solo carril el alto es ROW_H y todo queda
+   * igual que antes; cada carril extra suma una barra más su separación.
+   */
+  const { topDeFila, altoDeFila, bodyH } = useMemo(() => {
+    const topDeFila = new Map<string, number>()
+    const altoDeFila = new Map<string, number>()
+    let acc = 0
+    for (const f of filas) {
+      const n = carrilesDeFila.get(f.id) ?? 1
+      const h = ROW_H + (n - 1) * (BAR_H + GAP_CARRIL)
+      topDeFila.set(f.id, acc)
+      altoDeFila.set(f.id, h)
+      acc += h
+    }
+    return { topDeFila, altoDeFila, bodyH: acc }
+  }, [filas, carrilesDeFila, ROW_H, BAR_H])
+
+  /** Y de una barra: el arranque de su fila, centrada en su carril. */
+  const topBarra = (filaId: string, carril: number) =>
+    (topDeFila.get(filaId) ?? 0) + (ROW_H - BAR_H) / 2 + carril * (BAR_H + GAP_CARRIL)
+
   // Conflictos en rojo por cuenta, para el badge de la fila en modo cuenta.
   const statsCuenta = useMemo(() => {
     const m = new Map<string, number>()
@@ -311,6 +372,8 @@ export function Timeline() {
       // Vertical = reasignar persona. En cascada solo cambia de fila la fase arrastrada;
       // las siguientes se mueven en el tiempo pero conservan su asignado.
       // En modo cuenta las filas son cuentas: arrastrar en vertical no reasigna a nadie.
+      // Dividir por ROW_H vale porque acá las filas son de personas y todas miden igual: los
+      // carriles de alto variable existen solo en modo cuenta, que esta rama no atiende.
       if (drag!.mode !== 'resize' && rowsRef.current && !porCuenta) {
         const rect = rowsRef.current.getBoundingClientRect()
         const idx = Math.max(0, Math.min(personas.length - 1, Math.floor((e.clientY - rect.top) / ROW_H)))
@@ -484,7 +547,7 @@ export function Timeline() {
 
   function geom(a: Asignacion) {
     let inicioISO = a.inicio, finISO = a.fin
-    let row = filaDe.get(filaIdDe(a)) ?? 0
+    let filaId = filaIdDe(a)
 
     if (drag) {
       if (drag.mode === 'phase' && drag.id === a.id) {
@@ -492,7 +555,7 @@ export function Timeline() {
         const ddc = Math.max(drag.dd, dayMin)
         inicioISO = toISO(addDays(parseISO(a.inicio), ddc))
         finISO    = toISO(addDays(parseISO(a.fin), ddc))
-        row = filaDe.get(drag.persona) ?? row
+        if (filaDe.has(drag.persona)) filaId = drag.persona
       } else if (drag.mode === 'resize' && drag.id === a.id) {
         finISO = toISO(addDays(parseISO(drag.origFin), drag.dd))
         if (finISO < drag.origInicio) finISO = drag.origInicio
@@ -500,14 +563,14 @@ export function Timeline() {
         const ddc = Math.max(drag.dd, -(drag.minDay ?? 0))
         inicioISO = toISO(addDays(parseISO(a.inicio), ddc))
         finISO    = toISO(addDays(parseISO(a.fin), ddc))
-        if (drag.id === a.id) row = filaDe.get(drag.persona) ?? row
+        if (drag.id === a.id && filaDe.has(drag.persona)) filaId = drag.persona
       }
     }
 
     const left  = dateToX(inicioISO)
     const right = dateToX(finISO) + pxPerDay   // fin es inclusivo
     const width = Math.max(MIN_BAR_W, right - left)
-    const top   = row * ROW_H + (ROW_H - BAR_H) / 2
+    const top   = topBarra(filaId, carrilDe.get(a.id) ?? 0)
     return { left, width, top }
   }
 
@@ -519,27 +582,26 @@ export function Timeline() {
     const fases = asignaciones.filter(a => a.proyecto_id === clienteSeleccionado)
     const byId  = new Map(asignaciones.map(a => [a.id, a]))
     for (const a of fases) {
-      const rowA = filaDe.get(filaIdDe(a))
-      if (rowA == null) continue
+      const filaA = filaIdDe(a)
+      if (!filaDe.has(filaA)) continue
       for (const predId of a.predecesoras) {
         const pred = byId.get(predId)
         if (!pred) continue
-        const rowP = filaDe.get(filaIdDe(pred))
-        if (rowP == null) continue
+        const filaP = filaIdDe(pred)
+        if (!filaDe.has(filaP)) continue
+        // La flecha apunta al centro de cada barra, que con carriles ya no es el de la fila.
         segs.push({
           x1: dateToX(pred.fin) + pxPerDay,
-          y1: rowP * ROW_H + ROW_H / 2,
+          y1: topBarra(filaP, carrilDe.get(pred.id) ?? 0) + BAR_H / 2,
           x2: dateToX(a.inicio),
-          y2: rowA * ROW_H + ROW_H / 2,
+          y2: topBarra(filaA, carrilDe.get(a.id) ?? 0) + BAR_H / 2,
           viola: a.inicio < pred.fin,
         })
       }
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H])
-
-  const bodyH = filas.length * ROW_H
+  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe])
 
   // ── períodos para header ─────────────────────────────────────────────────
 
@@ -633,7 +695,7 @@ export function Timeline() {
 
           {/* zebra */}
           {filas.map((f, i) => (
-            <div key={f.id} style={{ position: 'absolute', top: i * ROW_H, left: 0, width: bodyW, height: ROW_H, background: porCuenta && clienteSeleccionado === f.id ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
+            <div key={f.id} style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: bodyW, height: altoDeFila.get(f.id) ?? ROW_H, background: porCuenta && clienteSeleccionado === f.id ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
           ))}
 
           {/* líneas de grilla vertical */}
@@ -646,12 +708,11 @@ export function Timeline() {
           {/* tintes de carga (semana ámbar / mes rojo) */}
           {mostrarCarga && !porCuenta && [...cargaCelda.entries()].map(([key, sev]) => {
             const [pid, lunesISO] = key.split('|')
-            const row = filaDe.get(pid)
-            if (row == null) return null
+            if (!filaDe.has(pid)) return null
             const x1 = dateToX(lunesISO)
             const x2 = dateToX(toISO(addDays(parseISO(lunesISO), 4))) + pxPerDay
             return (
-              <div key={key} style={{ position: 'absolute', top: row * ROW_H, left: x1, width: x2 - x1, height: ROW_H, background: sev === 'rojo' ? 'var(--error-tint)' : 'var(--warn-tint)', zIndex: 2, pointerEvents: 'none' }} />
+              <div key={key} style={{ position: 'absolute', top: topDeFila.get(pid) ?? 0, left: x1, width: x2 - x1, height: altoDeFila.get(pid) ?? ROW_H, background: sev === 'rojo' ? 'var(--error-tint)' : 'var(--warn-tint)', zIndex: 2, pointerEvents: 'none' }} />
             )
           })}
 
@@ -706,7 +767,7 @@ export function Timeline() {
                 <div key={f.id}
                   onMouseDown={e => e.stopPropagation()}
                   onClick={() => p && seleccionarCliente(sel ? null : p.id)}
-                  style={{ position: 'absolute', top: i * ROW_H, left: 0, width: NAME_W, height: ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
+                  style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: NAME_W, height: altoDeFila.get(f.id) ?? ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: compacta ? 13 : 14.5, fontWeight: 700, color: p ? 'var(--t1)' : 'var(--t3)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.titulo}</span>
                     {tier && (
@@ -730,7 +791,7 @@ export function Timeline() {
               const st = statsPersona.get(p.id)
               const compacta = densidad === 'compacta'
               return (
-                <div key={p.id} style={{ position: 'absolute', top: i * ROW_H, left: 0, width: NAME_W, height: ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 3, padding: compacta ? '0 10px 0 12px' : '0 10px 0 14px', background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)' }}>
+                <div key={p.id} style={{ position: 'absolute', top: topDeFila.get(p.id) ?? 0, left: 0, width: NAME_W, height: altoDeFila.get(p.id) ?? ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 3, padding: compacta ? '0 10px 0 12px' : '0 10px 0 14px', background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: compacta ? 13 : 15, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.alias}</span>
                     {mostrarConflictos && st && st.semRojas > 0 && (
@@ -826,11 +887,11 @@ export function Timeline() {
 
           {/* Fases fantasma: dónde quedaría la cuenta si saliera en el mes que el mouse está tocando en el panel. */}
           {previsualizacion?.asignaciones.map(a => {
-            const row = filaDe.get(filaIdDe(a))
-            if (row == null) return null
+            const filaId = filaIdDe(a)
+            if (!filaDe.has(filaId)) return null
             const left = dateToX(a.inicio)
             const width = Math.max(MIN_BAR_W, dateToX(a.fin) + pxPerDay - left)
-            const top = row * ROW_H + (ROW_H - BAR_H) / 2
+            const top = topBarra(filaId, carrilDe.get(a.id) ?? 0)
             return (
               <div key={`prev-${a.id}`} title={`${a.inicio} → ${a.fin}`} style={{
                 position: 'absolute', left, top, width, height: BAR_H, zIndex: 12, pointerEvents: 'none',
