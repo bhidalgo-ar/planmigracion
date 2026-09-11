@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSimuladorStore } from '../store'
+import { ticketsMeta4Piso } from '../capacidad'
 import { nombreMes } from '../rules'
 import {
   bloquear, desbloquear, estaDesbloqueado, filasReparto, lecturaTransicion, soporteMesAMes, verificarContrasena,
@@ -89,6 +90,8 @@ function VistaConfidencial({ personas, asignaciones, config, onCerrar }: {
   const H = 72
   const hayTickets = soporte.some(s => s.ticketsMeta4 !== null)
   const susi = config.capacidad?.susi_soporte_meta4
+  const noMigran = Object.keys(config.soporte_tickets?.meta4_no_migra ?? {})
+  const piso = ticketsMeta4Piso(config)
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', background: 'var(--lienzo)' }}>
@@ -131,7 +134,7 @@ function VistaConfidencial({ personas, asignaciones, config, onCerrar }: {
               <PanelSoporte
                 titulo="Soporte Meta 4 que se libera → Susi"
                 sub={susi
-                  ? `Desde ${mesCorto(susi.desde)} Susi toma todo el soporte Meta 4: los ~${Math.round(susi.base_tickets_mes)} tickets por mes de hoy son el 100 % de su día. Cada ticket que se va le libera día para configurar.`
+                  ? `Desde ${mesCorto(susi.desde)} Susi toma todo el soporte Meta 4: los ~${Math.round(susi.base_tickets_mes)} tickets por mes de hoy son el 100 % de su día. Cada ticket que se va le libera día para configurar.${noMigran.length ? ` ${noMigran.join(' y ')} no migran: esos ~${Math.round(piso ?? 0)} tickets por mes se quedan con ella para siempre y son su techo.` : ''}`
                   : 'La disponibilidad de Susi sigue la perilla por año del plan: no hay bloque susi_soporte_meta4.'}
                 meses={soporte} tickets={s => s.ticketsMeta4} cuentas={s => s.cuentasMeta4} disp={s => s.dispSusi}
                 colorBarra="var(--gris)" colorLinea="var(--celeste-dark)" etiquetaLinea="Susi para migración" />

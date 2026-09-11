@@ -151,8 +151,12 @@ export interface Config {
     equipo_payroll_hoy?: {
       fuente?: string
       corte?: string
-      /** `analista_destino`, si está, es quien lleva la cuenta HOY (la columna `analista` de la Matrix puede haber quedado vieja). */
-      filas: Array<{ cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null; analista_destino?: string | null }> | string
+      /**
+       * `analista_destino`, si está, es quien lleva la cuenta HOY (la columna `analista` de la
+       * Matrix puede haber quedado vieja). `equipo_externo` marca las que liquida otro equipo
+       * de H&A (Aysa y Ford: Eventuales): no cuentan como carga del equipo de payroll.
+       */
+      filas: Array<{ cliente: string; analista: string; sistema: string; lider?: string | null; complejidad?: string | number | null; pays?: number | null; analista_destino?: string | null; equipo_externo?: string | null }> | string
       _nota?: string
     }
   }
@@ -211,7 +215,13 @@ export interface SoporteTickets {
   meta4_por_cuenta: Record<string, number>
   /** Tickets Axton del período de las cuentas que ya están en Axton hoy, por nombre. */
   axton_hoy: Record<string, number>
-  /** Tickets Meta 4 de cuentas que no migran en este programa (Toyota, TPA...). Informativo, no entra en ninguna cuenta. */
+  /**
+   * Cuentas que se quedan en Meta 4 para siempre y las soporta la misma persona que el resto
+   * (Toyota y TPA, confirmado por Willy el 11/09/2026). Suman a los tickets restantes de todos
+   * los meses: son el piso del soporte Meta 4, por debajo del cual la disponibilidad no sube.
+   */
+  meta4_no_migra?: Record<string, number>
+  /** Tickets Meta 4 que no soporta el equipo (bajas, residuales de cuentas ya en Axton). Informativo. */
   fuera_del_programa?: Record<string, number>
   _nota?: string
 }

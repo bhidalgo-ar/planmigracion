@@ -251,9 +251,20 @@ export function lecturaTransicion(config: Config, personas: Persona[]): LecturaT
     const pct = (mes: string) => Math.round(disponibilidadMes(susi.persona_id ?? 'susi', mes, config) * 100)
     const inicio = susi.desde >= desde ? susi.desde : desde
     const horizonte = mesesEntre(`${inicio}-01`, `${Number(inicio.slice(0, 4)) + 2}-12-01`)
-    const lleno = horizonte.find(m => pct(m) >= 100) ?? null
-    texto += ` Los ~${Math.round(susi.base_tickets_mes)} tickets por mes de hoy pasan a ser su día completo: en ${nombreMesLargo(inicio)} le queda ${pct(inicio)} % para configurar` +
-      (lleno ? `, y llega al 100 % en ${nombreMesLargo(lleno)}, cuando no queda ninguna cuenta en Meta4.` : '; no llega al 100 % dentro del horizonte.')
+    // El techo es el mes a partir del cual ya no sube: cuando migró todo lo que migra.
+    const techo = horizonte.find((m, i) => i > 0 && pct(m) === pct(horizonte[horizonte.length - 1])) ?? null
+    const noMigran = Object.keys(config.soporte_tickets?.meta4_no_migra ?? {})
+    const lista2 = noMigran.length <= 1 ? noMigran.join('') : `${noMigran.slice(0, -1).join(', ')} y ${noMigran[noMigran.length - 1]}`
+    texto += ` Los ~${Math.round(susi.base_tickets_mes)} tickets por mes de hoy pasan a ser su día completo: en ${nombreMesLargo(inicio)} le queda ${pct(inicio)} % para configurar`
+    if (techo && pct(techo) >= 100) {
+      texto += `, y llega al 100 % en ${nombreMesLargo(techo)}, cuando no queda ninguna cuenta en Meta4.`
+    } else if (techo && noMigran.length) {
+      texto += `, y no pasa del ${pct(techo)} % desde ${nombreMesLargo(techo)}: ${lista2} se quedan en Meta4 y su soporte no se va nunca.`
+    } else if (techo) {
+      texto += `, y no pasa del ${pct(techo)} % desde ${nombreMesLargo(techo)}.`
+    } else {
+      texto += '; no llega al 100 % dentro del horizonte.'
+    }
   }
   return { desde, tomaDe, horasSemanaLiberadas: horas, texto }
 }

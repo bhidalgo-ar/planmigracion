@@ -108,6 +108,19 @@ eq('y la vieja se queda solo con DLA', md.filas.find(f => f.analista === 'Vieja'
 eq('la nueva queda en dos sistemas en sep (TIM en Meta 4, Geopagos en Axton)', md.filas.find(f => f.analista === 'Nueva')!.mesesDobles, 1)
 check('las cuentas que no están en esa Matrix quedan sin analista', md.sinAnalista.length === 13 && md.sinAnalista.includes('Piano'))
 eq('sin Matrix no hay matriz', matrizAnalistas(proyectos, asignaciones, { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: '[FALTA]' } } }), null)
+
+titulo('matrizAnalistas — lo que liquida otro equipo de H&A no es carga de payroll')
+const conExterno: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [
+  ...(config.insumos!.equipo_payroll_hoy!.filas as Array<Record<string, unknown>>),
+  { cliente: 'Aysa', analista: 'Eventuales', sistema: 'Meta4', equipo_externo: 'Eventuales' },
+  { cliente: 'Ford', analista: 'Eventuales', sistema: 'Meta4', equipo_externo: 'Eventuales' },
+] } } } as Config
+const me = matrizAnalistas(proyectos, asignaciones, conExterno)!
+eq('Aysa y Ford salen listadas con su equipo', me.otrosEquipos.map(o => `${o.cuenta}/${o.equipo}`).join(','), 'Aysa/Eventuales,Ford/Eventuales')
+eq('y ya no figuran como [FALTA: analista]', me.sinAnalista.length, 0)
+check('no arman fila de analista', !me.filas.some(f => f.analista === 'Eventuales') && !me.soloAxton.some(f => f.analista === 'Eventuales'))
+eq('el resto de las filas queda igual', me.filas.length, m.filas.length)
+eq('sin filas externas, la lista viene vacía', m.otrosEquipos.length, 0)
 check('el nombre matchea sin acentos ni mayúsculas', (() => {
   const c: Config = { ...config, insumos: { ...config.insumos, equipo_payroll_hoy: { filas: [{ cliente: 'plastic omnium florida', analista: 'A', sistema: 'Meta 4' }] } } }
   const x = matrizAnalistas(proyectos, asignaciones, c)!

@@ -63,16 +63,19 @@ export function cuentasEnAxton(mesISO: string, config: Config): number {
 
 /**
  * Cuentas que al cierre de `mesISO` siguen en Meta 4: las del programa con mes de salida
- * posterior y las fuera del plan que todavía no salieron. `clave` es con lo que se buscan sus
- * tickets en `config.soporte_tickets.meta4_por_cuenta` (id de proyecto, o alias/nombre).
+ * posterior, las fuera del plan que todavía no salieron, y las que NO migran en este programa
+ * y se quedan en Meta 4 para siempre (`soporte_tickets.meta4_no_migra`: Toyota y TPA, que
+ * también soporta Susana). `mes` es cuándo sale; null = no sale nunca. `clave` es con lo que se
+ * buscan sus tickets (id de proyecto o alias/nombre).
  */
-export function cuentasEnMeta4(mesISO: string, config: Config): Array<{ clave: string; mes: string }> {
-  const out: Array<{ clave: string; mes: string }> = []
+export function cuentasEnMeta4(mesISO: string, config: Config): Array<{ clave: string; mes: string | null }> {
+  const out: Array<{ clave: string; mes: string | null }> = []
   for (const [id, v] of Object.entries(config.salidas_en_vivo_propuestas ?? {})) {
     if (id.startsWith('_') || typeof v !== 'string' || !RE_MES.test(v)) continue
     if (v > mesISO) out.push({ clave: id, mes: v })
   }
   for (const c of salidasFueraDelPlan(config)) if (c.mes > mesISO) out.push({ clave: c.nombre, mes: c.mes })
+  for (const clave of Object.keys(config.soporte_tickets?.meta4_no_migra ?? {})) out.push({ clave, mes: null })
   return out
 }
 
@@ -91,7 +94,21 @@ export function ticketsMeta4Restantes(mesISO: string, config: Config): number | 
   const t = config.soporte_tickets
   if (!t || !(typeof t.meses_medidos === 'number' && t.meses_medidos > 0)) return null
   let suma = 0
-  for (const c of cuentasEnMeta4(mesISO, config)) suma += ticketsDe(c.clave, t.meta4_por_cuenta)
+  for (const c of cuentasEnMeta4(mesISO, config)) {
+    suma += c.mes === null ? ticketsDe(c.clave, t.meta4_no_migra) : ticketsDe(c.clave, t.meta4_por_cuenta)
+  }
+  return suma / t.meses_medidos
+}
+
+/**
+ * Tickets por mes de las cuentas que se quedan en Meta 4 para siempre. Es el piso del soporte
+ * de Susana: por debajo de eso no baja, aunque migre todo el programa. null si no hay ticketera.
+ */
+export function ticketsMeta4Piso(config: Config): number | null {
+  const t = config.soporte_tickets
+  if (!t || !(typeof t.meses_medidos === 'number' && t.meses_medidos > 0)) return null
+  let suma = 0
+  for (const v of Object.values(t.meta4_no_migra ?? {})) if (typeof v === 'number' && Number.isFinite(v)) suma += v
   return suma / t.meses_medidos
 }
 

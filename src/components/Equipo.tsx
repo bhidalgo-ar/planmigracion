@@ -113,6 +113,7 @@ function MatrizCard({ m }: { m: MatrizAnalistas }) {
 
       <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--t2)', lineHeight: 1.5 }}>
         {m.soloAxton.length > 0 && <>Siguen 100 % en Axton, sin cambios: {m.soloAxton.map(f => `${f.analista} (${f.cuentasHoy})`).join(', ')}. </>}
+        {m.otrosEquipos.length > 0 && <>Las liquida otro equipo de H&A, fuera del equipo de payroll: {m.otrosEquipos.map(o => `${o.cuenta} (${o.equipo})`).join(', ')}. </>}
         {m.sinAnalista.length > 0 && <>Migran pero no tienen fila en la Matrix: {m.sinAnalista.join(', ')} <strong style={{ color: 'var(--warn-tx)' }}>[FALTA: analista]</strong>. </>}
         {hayTickets
           ? <>Los tickets por mes salen de la ticketera cargada en el plan (config.soporte_tickets).</>
