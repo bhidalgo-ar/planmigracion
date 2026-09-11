@@ -119,8 +119,10 @@ export const useUIStore = create<UIState>((set) => ({
   sortCuentas: 'fecha',
   irHoyToken: 0,
   modoMovimiento: 'flexible',
-  // Compacta por default: con 13 cuentas en filas, 76 px por fila no entran en una pantalla.
-  densidad: 'compacta',
+  // Amplia por default (pedido de Willy, 11/09/2026): con los carriles, una fila puede tener
+  // dos fases apiladas y en compacta el texto de la barra no se lee. Se scrollea más, pero se
+  // entiende quién hace qué; el alto se baja a S/M desde "··· → Alto de fila".
+  densidad: 'amplia',
   modoFilas: 'cuenta',
   insightsAbierto: true,
   ordenPersonas: [],
