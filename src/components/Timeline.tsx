@@ -5,7 +5,7 @@ import { cascadaIds, useSimuladorStore } from '../store'
 import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, Persona, TipoFase } from '../types'
 import { TIPO_COLOR } from '../theme/fases'
-import { cargaSemanal, mesSalidaDe } from '../capacidad'
+import { cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
 import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
@@ -230,13 +230,19 @@ export function Timeline() {
     if (!porCuenta) return []
     const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
     const carga = cargaSemanal(conFases, asignaciones, config)
+    const hoyMs = Date.now()
+    const semanaHoyISO = toISO(getMondayOfWeek(new Date()))
     return conFases.map(p => {
       const propias = carga.filter(c => c.personaId === p.id)
       const conCap = propias.filter(c => c.capacidad > 0)
+      // Capacidad real de la semana actual (o la más cercana con capacidad), no un promedio de
+      // todo el horizonte: la de Moni baja con el tiempo y un promedio la disimula (D2 con Willy).
+      const actual = conCap.find(c => c.semana === semanaHoyISO)
+        ?? conCap.slice().sort((a, b) => Math.abs(parseISO(a.semana).getTime() - hoyMs) - Math.abs(parseISO(b.semana).getTime() - hoyMs))[0]
       return {
         persona: p,
         celdas: propias.filter(c => c.horas > 0),
-        capSemana: conCap.length ? conCap.reduce((s, c) => s + c.capacidad, 0) / conCap.length : 0,
+        capSemana: actual?.capacidad ?? 0,
       }
     })
   }, [porCuenta, personasTodas, asignaciones, config])
@@ -863,12 +869,12 @@ export function Timeline() {
               if (x1 < NAME_W - 1 || x1 > bodyW) return null
               const w = Math.max(3, 7 * pxPerDay - 2)
               const pct = c.capacidad > 0 ? c.horas / c.capacidad : 9
-              const color = pct > 1 ? 'var(--error)' : pct > 0.8 ? 'var(--warn)' : 'var(--ok)'
+              const color = pct > 1 ? 'var(--error)' : pct >= UMBRAL_AMBAR ? 'var(--warn)' : 'var(--ok)'
               return (
                 <div key={c.semana}
                   title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${c.capacidad > 0 ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})`}
                   style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW + 4, left: x1 + 1, width: w, height: BANDA_ROW - 8, background: color, opacity: 0.35 + 0.65 * Math.min(pct, 1), borderRadius: 3, zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {pct > 0.8 && w >= 26 && (
+                  {pct >= UMBRAL_AMBAR && w >= 26 && (
                     <span className="num" style={{ fontSize: 8.5, fontWeight: 800, color: pct > 1 ? '#fff' : '#3B2A08' }}>{Math.round(pct * 100)}%</span>
                   )}
                 </div>

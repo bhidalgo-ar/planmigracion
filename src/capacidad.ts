@@ -16,6 +16,13 @@ import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
 
 export const HORAS_DIA_DEFAULT = 7
 
+/**
+ * Umbral de ámbar (uso = horas/capacidad) para pintar una persona en riesgo antes de
+ * pasarse. Un solo número para toda la app: lo usan Equipo (por mes) y la banda de carga
+ * de Timeline (por semana), así un mismo % de uso se ve del mismo color en las dos.
+ */
+export const UMBRAL_AMBAR = 0.85
+
 /** Horas por día hábil de una persona: su `horas_dia` si lo tiene, si no el default del config. */
 export function horasDiaDe(persona: Persona | undefined, config: Config): number {
   if (persona && typeof persona.horas_dia === 'number' && persona.horas_dia > 0) return persona.horas_dia
