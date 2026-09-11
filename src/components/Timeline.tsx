@@ -28,6 +28,70 @@ const MIN_BAR_W = 8
 /** Separación vertical entre dos carriles (renglones) de la misma fila. */
 const GAP_CARRIL = 6
 
+/**
+ * Iniciales de una persona para cuando la barra es muy angosta: 'Gaby F.' → 'GF',
+ * 'Moni' → 'Mo'. Siempre dos letras a propósito: con una sola, Moni y Mati (o Guille y
+ * Gaby) quedarían iguales, que es justo lo que se quiere poder distinguir.
+ */
+function inicialesDe(alias: string): string {
+  const palabras = alias.trim().split(/\s+/).filter(Boolean)
+  if (palabras.length > 1) return (palabras[0][0] + palabras[1][0]).toUpperCase()
+  const p = palabras[0] ?? alias
+  return (p[0] ?? '').toUpperCase() + (p[1] ?? '').toLowerCase()
+}
+
+/**
+ * Una barra angosta no puede gastar 19 px en aire: con el padding de siempre, las dos
+ * letras de las iniciales no entran y la barra queda muda.
+ */
+const esBarraAngosta = (width: number) => width < 64
+const padDeBarra = (width: number) => (esBarraAngosta(width) ? 4 : 9)
+
+/**
+ * Ancho real de un texto en píxeles. Se mide con un canvas en lugar de estimar por cantidad
+ * de letras porque la diferencia es enorme: en esta tipografía "GF" ocupa casi lo mismo que
+ * "Gaby" —las mayúsculas miden casi el doble que las minúsculas— y con un promedio único las
+ * iniciales entraban donde no entraban. Se cachea porque son pocas combinaciones repetidas
+ * muchas veces.
+ */
+const anchoCache = new Map<string, number>()
+let ctxMedidor: CanvasRenderingContext2D | null | undefined
+function anchoDeTexto(txt: string, fontSize: number): number {
+  const clave = `${fontSize}|${txt}`
+  const cacheado = anchoCache.get(clave)
+  if (cacheado !== undefined) return cacheado
+  if (ctxMedidor === undefined) {
+    ctxMedidor = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+  }
+  // Sin canvas (entornos sin DOM real) se cae a una estimación por cantidad de letras.
+  const w = ctxMedidor
+    ? (ctxMedidor.font = `700 ${fontSize}px "Plus Jakarta Sans", system-ui, sans-serif`, ctxMedidor.measureText(txt).width)
+    : txt.length * fontSize * 0.6
+  anchoCache.set(clave, w)
+  return w
+}
+
+/**
+ * Qué texto entra en una barra de `width` píxeles. Recibe las variantes de la más completa a
+ * la más corta y devuelve la primera que entra entera.
+ *
+ * El orden de las variantes es lo que importa: el color de la barra ya dice el tipo de fase y
+ * la fila ya dice la cuenta, así que al apretar se cae primero el tipo y lo último que se
+ * resigna es quién la hace, que es el dato que no está repetido en ningún otro lado.
+ */
+function textoDeBarra(variantes: string[], width: number, fontSize: number): string {
+  // En las anchas se descuenta también la manija de estirar; en las angostas es translúcida
+  // y el texto se lee por debajo, así que no se le reserva lugar.
+  const util = width - padDeBarra(width) * 2 - (esBarraAngosta(width) ? 0 : 10)
+  const entra = variantes.find(v => anchoDeTexto(v, fontSize) <= util)
+  if (entra !== undefined) return entra
+  // No entró ni la más corta. Si es un nombre, se muestra cortado con "…", que algo dice;
+  // si son las iniciales, cortarlas deja una letra suelta que no distingue a nadie: en ese
+  // caso la barra va muda y el dato lo da el tooltip.
+  const ultima = variantes[variantes.length - 1]
+  return ultima.length <= 3 ? '' : ultima
+}
+
 /** 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto). */
 type DragMode = 'phase' | 'cascade' | 'resize'
 interface DragState {
@@ -843,22 +907,33 @@ export function Timeline() {
               : ring === 'ambar' ? '0 0 0 2px var(--warn)'
               : seleccionada   ? '0 0 0 2px var(--celeste)'
               : 'none'
+            const alias      = aliasPorId.get(a.persona_id) ?? a.persona_id
             const label      = a.es_bloqueo ? (a._nombre ?? a.tipo) : `${proyecto?.nombre ?? ''} · ${a.tipo}`
             const arrastrando = drag?.id === a.id
             const tipoCorto  = a.tipo === 'Relevamiento' ? 'Relev.' : a.tipo === 'Configuracion' ? 'Config.' : a.tipo
+            const fontSize   = BAR_H > 34 ? 11.5 : 10
+            const angosta    = esBarraAngosta(width)
+            const padX       = padDeBarra(width)
+            // Barra angosta: antes se leía "Pr…" y se perdía la persona, que es lo que se
+            // quiere saber. Ahora cae primero el tipo de fase y al final quedan las iniciales.
+            const texto = !proyecto
+              ? label
+              : porCuenta
+                ? textoDeBarra([`${tipoCorto} · ${alias}`, alias, inicialesDe(alias)], width, fontSize)
+                : textoDeBarra([`${proyecto.nombre} · ${tipoCorto}`, proyecto.nombre], width, fontSize)
 
             return (
               <div key={a.id}
                 onMouseDown={e => onBarDown(e, a, 'phase')}
-                title={`${label}\n${a.inicio} → ${a.fin} · ${a.duracion_dias} días hábiles${a.es_bloqueo ? '' : (modoMovimiento === 'estricto'
+                title={`${label} · ${alias}\n${a.inicio} → ${a.fin} · ${a.duracion_dias} días hábiles${a.es_bloqueo ? '' : (modoMovimiento === 'estricto'
                   ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
                   : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`}
                 style={{
                   position: 'absolute', left, top, width, height: BAR_H,
                   background: fill, borderRadius: BAR_H > 34 ? 8 : 6, display: 'flex',
-                  flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1,
-                  paddingLeft: 9, paddingRight: 10,
-                  overflow: 'hidden', fontSize: BAR_H > 34 ? 11.5 : 10, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
+                  flexDirection: 'column', alignItems: angosta ? 'center' : 'flex-start', justifyContent: 'center', gap: 1,
+                  paddingLeft: padX, paddingRight: padX,
+                  overflow: 'hidden', fontSize, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: a.es_bloqueo ? 'default' : 'grab',
                   opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55)
                     : previsualizacion?.asignaciones.some(x => x.id === a.id) ? 0.22
@@ -868,9 +943,7 @@ export function Timeline() {
                   userSelect: 'none',
                 }}>
                 <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
-                  {proyecto
-                    ? (porCuenta ? `${tipoCorto} · ${aliasPorId.get(a.persona_id) ?? a.persona_id}` : `${proyecto.nombre} · ${tipoCorto}`)
-                    : label}
+                  {texto}
                 </span>
                 {BAR_H > 34 && width > 130 && (
                   <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 9.5, fontWeight: 500, opacity: 0.85 }}>
