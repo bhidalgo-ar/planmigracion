@@ -1,5 +1,8 @@
-import type { Asignacion, Config, EquipoConfidencial, Persona, ValorOFalta } from './types'
-import { cuentasEnAxton, cuentasEnMeta4, disponibilidadMes, horasDiaDe, mesesEntre, ticketsAxton, ticketsMeta4Restantes } from './capacidad'
+import type { Asignacion, Config, EquipoConfidencial, Persona, Proyecto, ValorOFalta } from './types'
+import {
+  cuentasEnAxton, cuentasEnMeta4, disponibilidadMes, horasDiaDe, mesesEntre, mesSalidaDe, salidasFueraDelPlan,
+  ticketsAxton, ticketsMeta4Restantes,
+} from './capacidad'
 import { mesesDelPrograma } from './insightsEquipo'
 
 /**
@@ -273,4 +276,76 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 function nombreMesLargo(mes: string): string {
   const [y, m] = mes.split('-').map(Number)
   return `${MESES[m - 1]} de ${y}`
+}
+
+// ── Peso real de cada cuenta y reparto histórico (spec-html 22/09/2026) ─────────────────────
+
+export interface FilaRankingTicket {
+  /** id de proyecto, o alias/nombre si es una cuenta fuera del plan o que no migra. */
+  clave: string
+  alias: string
+  ticketsMes: number
+  /** 'YYYY-MM' en que sale en vivo; null si no migra en este programa (piso permanente). */
+  mesSale: string | null
+  /** true = Toyota/TPA u otra de `meta4_no_migra`: no baja nunca, es el piso del soporte. */
+  esPiso: boolean
+}
+
+/**
+ * Cuánto pesa en tickets cada cuenta que todavía genera soporte Meta4: las que van a migrar
+ * (con su mes de salida) y las que no migran nunca (el piso permanente). Ordenado de mayor a
+ * menor tickets/mes, con las de piso siempre al final del todo — así una cuenta chica que
+ * migra no se pierde entre Toyota y TPA, que no se mueven nunca. `[]` si el plan no trae
+ * `soporte_tickets`.
+ */
+export function rankingTicketsPorCuenta(config: Config, proyectos: Proyecto[]): FilaRankingTicket[] {
+  const t = config.soporte_tickets
+  if (!t || !(typeof t.meses_medidos === 'number' && t.meses_medidos > 0)) return []
+  const aliasDe = (clave: string) => proyectos.find(p => p.id === clave)?.nombre ?? clave
+  const mesSaleDe = (clave: string): string | null => {
+    const enPlan = mesSalidaDe(clave, config)
+    if (enPlan) return enPlan
+    const fuera = salidasFueraDelPlan(config).find(c => c.nombre === aliasDe(clave))
+    return fuera?.mes ?? null
+  }
+  const migran: FilaRankingTicket[] = Object.entries(t.meta4_por_cuenta ?? {}).map(([clave, n]) => ({
+    clave, alias: aliasDe(clave), ticketsMes: n / t.meses_medidos, mesSale: mesSaleDe(clave), esPiso: false,
+  }))
+  const piso: FilaRankingTicket[] = Object.entries(t.meta4_no_migra ?? {}).map(([clave, n]) => ({
+    clave, alias: clave, ticketsMes: n / t.meses_medidos, mesSale: null, esPiso: true,
+  }))
+  migran.sort((a, b) => b.ticketsMes - a.ticketsMes)
+  piso.sort((a, b) => b.ticketsMes - a.ticketsMes)
+  return [...migran, ...piso]
+}
+
+export interface FilaRepartoHistorico {
+  id: string
+  alias: string
+  ticketsMes: number
+  /** Fracción del total del período (0–1), para el ancho de la barra apilada. */
+  pct: number
+}
+
+/**
+ * Quién atiende hoy los tickets Meta4 en la realidad (board de monday, agrupado por
+ * Asignado). Puramente informativo: `capacidad.susi_soporte_meta4` reparte por CLIENTE, no
+ * por persona, así que este panel no alimenta ningún cálculo — solo muestra qué hay detrás
+ * del número. `null` si el plan no trae `equipo_confidencial.reparto_historico_meta4`.
+ */
+export function repartoHistoricoMeta4(config: Config, personas: Persona[]): FilaRepartoHistorico[] | null {
+  const r = config.equipo_confidencial?.reparto_historico_meta4
+  if (!r || !(typeof r.meses_medidos === 'number' && r.meses_medidos > 0)) return null
+  const entradas: Array<[string, number]> = Object.entries(r.por_persona ?? {})
+  if (typeof r.sin_asignar === 'number' && r.sin_asignar > 0) entradas.push(['_sin_asignar', r.sin_asignar])
+  const total = entradas.reduce((s, [, n]) => s + n, 0)
+  if (total <= 0) return []
+  return entradas
+    .map(([id, n]) => ({
+      id,
+      alias: id === '_sin_asignar' ? 'Sin asignar' : (personas.find(p => p.id === id)?.alias ?? ALIAS_FALLBACK[id] ?? id),
+      ticketsMes: n / r.meses_medidos,
+      pct: n / total,
+    }))
+    .sort((a, b) => b.ticketsMes - a.ticketsMes)
 }
