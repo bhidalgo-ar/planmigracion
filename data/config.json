@@ -57,6 +57,14 @@
     "hasta": "2028-06-30",
     "_nota": "Horizonte completo: jun 2026 – jun 2028 (dos años de planificación)."
   },
+  "tiers_v3": {
+    "_doc": "La clasificacion por tier de cada cuenta viene en el plan importado, no en el seed: aca las listas van vacias a proposito. Lo unico que fija el seed es la restriccion de calendario.",
+    "chica": [],
+    "std": [],
+    "grande": [],
+    "blackout_config": ["2026-12-01", "2026-12-31"],
+    "_nota_blackout": "Diciembre completo: ninguna Configuracion puede tocar el mes. Willy, 22/09/2026. Antes iba del 21/12 al 08/01, asi que la primera quincena de diciembre era habil."
+  },
   "horas_por_fase": {
     "_doc": "Horas de esfuerzo por fase. Fuente: tablero Monday 18420861674 (EMPRESA - MMAAAA), columna de horas.",
     "estandar": { "Relevamiento": 55.5, "Configuracion": 71.0, "Pruebas": 88.0 },
@@ -71,10 +79,11 @@
       "moni": { "2026": 0.80, "2027": 0.60 },
       "gaby_f": { "2026": 0.50, "2027": 0.50 },
       "lau": { "2026": 1.00, "2027": 1.00 },
-      "axton": { "2026": 1.00, "2027": 1.00 }
+      "axton": { "2026": 1.00, "2027": 1.00 },
+      "guille": { "2026": 0.80, "2027": 0.80 }
     },
     "default": 1.00,
-    "_nota": "Moni BAJA en 2027: su soporte Axton crece a medida que las cuentas salen en vivo. Gaby no sube: son 20 hs/sem contractuales, no disponibilidad variable."
+    "_nota": "Moni BAJA en 2027: su soporte Axton crece a medida que las cuentas salen en vivo. Gaby no sube: son 20 hs/sem contractuales, no disponibilidad variable. Willy al 0,80 desde el 22/09/2026 (pedido suyo): antes no figuraba en esta tabla y caia al default 1,00, y el plan v12 lo traia en 0,60."
   },
   "template_estandar": {
     "_doc": "Baseline derivado del tablero Monday EMPRESA - MMAAAA (board 18420861674). Cuenta estandar de 1 entidad. Aplica al ~80% de las cuentas. Sportline y TASA quedan fuera por complejidad.",

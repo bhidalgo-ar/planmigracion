@@ -106,6 +106,9 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
   Willy, 11/09/2026); Moni por fórmula
   (`max(piso, base − caída × (cuentas en Axton − base))`, perillas en `config.capacidad`);
   quien tiene `horas_dia` propio, 1,0; el resto, `config.disponibilidad` por año.
+  **Willy (`guille`) está al 0,8** en el seed desde el 22/09/2026, por pedido suyo: antes no
+  figuraba en la tabla y caía al `default` 1,0, mientras el plan v12 lo traía en 0,6. Igual que
+  con la jornada, el JSON manda: un plan que diga 0,6 sigue calculando a 0,6.
 - **Tickets de soporte** (`config.soporte_tickets`, leído de la Ticketera Soporte de monday con
   `Herramientas-Tecnicas/scripts/tickets_soporte_desde_monday.py`): tickets del año por cuenta
   que migra (clave = id de proyecto o alias de las fuera del plan), por cuenta ya en Axton, y
@@ -161,7 +164,7 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026) |
 | `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo) |
 | `margen` | rojo | menos de `margen_minimo_habiles` (2 en el seed y en el código desde el 22/09/2026; el v12 todavía trae 5) días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
-| `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config` |
+| `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config`. **En el seed es diciembre completo** (01/12 → 31/12) desde el 22/09/2026, por pedido de Willy; antes iba del 21/12 al 08/01 y dejaba hábil la primera quincena. Ojo: el rango sale del **plan importado**, así que un plan viejo sigue con su blackout hasta que se corrija ahí |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |
 | `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
 
