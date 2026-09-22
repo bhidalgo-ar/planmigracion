@@ -111,6 +111,12 @@ del mes y de la semana (`diasDeVacaciones` en `capacidad.ts`) y una fase que las
 regla `vacaciones`. Otros bloqueos (corrida inicial, supervisión) son trabajo reservado y no
 restan capacidad.
 
+**Barras del v12.** Configuración son cuatro barras encadenadas (alta y carga base de Moni →
+conceptos y fórmulas de Willy, en paralelo con salidas de Moni → imputación contable de Willy) y
+Pruebas dos (ejecución de Gaby, cruces de Willy dos hábiles después). El nombre de la tarea no
+viaja en el JSON (`_nombre` dice "cuenta - Tipo"): `nombreTarea` en `src/tareas.ts` lo toma de
+`_tarea` si existe y, si no, del sufijo del id (`config_base`, `prueba_willy`, `delta`, `aplica`…).
+
 **Quién hace qué.** El rol/skill de una persona es una señal, no una prohibición
 (`tieneRolPara`). Cada fase muestra a quién pasársela y qué pasaría (`simularReasignacion`,
 mismo mecanismo que la tira de meses). "Pasar fases a otra persona" en Equipo hace el traspaso
@@ -123,9 +129,9 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | `carga_mes` | rojo | horas de una persona en el mes > su capacidad |
 | `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026) |
 | `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo) |
-| `margen` | rojo | menos de `margen_minimo_habiles` días hábiles entre el fin de Pruebas y el corte de novedades (el día del corte cuenta) |
+| `margen` | rojo | menos de `margen_minimo_habiles` días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config` |
-| `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona |
+| `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |
 | `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
 
 Los mensajes son para un gerente: nombran cuenta, fase y fecha en `dd/mm`. Nunca un id.

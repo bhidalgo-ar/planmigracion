@@ -1,7 +1,8 @@
 import { addDays, format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
-import { feriadosDeConfig, toISO } from './utils/dates'
+import { diasHabiles, feriadosDeConfig, toISO } from './utils/dates'
+import { nombreTarea } from './tareas'
 import {
   cargaMensual, cargaSemanal, mesSalidaDe, salidasFueraDelPlan, ultimoDiaDelMes,
 } from './capacidad'
@@ -13,9 +14,10 @@ import {
  *  carga_mes     rojo   horas de la persona en el mes > capacidad del mes
  *  carga_semana  ámbar  horas en la semana > capacidad de la semana × tolerancia (aviso)
  *  tope_salidas  rojo   más salidas en vivo en el mes que el tope (3 se permiten si 2 son chicas)
- *  margen        rojo   Pruebas cierra a menos de N hábiles del corte de novedades del mes de salida
+ *  margen        rojo   el cierre (o Pruebas, sin cierre) termina a menos de N hábiles del corte de novedades
  *  blackout      rojo   una Configuración toca el blackout de fin de año
- *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta
+ *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta, o una
+ *                       barra arranca antes de lo que permite su predecesora declarada
  *  vacaciones    rojo   una fase cae sobre las vacaciones de quien la hace
  *
  * Lo que NO es conflicto: dos personas configurando la misma cuenta a la vez, o una persona
@@ -232,33 +234,46 @@ export function habilesHasta(desdeISO: string, hastaISO: string, feriados: Reado
 export interface MargenCuenta {
   proyectoId: string
   mesSalida: string
+  /** Fin de la última barra antes del corte: el Cierre (Actualización Final) si la cuenta lo tiene, si no las Pruebas. */
+  finBarra: string | null
+  /** Qué barra es la que se mide: 'Cierre' o 'Pruebas'. */
+  fase: 'Cierre' | 'Pruebas' | null
+  /** Fin de la última Pruebas, informativo (la regla vieja medía desde acá). */
   finPruebas: string | null
   corte: string | null
-  /** Hábiles después del fin de Pruebas hasta el corte inclusive (negativo si Pruebas termina después). null si falta un dato. */
+  /** Hábiles después de `finBarra` hasta el corte inclusive (negativo si termina después). null si falta un dato. */
   habiles: number | null
 }
 
-/** Margen de cada cuenta con mes de salida: fin de su última Pruebas contra el corte de novedades. */
+/**
+ * Margen de cada cuenta con mes de salida: fin del CIERRE contra el corte de novedades
+ * (Willy, 22/09/2026: el cierre es la actualización final, lo último que pasa antes del corte).
+ * Si la cuenta no tiene barras de Cierre (planes anteriores al v12) se mide desde Pruebas.
+ */
 export function margenesPorCuenta(asignaciones: Asignacion[], config: Config, proyectos: Proyecto[]): MargenCuenta[] {
   const feriados = feriadosDeConfig(config)
   const out: MargenCuenta[] = []
+  const finDe = (arr: Asignacion[]) => (arr.length ? arr.reduce((m, a) => (a.fin > m ? a.fin : m), arr[0].fin) : null)
   for (const p of proyectos) {
     const mes = mesSalidaDe(p.id, config)
     if (!mes) continue
-    const pruebas = asignaciones.filter(a => a.proyecto_id === p.id && a.tipo === 'Pruebas' && !a.es_bloqueo)
-    const finPruebas = pruebas.length ? pruebas.reduce((m, a) => (a.fin > m ? a.fin : m), pruebas[0].fin) : null
+    const propias = asignaciones.filter(a => a.proyecto_id === p.id && !a.es_bloqueo)
+    const finPruebas = finDe(propias.filter(a => a.tipo === 'Pruebas'))
+    const finCierre = finDe(propias.filter(a => a.tipo === 'Cierre'))
+    const finBarra = finCierre ?? finPruebas
+    const fase: MargenCuenta['fase'] = finCierre ? 'Cierre' : finPruebas ? 'Pruebas' : null
     const corte = fechaCorteDe(p.id, mes, config, feriados)
-    const habiles = finPruebas && corte
-      ? (finPruebas >= corte ? -habilesHasta(corte, finPruebas, feriados) : habilesHasta(finPruebas, corte, feriados))
+    const habiles = finBarra && corte
+      ? (finBarra >= corte ? -habilesHasta(corte, finBarra, feriados) : habilesHasta(finBarra, corte, feriados))
       : null
-    out.push({ proyectoId: p.id, mesSalida: mes, finPruebas, corte, habiles })
+    out.push({ proyectoId: p.id, mesSalida: mes, finBarra, fase, finPruebas, corte, habiles })
   }
   return out
 }
 
 /**
- * Margen: entre el fin de la última Pruebas y el corte de novedades del mes de salida tiene
- * que haber al menos `capacidad.margen_minimo_habiles` días hábiles. Blackout: ninguna
+ * Margen: entre el fin del cierre (o de Pruebas si no hay cierre) y el corte de novedades del
+ * mes de salida tiene que haber al menos `capacidad.margen_minimo_habiles` días hábiles. Blackout: ninguna
  * Configuración puede tocar `tiers_v3.blackout_config`.
  */
 export function checkMargenYBlackout(asignaciones: Asignacion[], config: Config, proyectos: Proyecto[]): Violacion[] {
@@ -269,8 +284,9 @@ export function checkMargenYBlackout(asignaciones: Asignacion[], config: Config,
     if (m.habiles === null || m.habiles >= minimo) continue
     const p = proyectos.find(x => x.id === m.proyectoId)!
     const ref = asignaciones
-      .filter(a => a.proyecto_id === p.id && a.tipo === 'Pruebas')
+      .filter(a => a.proyecto_id === p.id && a.tipo === m.fase && !a.es_bloqueo)
       .sort((a, b) => (a.fin < b.fin ? 1 : -1))[0]
+    const sujeto = m.fase === 'Cierre' ? `El cierre de ${p.nombre} termina` : `Las pruebas de ${p.nombre} terminan`
     out.push({
       tipo: 'margen',
       asignacion_id: ref?.id ?? '',
@@ -278,8 +294,8 @@ export function checkMargenYBlackout(asignaciones: Asignacion[], config: Config,
       mes: m.mesSalida,
       severidad: 'rojo',
       mensaje: m.habiles < 0
-        ? `Las pruebas de ${p.nombre} terminan el ${ddmm(m.finPruebas!)}, después del corte de novedades del ${ddmm(m.corte!)}`
-        : `Las pruebas de ${p.nombre} terminan el ${ddmm(m.finPruebas!)}, a ${m.habiles} día${m.habiles !== 1 ? 's' : ''} hábil${m.habiles !== 1 ? 'es' : ''} del corte de novedades del ${ddmm(m.corte!)} (mínimo ${minimo})`,
+        ? `${sujeto} el ${ddmm(m.finBarra!)}, después del corte de novedades del ${ddmm(m.corte!)}`
+        : `${sujeto} el ${ddmm(m.finBarra!)}, a ${m.habiles} día${m.habiles !== 1 ? 's' : ''} hábil${m.habiles !== 1 ? 'es' : ''} del corte de novedades del ${ddmm(m.corte!)} (mínimo ${minimo})`,
     })
   }
 
@@ -335,6 +351,50 @@ export function checkDependenciaConfigPruebas(asignaciones: Asignacion[], proyec
   return out
 }
 
+export const DESFASAJE_PRUEBAS_DEFAULT = 2
+
+/**
+ * Dependencias declaradas (`predecesoras`, plan v12). Dos vínculos posibles:
+ *  - Entre dos Pruebas de la misma cuenta (ejecución de Gaby → cruces de Willy) es
+ *    "arranca N hábiles después de que ARRANCA la otra": corren en paralelo con desfasaje
+ *    (`reglas_calendario.desfasaje_pruebas_habiles`, default 2; v12 `_modelo_barras`).
+ *  - Cualquier otro: "no arranca hasta que termina la predecesora" (el mismo día tampoco).
+ * El vínculo Configuración → Pruebas lo cubre `checkDependenciaConfigPruebas` con la última
+ * configuración de la cuenta, que es más fuerte: acá se saltea para no marcarlo dos veces.
+ * Una predecesora que no existe se ignora (el import ya avisa).
+ */
+export function checkPredecesoras(asignaciones: Asignacion[], proyectos: Proyecto[], config: Config): Violacion[] {
+  const out: Violacion[] = []
+  const feriados = feriadosDeConfig(config)
+  const lag = config.reglas_calendario?.desfasaje_pruebas_habiles ?? DESFASAJE_PRUEBAS_DEFAULT
+  const byId = new Map(asignaciones.map(a => [a.id, a]))
+  for (const a of asignaciones) {
+    if (a.es_bloqueo) continue
+    for (const pid of a.predecesoras) {
+      const p = byId.get(pid)
+      if (!p || p.es_bloqueo) continue
+      if (p.tipo === 'Configuracion' && a.tipo === 'Pruebas') continue
+      const cuenta = nombreCuenta(a.proyecto_id, proyectos)
+      if (p.tipo === 'Pruebas' && a.tipo === 'Pruebas') {
+        // hábiles desde el inicio de la predecesora hasta el inicio de la sucesora (exclusivo)
+        const desfasaje = a.inicio <= p.inicio ? -(diasHabiles(a.inicio, p.inicio, feriados) - 1) : diasHabiles(p.inicio, a.inicio, feriados) - 1
+        if (desfasaje >= lag) continue
+        out.push({
+          tipo: 'dependencia', asignacion_id: a.id, proyecto_id: a.proyecto_id ?? undefined, persona_id: a.persona_id, severidad: 'rojo',
+          mensaje: `${nombreTarea(a)} de ${cuenta} arranca el ${ddmm(a.inicio)}, a ${Math.max(0, desfasaje)} hábil${desfasaje === 1 ? '' : 'es'} del arranque de ${nombreTarea(p).toLowerCase()} (${ddmm(p.inicio)}); tiene que ir ${lag} después`,
+        })
+        continue
+      }
+      if (a.inicio > p.fin) continue
+      out.push({
+        tipo: 'dependencia', asignacion_id: a.id, proyecto_id: a.proyecto_id ?? undefined, persona_id: a.persona_id, severidad: 'rojo',
+        mensaje: `${nombreTarea(a)} de ${cuenta} arranca el ${ddmm(a.inicio)}, antes de que termine ${nombreTarea(p).toLowerCase()} (${ddmm(p.fin)})`,
+      })
+    }
+  }
+  return out
+}
+
 const FASE_CON_ARTICULO: Record<string, string> = {
   Relevamiento: 'el relevamiento', Configuracion: 'la configuración', Pruebas: 'las pruebas', Cierre: 'el cierre', Vacaciones: 'las vacaciones',
 }
@@ -375,6 +435,7 @@ export function computeViolaciones(
   return [
     ...checkVacaciones(asignaciones, personas, proyectos),
     ...checkDependenciaConfigPruebas(asignaciones, proyectos),
+    ...checkPredecesoras(asignaciones, proyectos, config),
     ...checkMargenYBlackout(asignaciones, config, proyectos),
     ...checkTopeSalidas(asignaciones, config, proyectos),
     ...checkCargaMensual(asignaciones, personas, config, proyectos),

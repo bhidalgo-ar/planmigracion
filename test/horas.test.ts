@@ -26,6 +26,8 @@ import {
 } from '../src/capacidad'
 import { feriadosDeConfig } from '../src/utils/dates'
 import { validarPlan } from '../src/validacionPlan'
+import { checkPredecesoras, computeViolaciones, margenesPorCuenta } from '../src/rules'
+import { nombreTarea } from '../src/tareas'
 import { useSimuladorStore } from '../src/store'
 import planV3 from './fixtures/plan-v3.json'
 
@@ -211,6 +213,45 @@ check('una barra sin _horas de un tipo con fila cae a horas_por_fase', (() => {
   useSimuladorStore.getState().importarJSON(JSON.stringify(sinHoras))
   useSimuladorStore.getState().recalcularDuraciones()
   return useSimuladorStore.getState().asignaciones[6].duracion_dias === 37
+})())
+
+// ── Predecesoras declaradas (v12) y margen desde el fin del cierre ─────────────
+titulo('nombreTarea — la etiqueta dice qué, no quién')
+eq('sufijo config_base → nombre de la tarea', nombreTarea({ ...asignaciones[1], id: 'demo-config_base' }), 'Alta y carga base')
+eq('id sin sufijo conocido → tipo de fase', nombreTarea(asignaciones[6]), 'Pruebas')
+eq('_tarea manda', nombreTarea({ ...asignaciones[6], _tarea: 'Pruebas · cruces' }), 'Pruebas · cruces')
+eq('sufijo prueba_willy del v12', nombreTarea({ ...asignaciones[6], id: 'demo-prueba_willy' }), 'Pruebas · cruces')
+
+titulo('checkPredecesoras — termina una, empieza la otra; Pruebas → Pruebas con 2 hábiles de desfasaje')
+eq('el plan sintético respeta todas sus predecesoras', checkPredecesoras(asignaciones, proyectos, configV12).length, 0)
+const mueve = (id: string, inicio: string) => asignaciones.map(a => a.id === id ? { ...a, inicio } : a)
+check('cruces arrancando 1 hábil después de la ejecución es violación', (() => {
+  const v = checkPredecesoras(mueve('demo-pr-cruces', '2027-03-02'), proyectos, configV12)
+  return v.length === 1 && v[0].asignacion_id === 'demo-pr-cruces' && v[0].mensaje.includes('a 1 hábil del arranque') && v[0].mensaje.includes('2 después')
+})(), JSON.stringify(checkPredecesoras(mueve('demo-pr-cruces', '2027-03-02'), proyectos, configV12).map(v => v.mensaje)))
+eq('cruces arrancando el mismo día que la ejecución también', checkPredecesoras(mueve('demo-pr-cruces', '2027-03-01'), proyectos, configV12).length, 1)
+check('conceptos arrancando el día en que termina alta y carga base es violación, con nombres de tarea', (() => {
+  const v = checkPredecesoras(mueve('demo-conceptos', '2027-02-22').map(a => ({ ...a, id: a.id === 'demo-conceptos' ? 'demo-config_conceptos' : a.id === 'demo-alta' ? 'demo-config_base' : a.id, predecesoras: a.predecesoras.map(p => p === 'demo-alta' ? 'demo-config_base' : p) })), proyectos, configV12)
+  return v.length === 1 && v[0].mensaje === 'Conceptos y fórmulas de Demo arranca el 22/02, antes de que termine alta y carga base (22/02)'
+})())
+eq('el desfasaje es una perilla: con 1 hábil, cruces al día siguiente pasa',
+  checkPredecesoras(mueve('demo-pr-cruces', '2027-03-02'), proyectos, { ...configV12, reglas_calendario: { ...configV12.reglas_calendario, desfasaje_pruebas_habiles: 1 } }).length, 0)
+eq('Configuración → Pruebas no se marca dos veces',
+  computeViolaciones(mueve('demo-pr-ejec', '2027-02-26'), personas, configV12, proyectos).filter(v => v.tipo === 'dependencia' && v.asignacion_id === 'demo-pr-ejec').length, 1)
+
+titulo('margen — desde el fin del cierre (Willy, 22/09/2026)')
+const mg = margenesPorCuenta(asignaciones, configV12, proyectos)[0]
+eq('se mide desde el Cierre', mg.fase, 'Cierre')
+eq('fin de la última barra de cierre', mg.finBarra, '2027-03-16')
+eq('corte de Demo en marzo: día 20 → sábado, corre al viernes 19', mg.corte, '2027-03-19')
+eq('hábiles después del 16/03 hasta el 19/03: 17, 18, 19', mg.habiles, 3)
+check('con mínimo 5 es rojo y el mensaje habla del cierre', (() => {
+  const v = computeViolaciones(asignaciones, personas, configV12, proyectos).filter(v => v.tipo === 'margen')
+  return v.length === 1 && v[0].mensaje.startsWith('El cierre de Demo termina el 16/03, a 3 días hábiles del corte')
+})(), JSON.stringify(computeViolaciones(asignaciones, personas, configV12, proyectos).filter(v => v.tipo === 'margen').map(v => v.mensaje)))
+check('sin barras de Cierre cae a Pruebas', (() => {
+  const m = margenesPorCuenta(asignaciones.filter(a => a.tipo !== 'Cierre'), configV12, proyectos)[0]
+  return m.fase === 'Pruebas' && m.finBarra === '2027-03-12' && m.habiles === 5
 })())
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)

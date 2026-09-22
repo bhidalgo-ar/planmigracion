@@ -50,6 +50,8 @@ export interface Asignacion {
    * Una fase puede tener varias barras, así que las horas van por barra, no por fase.
    */
   _horas?: number
+  /** Nombre de la tarea de la barra ("Alta y carga base"). Si falta se deriva del id (ver `src/tareas.ts`). */
+  _tarea?: string
   _nota?: string
 }
 
@@ -143,6 +145,12 @@ export interface Config {
     inicio_siempre_lunes?: boolean
     nunca_feriado?: boolean
     tope_salidas_en_vivo_por_mes?: number
+    /**
+     * Días hábiles que las pruebas de cruces (Willy) arrancan después de que ARRANCA la ejecución
+     * (Gaby). Es el único vínculo entre barras que no es "termina una, empieza la otra": las dos
+     * Pruebas corren en paralelo con este desfasaje (v12, `_modelo_barras`). Default 2.
+     */
+    desfasaje_pruebas_habiles?: number
     _nota?: string
   }
   /** Modelo de capacidad (brief 10/09/2026 §2). Ver `src/capacidad.ts`. */
