@@ -5,6 +5,7 @@ import type { ReporteMovimiento } from './planificador'
 
 export type Vista = 'timeline' | 'insights' | 'equipo' | 'resumen' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
+
 export type ZoomLevel = 'dias' | 'semanas' | 'meses' | 'trimestres'
 export type SortCuentas = 'fecha' | 'nombre'
 /** flexible = arrastrar mueve solo la tarea · estricto = arrastra también las fases siguientes */
@@ -56,6 +57,8 @@ interface UIState {
   /** Mostrar el resaltado de conflictos (barras rojas y anillos) en el timeline. */
   mostrarConflictos: boolean
   modal: Modal
+  /** Modal "Cómo se armó este plan" (Tarea 4, 22/09/2026): de dónde salen horas, tiers, cortes y reglas. */
+  comoSeArmoAbierto: boolean
   resumenAbierto: boolean
   timelineFull: boolean
   zoom: ZoomLevel
@@ -96,6 +99,8 @@ interface UIState {
   toggleInsights: () => void
   abrirModal: (m: Exclude<Modal, null>) => void
   cerrarModal: () => void
+  abrirComoSeArmo: () => void
+  cerrarComoSeArmo: () => void
   setResumen: (abierto: boolean) => void
   setOrdenPersonas: (ids: string[]) => void
   /** Mueve una persona `delta` posiciones dentro del orden visible dado. */
@@ -113,6 +118,7 @@ export const useUIStore = create<UIState>((set) => ({
   mostrarDep: true,
   mostrarConflictos: true,
   modal: null,
+  comoSeArmoAbierto: false,
   resumenAbierto: false,
   timelineFull: false,
   zoom: 'semanas',
@@ -150,6 +156,8 @@ export const useUIStore = create<UIState>((set) => ({
   toggleInsights: () => set(s => ({ insightsAbierto: !s.insightsAbierto })),
   abrirModal: (modal) => set({ modal }),
   cerrarModal: () => set({ modal: null }),
+  abrirComoSeArmo: () => set({ comoSeArmoAbierto: true }),
+  cerrarComoSeArmo: () => set({ comoSeArmoAbierto: false }),
   setResumen: (resumenAbierto) => set({ resumenAbierto }),
 
   setOrdenPersonas: (ordenPersonas) => set({ ordenPersonas }),

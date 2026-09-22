@@ -190,16 +190,25 @@ button, input, select {
 }
 .timeline-scroll::-webkit-scrollbar-thumb:hover { background: var(--celeste-dark); }
 
-/* Impresión: solo la hoja del Resumen ejecutivo */
+/* Resumen ejecutivo (PDF para dirección): una hoja A4 por página, ver ResumenEjecutivo.tsx */
+.hoja-print {
+  width: 210mm; min-height: 297mm; margin: 0 auto 24px; background: #fff; color: #1E3A5F;
+  font-family: var(--font-report); padding: 16mm 18mm; border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3); box-sizing: border-box; position: relative;
+}
+.reporte-campo { background: #FAFCFE; }
+.reporte-campo::placeholder { color: #B7C2CE; font-style: italic; }
+
 @media print {
+  @page { size: A4; margin: 0; }
   html, body, #root { height: auto; overflow: visible; background: #fff; }
   body * { visibility: hidden !important; }
   #reporte-print, #reporte-print * { visibility: visible !important; }
-  #reporte-print {
-    position: absolute !important; left: 0; top: 0; width: 100% !important;
-    box-shadow: none !important; border-radius: 0 !important; padding: 24px 32px !important;
-  }
+  #reporte-print { position: absolute !important; left: 0; top: 0; width: 100% !important; }
   .reporte-overlay { position: absolute !important; inset: 0; background: #fff !important; padding: 0 !important; overflow: visible !important; }
   .reporte-chrome { display: none !important; }
+  .hoja-print { margin: 0; box-shadow: none !important; border-radius: 0 !important; page-break-after: always; }
+  .hoja-print:last-child { page-break-after: auto; }
+  .reporte-campo { background: transparent !important; border-color: #BFC5CC !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }

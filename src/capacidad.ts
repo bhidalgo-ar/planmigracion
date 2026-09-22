@@ -414,6 +414,46 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
   return out
 }
 
+export interface PuntoRestante {
+  /** Lunes ISO de la semana. */
+  semana: string
+  /** Horas planificadas que faltan desde esta semana hasta el fin de sus fases (inclusive). */
+  horasQueFaltan: number
+  /** Capacidad que le queda desde esta semana hasta el fin del horizonte de sus fases. */
+  capacidadQueQueda: number
+}
+
+/**
+ * "¿Entra el programa?", semana a semana: cuánto trabajo planificado le queda a cada
+ * persona desde esa semana en adelante, contra cuánta capacidad le queda hasta que termina
+ * el plan. Si la curva de horas cruza a la de capacidad, no entra aunque ninguna semana
+ * puntual esté en rojo; si hay margen en las dos, los picos semanales son un problema de
+ * orden, no de gente. Reusa `cargaSemanal`: misma fuente que la banda del Timeline y la
+ * pestaña Equipo.
+ */
+export function curvaRestante(
+  personas: Persona[], asignaciones: Asignacion[], config: Config, hoy: Date = new Date(),
+): Array<{ personaId: string; alias: string; puntos: PuntoRestante[] }> {
+  const desdeISO = toISO(getMondayOfWeek(hoy))
+  const semanal = cargaSemanal(personas, asignaciones, config)
+  const out: Array<{ personaId: string; alias: string; puntos: PuntoRestante[] }> = []
+  for (const p of personas) {
+    const propias = semanal
+      .filter(c => c.personaId === p.id && c.semana >= desdeISO)
+      .sort((a, b) => (a.semana < b.semana ? -1 : 1))
+    if (!propias.length) continue
+    const puntos: PuntoRestante[] = new Array(propias.length)
+    let horas = 0, capacidad = 0
+    for (let i = propias.length - 1; i >= 0; i--) {
+      horas += propias[i].horas
+      capacidad += propias[i].capacidad
+      puntos[i] = { semana: propias[i].semana, horasQueFaltan: red(horas), capacidadQueQueda: red(capacidad) }
+    }
+    out.push({ personaId: p.id, alias: p.alias, puntos })
+  }
+  return out
+}
+
 function red(n: number): number {
   return Math.round(n * 100) / 100
 }

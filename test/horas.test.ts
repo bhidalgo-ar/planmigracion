@@ -22,7 +22,7 @@ const mem = new Map<string, string>()
 
 import type { Asignacion, Config, Persona, Proyecto } from '../src/types'
 import {
-  cargaMensual, cargaSemanal, duracionPorHoras, horasDeBarra, horasDiaDe, horasPorDiaHabil,
+  cargaMensual, cargaSemanal, curvaRestante, duracionPorHoras, horasDeBarra, horasDiaDe, horasPorDiaHabil,
 } from '../src/capacidad'
 import { feriadosDeConfig } from '../src/utils/dates'
 import { validarPlan } from '../src/validacionPlan'
@@ -252,6 +252,19 @@ check('sin barras de Cierre cae a Pruebas', (() => {
   const m = margenesPorCuenta(asignaciones.filter(a => a.tipo !== 'Cierre'), configV12, proyectos)[0]
   return m.fase === 'Pruebas' && m.finBarra === '2027-03-12' && m.habiles === 5
 })())
+
+titulo('curvaRestante — lo que falta contra la capacidad que queda (Insights, PDF)')
+const curva = curvaRestante(personas, asignaciones, configV12, new Date('2027-01-01'))
+const willyC = curva.find(c => c.personaId === 'guille')!
+eq('el primer punto es el lunes de la semana en que arranca la primera fase (no hay datos antes)', willyC.puntos[0].semana, '2027-02-08')
+check('las semanas están ordenadas ascendente', willyC.puntos.every((p, i) => i === 0 || p.semana > willyC.puntos[i - 1].semana))
+cerca('la última semana con datos: horasQueFaltan = sus horas de esa semana', willyC.puntos[willyC.puntos.length - 1].horasQueFaltan, sem('guille', willyC.puntos[willyC.puntos.length - 1].semana)!.horas)
+check('horasQueFaltan de la primera semana es la suma de todas las semanas desde ahí', (() => {
+  const suma = semanal.filter(c => c.personaId === 'guille' && c.semana >= '2027-01-04').reduce((s, c) => s + c.horas, 0)
+  return Math.abs(willyC.puntos[0].horasQueFaltan - suma) < 0.02
+})())
+check('capacidadQueQueda baja semana a semana (es una cuenta regresiva)', willyC.puntos.every((p, i) => i === 0 || p.capacidadQueQueda <= willyC.puntos[i - 1].capacidadQueQueda + 0.01))
+eq('una persona sin fases desde esa fecha no aparece', curvaRestante(personas, asignaciones, configV12, new Date('2028-01-01')).length, 0)
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)
 process.exit(fallos === 0 ? 0 : 1)

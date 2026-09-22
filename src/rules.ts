@@ -370,6 +370,36 @@ export const DESFASAJE_PRUEBAS_DEFAULT = 2
  * configuración de la cuenta, que es más fuerte: acá se saltea para no marcarlo dos veces.
  * Una predecesora que no existe se ignora (el import ya avisa).
  */
+/**
+ * Hábiles desde el inicio de `pred` hasta el inicio de `a` (negativo si `a` arranca antes o
+ * el mismo día). Es la métrica del vínculo Pruebas → Pruebas: cuánto desfasaje hay HOY entre
+ * los dos arranques, para compararlo contra el mínimo (`lag`).
+ */
+export function desfasajeInicios(a: Asignacion, pred: Asignacion, feriados: ReadonlySet<string>): number {
+  return a.inicio <= pred.inicio
+    ? -(diasHabiles(a.inicio, pred.inicio, feriados) - 1)
+    : diasHabiles(pred.inicio, a.inicio, feriados) - 1
+}
+
+/**
+ * Si la predecesora `pred` de la barra `a` está rota HOY, con el mismo criterio que
+ * `checkPredecesoras`. La usa el motor de reglas para generar el mensaje y el Timeline para
+ * pintar el conector entre las dos barras: una sola función, un solo criterio.
+ * `null` = el vínculo Configuración → Pruebas, que no controla esta función (lo cubre la
+ * dependencia dura `checkDependenciaConfigPruebas`, que mira TODAS las configuraciones de la
+ * cuenta, no una sola predecesora).
+ */
+export function predecesoraViolada(
+  a: Asignacion, pred: Asignacion, config: Config, feriados: ReadonlySet<string>,
+): boolean | null {
+  if (pred.tipo === 'Configuracion' && a.tipo === 'Pruebas') return null
+  if (pred.tipo === 'Pruebas' && a.tipo === 'Pruebas') {
+    const lag = config.reglas_calendario?.desfasaje_pruebas_habiles ?? DESFASAJE_PRUEBAS_DEFAULT
+    return desfasajeInicios(a, pred, feriados) < lag
+  }
+  return a.inicio <= pred.fin
+}
+
 export function checkPredecesoras(asignaciones: Asignacion[], proyectos: Proyecto[], config: Config): Violacion[] {
   const out: Violacion[] = []
   const feriados = feriadosDeConfig(config)
@@ -380,19 +410,17 @@ export function checkPredecesoras(asignaciones: Asignacion[], proyectos: Proyect
     for (const pid of a.predecesoras) {
       const p = byId.get(pid)
       if (!p || p.es_bloqueo) continue
-      if (p.tipo === 'Configuracion' && a.tipo === 'Pruebas') continue
+      const violada = predecesoraViolada(a, p, config, feriados)
+      if (violada === null || !violada) continue
       const cuenta = nombreCuenta(a.proyecto_id, proyectos)
       if (p.tipo === 'Pruebas' && a.tipo === 'Pruebas') {
-        // hábiles desde el inicio de la predecesora hasta el inicio de la sucesora (exclusivo)
-        const desfasaje = a.inicio <= p.inicio ? -(diasHabiles(a.inicio, p.inicio, feriados) - 1) : diasHabiles(p.inicio, a.inicio, feriados) - 1
-        if (desfasaje >= lag) continue
+        const desfasaje = desfasajeInicios(a, p, feriados)
         out.push({
           tipo: 'dependencia', asignacion_id: a.id, proyecto_id: a.proyecto_id ?? undefined, persona_id: a.persona_id, severidad: 'rojo',
           mensaje: `${nombreTarea(a)} de ${cuenta} arranca el ${ddmm(a.inicio)}, a ${Math.max(0, desfasaje)} hábil${desfasaje === 1 ? '' : 'es'} del arranque de ${nombreTarea(p).toLowerCase()} (${ddmm(p.inicio)}); tiene que ir ${lag} después`,
         })
         continue
       }
-      if (a.inicio > p.fin) continue
       out.push({
         tipo: 'dependencia', asignacion_id: a.id, proyecto_id: a.proyecto_id ?? undefined, persona_id: a.persona_id, severidad: 'rojo',
         mensaje: `${nombreTarea(a)} de ${cuenta} arranca el ${ddmm(a.inicio)}, antes de que termine ${nombreTarea(p).toLowerCase()} (${ddmm(p.fin)})`,

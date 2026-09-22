@@ -11,6 +11,7 @@ import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
+import { ComoSeArmoModal, IntroBar } from './components/ComoSeArmo'
 import { ResumenAnimado } from './resumen/ResumenAnimado'
 import { segundoDelHash } from './resumen/guion'
 import { useSimuladorStore } from './store'
@@ -27,7 +28,7 @@ const TABS: { v: Vista; label: string }[] = [
 ]
 
 export default function App() {
-  const { vista, setVista, modal, resumenAbierto, timelineFull } = useUIStore()
+  const { vista, setVista, modal, resumenAbierto, timelineFull, comoSeArmoAbierto } = useUIStore()
   // La pestaña confidencial existe solo si el plan cargado trae el bloque (nunca viene del seed).
   const hayConfidencial = useSimuladorStore(s => tieneBloqueConfidencial(s.config))
   const tabs = hayConfidencial ? [...TABS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad del equipo' }] : TABS
@@ -108,6 +109,8 @@ export default function App() {
       {/* Barra de configuración (siempre visible) */}
       <ConfigPanel />
 
+      <IntroBar />
+
       {/* Contenido */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--lienzo)' }}>
         {vista === 'timeline' ? (
@@ -134,6 +137,7 @@ export default function App() {
       {modal === 'equipo' && <ModalEquipo />}
       {modal === 'cuenta' && <ModalAgregarCuenta />}
       {resumenAbierto && <ResumenEjecutivo />}
+      {comoSeArmoAbierto && <ComoSeArmoModal />}
     </div>
   )
 }
