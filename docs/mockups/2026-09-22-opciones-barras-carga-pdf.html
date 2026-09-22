@@ -1,0 +1,538 @@
+<title>Opciones Simulador Migración</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --celeste: #00ACD4; --celeste-dark: #0090B4; --celeste-dim: rgba(0,172,212,.10);
+    --gris: #8C837B;
+    --ink: #15263D; --t1: #1E3A5F; --t2: #4A6080; --t3: #8FA3BA;
+    --lienzo: #EEF2F7; --paper: #FCFCFB; --white: #FFFFFF; --line: #E7E6E6; --line-soft: #EFEEEC;
+    --ok: #22C55E; --warn: #F59E0B; --error: #E85518; --error-tx: #C0420F; --warn-tx: #9A5A0B; --ok-tx: #177A50;
+    --fase-relev: #7B2FBE; --fase-config: #00ACD4; --fase-pruebas: #2FA35A; --fase-cierre: #2A4F7A; --fase-bloqueo: #8C837B;
+    --font: 'Plus Jakarta Sans', 'Source Sans 3', system-ui, Arial, sans-serif;
+    --serif: 'DM Serif Display', Georgia, serif;
+    --pdf-font: 'Source Sans 3', 'Source Sans Pro', Arial, Helvetica, sans-serif;
+    --r: 14px; --r-sm: 8px;
+    --sh: 0 6px 24px rgba(30,58,95,.09); --sh-sm: 0 1px 4px rgba(30,58,95,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #EAF1F8; --t1: #DCE6F0; --t2: #92A6BC; --t3: #5F758D;
+      --lienzo: #0B1521; --paper: #111E2C; --line: #23364A; --line-soft: #1A2837;
+      --celeste-dim: rgba(31,190,224,.14);
+      --sh: 0 8px 28px rgba(0,0,0,.5); --sh-sm: 0 1px 4px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #EAF1F8; --t1: #DCE6F0; --t2: #92A6BC; --t3: #5F758D;
+    --lienzo: #0B1521; --paper: #111E2C; --line: #23364A; --line-soft: #1A2837;
+    --celeste-dim: rgba(31,190,224,.14);
+    --sh: 0 8px 28px rgba(0,0,0,.5); --sh-sm: 0 1px 4px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--lienzo); color: var(--t1); font-family: var(--font); line-height: 1.55; font-size: 15px; }
+  .num { font-variant-numeric: tabular-nums; }
+  header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .top-in { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .iso { width: 34px; height: 34px; border-radius: 50%; background: #00ACD4; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; letter-spacing: -.5px; flex: none; }
+  .brand b { font-size: 14px; color: var(--ink); }
+  .brand span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--celeste); line-height: 1.2; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  nav a { font-size: 12.5px; font-weight: 600; color: var(--t2); text-decoration: none; padding: 6px 12px; border-radius: 9999px; border: 1px solid var(--line); background: var(--paper); }
+  nav a:hover, nav a:focus-visible { border-color: var(--celeste); color: var(--celeste); outline: none; }
+  main { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-inline: 16px; display: flex; flex-direction: column; gap: 40px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); line-height: 1.05; color: var(--ink); margin: 0 0 10px; text-wrap: balance; letter-spacing: -.01em; }
+  h1 .ac { color: var(--celeste); }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; color: var(--ink); margin: 0; line-height: 1.1; }
+  h3 { font-size: 15px; font-weight: 800; color: var(--ink); margin: 0; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--celeste); margin-bottom: 4px; }
+  .lead { max-width: 68ch; color: var(--t2); margin: 0; }
+  .lead b { color: var(--ink); }
+  .aviso { display: flex; gap: 12px; align-items: flex-start; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 16px; font-size: 13.5px; color: var(--t2); max-width: 900px; }
+  .aviso .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); margin-top: 7px; flex: none; }
+  .aviso b { color: var(--ink); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .sec-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 24px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .sec-head p { margin: 0; color: var(--t2); max-width: 64ch; font-size: 14px; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  .rs3 { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 16px; padding: 12px 16px 16px; font-size: 13px; }
+  @media (max-width: 760px) { .rs3 { grid-template-columns: 1fr; } }
+  .rs3 h4 { margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .rs3 .si h4 { color: var(--ok-tx); } .rs3 .no h4 { color: var(--error-tx); } .rs3 .le h4 { color: var(--celeste-dark); }
+  .rs3 ul { margin: 0; padding-left: 16px; color: var(--t2); } .rs3 li { margin-bottom: 3px; }
+  .rs3 .le p { margin: 0; color: var(--t1); }
+  .opt { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--sh-sm); display: flex; flex-direction: column; overflow: hidden; }
+  .opt.reco { border-color: var(--celeste); box-shadow: 0 0 0 3px var(--celeste-dim), var(--sh-sm); }
+  .opt-head { display: flex; align-items: baseline; gap: 12px; padding: 14px 16px 10px; }
+  .opt-letter { font-family: var(--serif); font-size: 30px; color: var(--celeste); line-height: .9; min-width: 1.1em; }
+  .opt-head h3 { font-size: 16px; }
+  .opt-head .sub { display: block; font-size: 12.5px; color: var(--t2); font-weight: 500; margin-top: 2px; }
+  .reco-tag { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #fff; background: var(--celeste); border-radius: 9999px; padding: 3px 9px; align-self: center; white-space: nowrap; }
+  .mock { background: #fff; border-block: 1px solid var(--line); overflow-x: auto; }
+  .mock svg { display: block; }
+  .mock-note { font-size: 11px; color: var(--t3); padding: 6px 16px 0; }
+  .rs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px 16px; font-size: 13px; }
+  @media (max-width: 480px) { .rs { grid-template-columns: 1fr; } }
+  .rs h4 { margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .rs .si h4 { color: var(--ok-tx); } .rs .no h4 { color: var(--error-tx); }
+  .rs ul { margin: 0; padding-left: 16px; color: var(--t2); }
+  .rs li { margin-bottom: 3px; }
+  .lectura { padding: 0 16px 16px; font-size: 13px; color: var(--t1); border-top: 1px dashed var(--line); padding-top: 10px; margin: 0 16px 16px; padding-inline: 0; }
+  .lectura b { color: var(--celeste-dark); }
+  .crit { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .crit .c { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; font-size: 13.5px; color: var(--t2); }
+  .crit .c b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 4px; }
+  .crit .c .fix { display: block; margin-top: 8px; color: var(--celeste-dark); font-weight: 600; font-size: 12.5px; }
+  .asis { background: #fff; border: 1px solid var(--line); border-radius: var(--r); overflow-x: auto; }
+  .asis-cap { font-size: 12px; color: var(--t3); padding: 8px 16px; }
+  .pdf-wrap { display: flex; flex-direction: column; gap: 18px; }
+  .a4-box { display: grid; grid-template-columns: minmax(0, 627px) 1fr; }
+  @media (max-width: 980px) { .a4-box { grid-template-columns: 1fr; } }
+  .a4-side { display: flex; flex-direction: column; }
+  .a4-side .rs { grid-template-columns: 1fr; }
+  .a4-box { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .a4-scroll { background: #C9D1DB; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; }
+  .a4 { width: 595px; height: 842px; background: #fff; color: #000; font-family: var(--pdf-font); box-shadow: 0 8px 24px rgba(0,0,0,.25); position: relative; transform-origin: top center; flex: none; overflow: hidden; }
+  .a4-fit { width: 100%; max-width: 595px; aspect-ratio: 595 / 842; position: relative; }
+  .a4-fit .a4 { position: absolute; left: 0; top: 0; }
+  .bn .a4 { filter: grayscale(1); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--t2); cursor: pointer; user-select: none; border: 1px solid var(--line); border-radius: 9999px; padding: 6px 14px; background: var(--paper); }
+  .toggle input { accent-color: var(--celeste); }
+  /* ── hoja A4: piezas comunes de marca ── */
+  .a4 .ph { display: flex; align-items: center; gap: 10px; padding: 34px 48px 10px; border-bottom: 1.5px solid #00ACD4; margin: 0 0 0; }
+  .a4 .ph .iso2 { width: 30px; height: 30px; border-radius: 50%; background: #00ACD4; color: #fff; font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; letter-spacing: -.5px; }
+  .a4 .ph .wm { color: #8C837B; font-weight: 300; font-size: 12.5px; }
+  .a4 .ph .doc { margin-left: auto; text-align: right; font-size: 9.5px; color: #8C837B; line-height: 1.3; }
+  .a4 .ph .doc b { display: block; color: #00ACD4; font-weight: 700; font-size: 10.5px; }
+  .a4 .pf { position: absolute; left: 48px; right: 48px; bottom: 26px; border-top: .5pt solid #E7E6E6; padding-top: 6px; font-size: 7.2px; color: #8C837B; display: flex; justify-content: space-between; gap: 8px; }
+  .a4 .body { padding: 14px 48px 0; }
+  .a4 h1.t { font-family: var(--pdf-font); font-weight: 700; font-size: 17px; color: #00ACD4; margin: 0 0 2px; line-height: 1.15; letter-spacing: 0; }
+  .a4 .t-sub { font-size: 9.5px; color: #555; margin: 0 0 12px; }
+  .a4 h2.s { font-family: var(--pdf-font); font-weight: 700; font-size: 11px; color: #00ACD4; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .a4 p { font-size: 9.5px; line-height: 1.45; margin: 0 0 6px; color: #111; }
+  .a4 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .a4 .kpi { border: .6pt solid #BFC5CC; padding: 8px 10px; }
+  .a4 .kpi .l { font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #555; }
+  .a4 .kpi .v { font-size: 22px; font-weight: 700; color: #000; line-height: 1.05; margin-top: 2px; }
+  .a4 .kpi .v small { font-size: 9px; font-weight: 600; color: #555; }
+  .a4 .kpi .d { font-size: 7.5px; color: #666; margin-top: 2px; }
+  .a4 table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+  .a4 th { text-align: left; font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #555; padding: 4px 6px; border-bottom: 1pt solid #000; }
+  .a4 td { padding: 4px 6px; border-bottom: .4pt solid #D7DBE0; vertical-align: top; }
+  .a4 .chip { display: inline-block; border: .6pt solid #000; border-radius: 3px; padding: 0 5px; font-size: 8px; font-weight: 600; margin: 1px 2px 1px 0; background: #fff; }
+  .a4 .chip.chica { border-style: dashed; }
+  .a4 .chip.fuera { color: #555; border-color: #999; }
+  .a4 .chip.hoy { background: #000; color: #fff; }
+  .a4 .risk { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: .4pt solid #D7DBE0; font-size: 8.8px; }
+  .a4 .risk .sev { flex: none; width: 34px; font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 2px 0; text-align: center; border: .8pt solid #000; }
+  .a4 .risk .sev.r { background: #E85518; color: #fff; border-color: #E85518; }
+  .a4 .risk .sev.i { background: #fff; color: #000; }
+  .a4 .foot-note { font-size: 7.5px; color: #666; margin-top: 8px; line-height: 1.4; }
+  .decide { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .decide h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--celeste); }
+  .decide ol, .decide ul { margin: 6px 0 0; padding-left: 18px; color: var(--t2); font-size: 13.5px; }
+  .decide li { margin-bottom: 6px; }
+  .decide li b { color: var(--ink); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--t2); padding: 8px 16px 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><div class="iso">H&amp;A</div><div><b>Simulador de migración</b><span>Opciones de diseño · 22/09/2026</span></div></div>
+    <nav>
+      <a href="#critica">Crítica</a><a href="#barras">Barras</a><a href="#carga">Carga</a><a href="#pdf">PDF</a><a href="#decidir">Qué elegir</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div>
+    <div class="eyebrow">Para elegir antes de codear</div>
+    <h1>Tres opciones para las barras, tres para la carga, <span class="ac">tres para el PDF</span></h1>
+    <p class="lead">Cada opción dice <b>qué problema resuelve y qué sacrifica</b>. Las maquetas son estáticas; lo que se elija acá es lo que se implementa después. El plan v12 no está en el repo, así que las maquetas de barras usan la <b>estructura del v12</b> (nueve barras por cuenta, con las horas de la plantilla v2) sobre fechas ilustrativas, y las del PDF usan los <b>números del plan v3</b> que sí está en el repo.</p>
+  </div>
+  <div class="aviso"><span class="dot"></span><div><b>Ninguna cifra de estas maquetas es del plan vigente.</b> Copetro y Campari aparecen con las nueve barras de una cuenta estándar y sus cortes reales de enero (22/01 y 20/01), pero las fechas de las barras son de muestra para ilustrar el diseño. El PDF muestra el v3 porque es el único plan completo del repo.</div></div>
+
+  <!-- ───────────── CRÍTICA ───────────── -->
+  <section id="critica">
+    <div class="sec-head"><div><div class="eyebrow">0</div><h2>Lo que hoy no se lee</h2></div><p>Una pasada por la pantalla actual con el criterio de alguien que no estuvo en el armado. Cinco problemas, cada uno con el cambio que lo corrige.</p></div>
+    <div class="asis"><div id="asis"></div><div class="asis-cap">Reconstrucción de cómo se ve hoy una cuenta del v12 en el Timeline: etiqueta = persona, dos celestes iguales, el cierre como dos rayitas, y la carga abajo de todo como una tira de porcentajes sin causa.</div></div>
+    <div class="crit">
+      <div class="c"><b>1 · La etiqueta dice quién, no qué</b>Dos barras celestes seguidas con "Guille" son Conceptos y fórmulas e Imputación contable. El color ya dice la fase; el texto repite lo que no hace falta y calla lo que sí.<span class="fix">→ Etiqueta = tarea. La persona pasa a inicial, carril o tooltip.</span></div>
+      <div class="c"><b>2 · El cierre parece adorno</b>Las barras de Actualización final duran un día y quedan como dos astillas navy sin texto. Son lo que define la salida en vivo.<span class="fix">→ Hito (rombo o bandera) pegado al corte, con la fecha.</span></div>
+      <div class="c"><b>3 · La carga está lejos y muda</b>La banda semanal vive abajo, se corta con el scroll, y cuando dice 125 % no dice de qué barras viene.<span class="fix">→ Que cada semana en rojo nombre sus barras, y que la carga esté cerca de lo que la causa.</span></div>
+      <div class="c"><b>4 · Falta el margen al corte</b>El dato que decide si la cuenta sale ese mes (hábiles entre la última tarea y el corte de novedades) no está en ningún lado del Timeline.<span class="fix">→ Corchete por cuenta entre la última barra y la línea del corte, con el número.</span></div>
+      <div class="c"><b>5 · Nada explica qué se está mirando</b>Ni el Timeline ni Insights tienen dos líneas arriba que digan de dónde salen los números.<span class="fix">→ Copy de dos o tres líneas por pestaña (Tarea 4), fuera de estas opciones.</span></div>
+    </div>
+  </section>
+
+  <!-- ───────────── BARRAS ───────────── -->
+  <section id="barras">
+    <div class="sec-head"><div><div class="eyebrow">1</div><h2>Las barras</h2></div><p>Tres formas de responder "qué tarea es, quién la hace, de qué depende y cuánto margen queda". Las tres muestran Copetro y Campari en la vista por cuenta, semanas de diciembre y enero, con el blackout de configuración sombreado.</p></div>
+    <div class="legend"><span><i style="background:#7B2FBE"></i>Relevamiento</span><span><i style="background:#00ACD4"></i>Configuración</span><span><i style="background:#2FA35A"></i>Pruebas</span><span><i style="background:#2A4F7A"></i>Cierre</span><span><i style="background:repeating-linear-gradient(135deg,#F4E7E1 0 3px,#fff 3px 6px);border:1px solid #E7E6E6"></i>Blackout config.</span><span>┆ corte de novedades</span></div>
+    <div class="stack">
+      <div class="opt reco">
+        <div class="opt-head"><span class="opt-letter">A</span><h3>Tarea adentro, persona como monograma<span class="sub">La mínima cirugía sobre lo que hay</span></h3><span class="reco-tag">Recomendada</span></div>
+        <div class="mock"><div id="barrasA"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>La etiqueta pasa a ser la tarea; la persona queda como círculo con iniciales al inicio de la barra, y en tooltip.</li><li>Cierre como rombo con fecha, pegado al corte.</li><li>Corchete de margen entre la última barra y el corte, con los hábiles.</li><li>Predecesoras como conectores finos al seleccionar la cuenta (ya existe el mecanismo).</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>En zoom de meses las barras de 2 días no tienen lugar para el texto: queda solo el monograma.</li><li>Quién hace qué sigue exigiendo leer iniciales; no se ve de un golpe.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>es la que menos cambia el hábito de quien ya usa la app y arregla los cuatro problemas visuales. Si el plan tiene 11 cuentas, la altura total no crece.</p></div></div>
+      </div>
+      <div class="opt">
+        <div class="opt-head"><span class="opt-letter">B</span><h3>Un carril por persona dentro de la cuenta<span class="sub">La posición dice quién; la barra dice qué</span></h3></div>
+        <div class="mock"><div id="barrasB"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Willy, Moni y Gaby tienen carril fijo en cada cuenta: se ve de un golpe quién está en paralelo con quién, sin leer nada.</li><li>Las barras llevan solo la tarea, y entra más texto.</li><li>El cierre queda en el carril de quien lo hace, como rombo.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Cada cuenta ocupa tres renglones: con 11 cuentas el Timeline mide el doble y hay que scrollear más.</li><li>Un carril vacío (Gaby en una cuenta chica) es aire que igual ocupa lugar.</li><li>Si se suma una persona al plan aparece un carril más en todas las cuentas.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>es la mejor para explicar el solapamiento a alguien nuevo ("mirá, van en paralelo"), pero cara en pantalla. Podría ser un modo opcional, no el default.</p></div></div>
+      </div>
+      <div class="opt">
+        <div class="opt-head"><span class="opt-letter">C</span><h3>Cadena de tareas<span class="sub">La dependencia es la forma</span></h3></div>
+        <div class="mock"><div id="barrasC"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Las predecesoras se dibujan siempre, no solo al seleccionar: la forma de flecha y los conectores muestran que Conceptos no arranca antes de que termine Alta y carga base.</li><li>Persona como franja de color a la izquierda de cada barra más iniciales.</li><li>Cierre como bandera sobre el corte.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Con dos cuentas ya hay siete conectores por cuenta: con 11 cuentas es una telaraña. Habría que atenuar todo menos la cuenta seleccionada, y volvemos a "solo al seleccionar".</li><li>Las flechas comen ancho en las barras cortas.</li><li>Rompe la lectura de "barra = rango de fechas" que usa el arrastre.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>la forma más honesta con el modelo del v12, pero no escala a la vista completa. Sirve como idea para el <b>detalle de una cuenta</b> en el panel lateral, no para el Timeline.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── CARGA ───────────── -->
+  <section id="carga">
+    <div class="sec-head"><div><div class="eyebrow">2</div><h2>El bloque de carga</h2></div><p>Es lo único que dice si el plan es ejecutable. Las tres opciones parten del mismo cálculo nuevo (horas de la barra desde <span class="num">_horas</span>, contra jornada × disponibilidad × hábiles de la semana) y difieren en dónde y cómo se muestra. Umbral: 110 % en rojo, 85 % en ámbar.</p></div>
+    <div class="stack">
+      <div class="opt reco">
+        <div class="opt-head"><span class="opt-letter">A</span><h3>Banda apilada por cuenta, arriba de las filas<span class="sub">La banda de hoy, pero que explica</span></h3><span class="reco-tag">Recomendada</span></div>
+        <div class="mock"><div id="cargaA"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Cada semana es una columna apilada por cuenta: se ve qué cuentas suman el 121 % sin abrir nada.</li><li>La línea del 100 % y la banda del 110 % están dibujadas; el número solo aparece cuando se pasa.</li><li>Va pegada debajo del encabezado de meses, así nunca queda cortada por el scroll.</li><li>Al pasar el mouse por una semana, la lista de barras con sus horas.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Con más de tres o cuatro cuentas por semana los colores de cuenta dejan de distinguirse: se cae a "cuenta seleccionada vs. resto".</li><li>Ocupa 30 px por persona arriba: con cuatro personas, 120 px de pantalla fijos.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>responde la pregunta exacta ("qué causa el 125 %") en el mismo eje que las barras. Es la que dejaría como default.</p></div></div>
+      </div>
+      <div class="opt">
+        <div class="opt-head"><span class="opt-letter">B</span><h3>Mapa de calor con ranking de las peores semanas<span class="sub">Un panel aparte, para la reunión</span></h3></div>
+        <div class="mock"><div id="cargaB"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Las once semanas por encima del 110 % están listadas, ordenadas de peor a mejor, con persona, semana, porcentaje y las barras que las causan.</li><li>El mapa da la foto completa del programa en una pantalla, sin scroll horizontal.</li><li>Es directamente la página 3 del PDF.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Vive fuera del Timeline: para arreglar una semana hay que ir a las barras y volver.</li><li>El mapa de calor no dice qué cuentas; lo dice el ranking, que es texto.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>perfecta para la pestaña Equipo o Insights y para el PDF, no como reemplazo de la banda. Se puede tener las dos: A en Timeline, B en Equipo.</p></div></div>
+      </div>
+      <div class="opt">
+        <div class="opt-head"><span class="opt-letter">C</span><h3>La sobrecarga pintada en las barras<span class="sub">Sin banda: el rojo está donde está la causa</span></h3></div>
+        <div class="mock"><div id="cargaC"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>No hay que mirar a otro lado: las barras de la persona que se pasa esa semana llevan un tramo rayado en rojo y una etiqueta con el porcentaje.</li><li>Ahorra toda la altura de la banda.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Pierde la foto: no se ve cuánto le queda a alguien en una semana verde, ni cómo evoluciona la carga.</li><li>Una semana al 121 % marca todas las barras de esa persona, aunque sacar una sola la arreglaría: la causa se reparte.</li><li>Rayado sobre celeste y sobre verde: se lee mal en las barras cortas.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>buena como refuerzo (anillo rojo en las barras culpables cuando se hace clic en una semana), mala como único indicador.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── PDF ───────────── -->
+  <section id="pdf">
+    <div class="sec-head"><div><div class="eyebrow">3</div><h2>La primera página del PDF</h2></div><p>Destinatario: Manuel Rossi. No abre la app; necesita saber en qué estado está el programa y qué decisiones tiene por delante. A4 vertical, marca H&amp;A (Source Sans, celeste en títulos, gris en el wordmark), y tiene que sobrevivir a una impresora en blanco y negro.</p><label class="toggle"><input type="checkbox" id="bn"> Ver en blanco y negro</label></div>
+    <div class="pdf-wrap" id="pdfwrap">
+      <div class="a4-box">
+        <div class="a4-scroll"><div class="a4-fit"><div class="a4" id="pdf1"></div></div></div>
+        <div class="a4-side"><div class="opt-head"><span class="opt-letter">1</span><h3>Tablero de estado<span class="sub">Cuatro números, el calendario y los riesgos</span></h3></div><div class="rs"><div class="si"><h4>Resuelve</h4><ul><li>Se entiende en 20 segundos: cuántas están, cuántas faltan, cuándo termina, cuántos riesgos.</li><li>El calendario de salidas es la pieza central y ocupa media hoja.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>No dice qué tiene que decidir el CEO: describe, no pide.</li><li>Los KPI se parecen a cualquier reporte; el contenido salva al formato.</li></ul></div></div></div>
+      </div>
+      <div class="a4-box" style="border-color: var(--celeste)">
+        <div class="a4-scroll"><div class="a4-fit"><div class="a4" id="pdf2"></div></div></div>
+        <div class="a4-side"><div class="opt-head"><span class="opt-letter">2</span><h3>Memo de una carilla<span class="sub">Prosa corta, un calendario, tres decisiones</span></h3><span class="reco-tag">Recomendada</span></div><div class="rs"><div class="si"><h4>Resuelve</h4><ul><li>Está escrito para quien no va a interpretar un gráfico: cuatro párrafos que se leen de corrido.</li><li>Cierra con "qué hay que decidir", que es lo que pide el destinatario.</li><li>Todo el texto sale del plan cargado (el mismo guion que el video del Resumen).</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Menos "vistoso": sin números grandes, no impresiona en una mesa.</li><li>La prosa generada tiene que estar muy bien escrita para no sonar a plantilla.</li></ul></div></div></div>
+      </div>
+      <div class="a4-box">
+        <div class="a4-scroll"><div class="a4-fit"><div class="a4" id="pdf3"></div></div></div>
+        <div class="a4-side"><div class="opt-head"><span class="opt-letter">3</span><h3>El calendario primero<span class="sub">Una grilla de meses con cada cuenta adentro</span></h3></div><div class="rs"><div class="si"><h4>Resuelve</h4><ul><li>La hoja entera es el calendario: cada mes una celda, cada cuenta un chip con su tier y su margen al corte.</li><li>Los riesgos se marcan con un número sobre el chip y se explican al pie.</li><li>Sirve para pegar en la pared.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Poco lugar para contexto: quien no conoce el programa no sabe qué es un "tier" ni por qué importa el corte.</li><li>Los meses vacíos son celdas vacías.</li></ul></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── DECIDIR ───────────── -->
+  <section id="decidir">
+    <div class="sec-head"><div><div class="eyebrow">4</div><h2>Qué elegir y qué me falta saber</h2></div></div>
+    <div class="decide">
+      <div><h3>Elegís tres letras</h3><ol><li><b>Barras:</b> A, B o C (o "A con B como modo opcional").</li><li><b>Carga:</b> A, B o C (o "A en Timeline y B en Equipo").</li><li><b>PDF:</b> 1, 2 o 3 para la primera página. Las páginas 2 (cronograma mensual) y 3 (capacidad) van igual en las tres.</li></ol></div>
+      <div><h3>Decisiones que frenan el código</h3><ul><li><b>1.5 Gaby:</b> sus 20 h semanales, ¿son toda su jornada (y la mitad va a migraciones: 10 h/sem) o ya son su capacidad para migraciones (20 h/sem)? Hoy el código toma 20.</li><li><b>Margen:</b> el pedido dice "entre el fin del cierre y el corte"; la regla vigente mide desde el fin de Pruebas (mínimo 5 hábiles). Si el cierre va pegado al corte, la primera lectura da siempre 1 o 2. ¿Cuál se muestra?</li><li><b>Pruebas cruces:</b> arranca dos hábiles después de la ejecución. Si en el v12 la ejecución figura como predecesora, una regla "no antes de que termine" la marcaría en rojo siempre. ¿La predecesora de cruces es la ejecución (con desfasaje) o la imputación?</li><li><b>Jornada en el v12:</b> si el JSON trae <span class="num">horas_dia_default: 7</span>, la app calcula a 7 aunque el seed ya diga 8. El cambio va en el plan, en Cowork.</li></ul></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  // ── Datos de muestra: estructura del v12 (nueve barras por cuenta estándar, horas de la plantilla v2). Fechas ilustrativas.
+  const P = { willy: { alias: 'Willy', ini: 'W', hd: 8, disp: 0.6, color: '#1E3A5F' }, moni: { alias: 'Moni', ini: 'Mo', hd: 8, disp: 0.8, color: '#0090B4' }, gaby: { alias: 'Gaby', ini: 'G', hd: 4, disp: 1.0, color: '#7B2FBE' } };
+  const F = { Relevamiento: '#7B2FBE', Configuracion: '#00ACD4', Pruebas: '#2FA35A', Cierre: '#2A4F7A' };
+  const feriados = new Set(['2026-12-08', '2026-12-25', '2027-01-01']);
+  const blackout = ['2026-12-21', '2027-01-08'];
+  const cuentas = [
+    { id: 'copetro', nombre: 'Copetro', tier: 'estándar', corte: '2027-01-22', color: '#1E3A5F', barras: [
+      ['repaso', 'Repaso', 'Relevamiento', 'gaby', '2026-11-30', '2026-12-09', 14.4, []],
+      ['alta', 'Alta y carga base', 'Configuracion', 'moni', '2026-12-10', '2026-12-11', 6, ['repaso']],
+      ['conceptos', 'Conceptos y fórmulas', 'Configuracion', 'willy', '2026-12-14', '2026-12-15', 8, ['alta']],
+      ['salidas', 'Salidas', 'Configuracion', 'moni', '2026-12-14', '2026-12-15', 8, ['alta']],
+      ['imput', 'Imputación contable', 'Configuracion', 'willy', '2026-12-16', '2026-12-17', 11.5, ['conceptos']],
+      ['prejec', 'Pruebas · ejecución', 'Pruebas', 'gaby', '2026-12-18', '2026-12-30', 8.5, ['imput', 'salidas']],
+      ['prcru', 'Pruebas · cruces', 'Pruebas', 'willy', '2026-12-22', '2027-01-06', 19, ['prejec']],
+      ['afd', 'Act. final · delta', 'Cierre', 'gaby', '2027-01-20', '2027-01-20', 1.5, ['prcru']],
+      ['afa', 'Act. final · aplicación', 'Cierre', 'moni', '2027-01-21', '2027-01-21', 1.5, ['afd']],
+    ] },
+    { id: 'campari', nombre: 'Campari', tier: 'estándar', corte: '2027-01-20', color: '#00ACD4', barras: [
+      ['repaso', 'Repaso', 'Relevamiento', 'gaby', '2026-11-23', '2026-12-01', 14.4, []],
+      ['alta', 'Alta y carga base', 'Configuracion', 'moni', '2026-12-02', '2026-12-03', 6, ['repaso']],
+      ['conceptos', 'Conceptos y fórmulas', 'Configuracion', 'willy', '2026-12-04', '2026-12-07', 8, ['alta']],
+      ['salidas', 'Salidas', 'Configuracion', 'moni', '2026-12-04', '2026-12-07', 8, ['alta']],
+      ['imput', 'Imputación contable', 'Configuracion', 'willy', '2026-12-09', '2026-12-10', 11.5, ['conceptos']],
+      ['prejec', 'Pruebas · ejecución', 'Pruebas', 'gaby', '2026-12-11', '2026-12-21', 8.5, ['imput', 'salidas']],
+      ['prcru', 'Pruebas · cruces', 'Pruebas', 'willy', '2026-12-15', '2026-12-28', 19, ['prejec']],
+      ['afd', 'Act. final · delta', 'Cierre', 'gaby', '2027-01-18', '2027-01-18', 1.5, ['prcru']],
+      ['afa', 'Act. final · aplicación', 'Cierre', 'moni', '2027-01-19', '2027-01-19', 1.5, ['afd']],
+    ] },
+  ];
+  for (const c of cuentas) c.barras = c.barras.map(b => ({ id: c.id + '-' + b[0], key: b[0], nombre: b[1], tipo: b[2], persona: b[3], inicio: b[4], fin: b[5], horas: b[6], preds: b[7].map(p => c.id + '-' + p), cuenta: c }));
+
+  // ── Calendario
+  const D = iso => new Date(iso + 'T00:00:00');
+  const ISO = d => d.toISOString().slice(0, 10);
+  const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const habil = d => { const w = d.getDay(); return w !== 0 && w !== 6 && !feriados.has(ISO(d)); };
+  const habiles = (a, b) => { const out = []; for (let d = D(a); d <= D(b); d = addD(d, 1)) if (habil(d)) out.push(ISO(d)); return out; };
+  const habilesDespues = (a, b) => habiles(a, b).filter(x => x > a).length;
+  const desde = D('2026-11-23'), hasta = D('2027-01-31');
+  const dias = Math.round((hasta - desde) / 864e5) + 1;
+  const lunes = []; for (let d = new Date(desde); d <= hasta; d = addD(d, 7)) lunes.push(new Date(d));
+  const meses = [['2026-11-23', 'NOV'], ['2026-12-01', 'DICIEMBRE 2026'], ['2027-01-01', 'ENERO 2027']];
+  const fmt = iso => `${+iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const ultimaBarra = c => c.barras.reduce((m, b) => (b.fin > m ? b.fin : m), '');
+  const finPruebas = c => c.barras.filter(b => b.tipo === 'Pruebas').reduce((m, b) => (b.fin > m ? b.fin : m), '');
+
+  // ── Carga semanal por persona: horas de la barra repartidas por día hábil, capacidad = hd × disp × hábiles
+  const todas = cuentas.flatMap(c => c.barras);
+  const porDia = new Map(todas.map(b => [b.id, b.horas / Math.max(1, habiles(b.inicio, b.fin).length)]));
+  function carga(pid) {
+    return lunes.map(l => {
+      let horas = 0, cap = 0; const porBarra = [];
+      for (let i = 0; i < 5; i++) { const d = addD(l, i); if (!habil(d)) continue; const iso = ISO(d); cap += P[pid].hd * P[pid].disp;
+        for (const b of todas) if (b.persona === pid && b.inicio <= iso && b.fin >= iso) { const h = porDia.get(b.id); horas += h; const e = porBarra.find(x => x.b === b); if (e) e.h += h; else porBarra.push({ b, h }); } }
+      return { lunes: l, horas, cap, pct: cap ? horas / cap : 0, porBarra: porBarra.sort((a, b) => b.h - a.h) };
+    });
+  }
+  const cargas = { willy: carga('willy'), moni: carga('moni'), gaby: carga('gaby') };
+  const colorPct = p => p > 1.10 ? '#E85518' : p >= 0.85 ? '#F59E0B' : '#22C55E';
+
+  // ── SVG helpers
+  const NAME_W = 150, PX = 9.5, HDR = 40;
+  const X = iso => NAME_W + Math.round((D(iso) - desde) / 864e5) * PX;
+  const Xd = d => NAME_W + Math.round((d - desde) / 864e5) * PX;
+  const W = NAME_W + dias * PX;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  function svgOpen(h) { return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" font-family="Plus Jakarta Sans, system-ui, sans-serif" style="width:100%;height:auto;min-width:720px;display:block">
+    <defs>
+      <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#F7EDE8"/><rect width="2" height="6" fill="#E85518" opacity=".35"/></pattern>
+      <pattern id="bo" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="7" height="7" fill="#fff"/><rect width="3" height="7" fill="#F1E4DE"/></pattern>
+      <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8FA3BA"/></marker>
+    </defs>`; }
+  function header(y0, conBlackout, hTotal) {
+    let s = `<rect x="0" y="${y0}" width="${W}" height="${HDR}" fill="#FCFCFB"/><line x1="0" y1="${y0 + HDR}" x2="${W}" y2="${y0 + HDR}" stroke="#E7E6E6" stroke-width="2"/>`;
+    for (const [iso, lab] of meses) s += `<text x="${X(iso) + 6}" y="${y0 + 15}" font-size="9.5" font-weight="700" fill="#4A6080" letter-spacing=".08em">${lab}</text>`;
+    for (const l of lunes) { const x = Xd(l); s += `<line x1="${x}" y1="${y0 + 22}" x2="${x}" y2="${hTotal}" stroke="#EFEEEC"/><text x="${x + 3}" y="${y0 + 33}" font-size="8.5" fill="#8FA3BA">${l.getDate()}</text>`; }
+    for (const [iso] of meses) s += `<line x1="${X(iso)}" y1="${y0}" x2="${X(iso)}" y2="${hTotal}" stroke="#E7E6E6"/>`;
+    if (conBlackout) s += `<rect x="${X(blackout[0])}" y="${y0 + HDR}" width="${X(blackout[1]) + PX - X(blackout[0])}" height="${hTotal - y0 - HDR}" fill="url(#bo)" opacity=".9"/><text x="${X(blackout[0]) + 4}" y="${y0 + HDR + 11}" font-size="8" font-weight="700" fill="#C0420F" letter-spacing=".06em">BLACKOUT CONFIG.</text>`;
+    s += `<rect x="0" y="${y0}" width="${NAME_W}" height="${hTotal - y0}" fill="#FCFCFB"/><line x1="${NAME_W}" y1="${y0}" x2="${NAME_W}" y2="${hTotal}" stroke="#E7E6E6" stroke-width="2"/>`;
+    return s;
+  }
+  function corteLine(c, y, h, lado) {
+    const x = X(c.corte) + PX / 2;
+    return `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + h}" stroke="#1E3A5F" stroke-width="1.4" stroke-dasharray="3 3"/><text x="${x + (lado === 'izq' ? -4 : 4)}" y="${y + 11}" font-size="8.5" font-weight="700" fill="#1E3A5F" text-anchor="${lado === 'izq' ? 'end' : 'start'}">corte ${fmt(c.corte)}</text>`;
+  }
+  function rombo(x, y, r, color, label) {
+    return `<path d="M${x} ${y - r} L${x + r} ${y} L${x} ${y + r} L${x - r} ${y} Z" fill="${color}" stroke="#fff" stroke-width="1.5"/>${label ? `<text x="${x}" y="${y + r + 10}" font-size="8" font-weight="700" fill="${color}" text-anchor="middle">${esc(label)}</text>` : ''}`;
+  }
+  function margen(c, y, modo) {
+    const desdeIso = modo === 'pruebas' ? finPruebas(c) : ultimaBarra(c);
+    const n = habilesDespues(desdeIso, c.corte);
+    const x1 = X(desdeIso) + PX, x2 = X(c.corte) + PX / 2;
+    if (x2 - x1 < 12) return `<text x="${x2 + 4}" y="${y + 4}" font-size="8.5" font-weight="700" fill="#C0420F">${n} hábil${n === 1 ? '' : 'es'}</text>`;
+    const col = n >= 5 ? '#177A50' : '#C0420F';
+    return `<path d="M${x1} ${y - 5} v5 h${x2 - x1} v-5" fill="none" stroke="${col}" stroke-width="1.2"/><text x="${(x1 + x2) / 2}" y="${y + 11}" font-size="8.5" font-weight="800" fill="${col}" text-anchor="middle">${n} hábiles al corte</text>`;
+  }
+  function nombreFila(c, y, h, extra) {
+    return `<text x="12" y="${y + 20}" font-size="14" font-weight="700" fill="#1E3A5F">${esc(c.nombre)}</text><rect x="${16 + c.nombre.length * 8.6}" y="${y + 10}" rx="7" width="52" height="14" fill="#EFEEEC"/><text x="${42 + c.nombre.length * 8.6}" y="${y + 20}" font-size="8" font-weight="700" fill="#4A6080" text-anchor="middle">${c.tier}</text><text x="12" y="${y + 35}" font-size="10" fill="#4A6080">sale ${c.corte.slice(5, 7) === '01' ? 'ene 27' : 'dic 26'}</text>${extra || ''}`;
+  }
+  /** Carriles empaquetados (como el Timeline de hoy). */
+  function carriles(barras) {
+    const orden = [...barras].sort((a, b) => a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : a.fin < b.fin ? -1 : 1);
+    const finDe = []; const carril = new Map();
+    for (const b of orden) { let c = finDe.findIndex(f => f < b.inicio); if (c === -1) { c = finDe.length; finDe.push(b.fin); } else if (finDe[c] < b.fin) finDe[c] = b.fin; carril.set(b.id, c); }
+    return { carril, n: Math.max(1, finDe.length) };
+  }
+  function ancho(b) { return X(b.fin) + PX - X(b.inicio); }
+  function textoQueEntra(w, variantes) { const cap = (w - 8) / 5.6; return variantes.find(v => v.length <= cap) ?? ''; }
+
+  // ── AS IS: cómo se ve hoy
+  (function asis() {
+    const BAR = 22, ROW = 50; let y = HDR; const filas = [];
+    for (const c of cuentas) { const { carril, n } = carriles(c.barras); const h = ROW + (n - 1) * (BAR + 6); filas.push({ c, carril, y, h }); y += h; }
+    const bandaY = y + 8, BANDA_ROW = 22, hTot = bandaY + 20 + 3 * BANDA_ROW + 6;
+    let s = svgOpen(hTot) + header(0, false, y);
+    for (const { c, carril, y, h } of filas) {
+      s += `<rect x="0" y="${y}" width="${W}" height="${h}" fill="#fff"/><line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/>` + nombreFila(c, y, h);
+      for (const b of c.barras) { const x = X(b.inicio), w = ancho(b), by = y + 14 + carril.get(b.id) * (BAR + 6); const alias = P[b.persona].alias; const t = textoQueEntra(w, [alias, P[b.persona].ini]);
+        s += `<rect x="${x}" y="${by}" width="${w}" height="${BAR}" rx="6" fill="${F[b.tipo]}"/>${t ? `<text x="${x + w / 2}" y="${by + 15}" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">${t}</text>` : ''}`; }
+    }
+    s += `<rect x="0" y="${bandaY - 8}" width="${W}" height="${hTot - bandaY + 8}" fill="#fff"/><line x1="0" y1="${bandaY}" x2="${W}" y2="${bandaY}" stroke="#E7E6E6" stroke-width="2"/><rect x="0" y="${bandaY}" width="${W}" height="20" fill="#FCFCFB"/><text x="12" y="${bandaY + 14}" font-size="9" font-weight="700" fill="#0090B4" letter-spacing=".08em">CARGA POR SEMANA</text>`;
+    Object.entries(cargas).forEach(([pid, cs], i) => { const ry = bandaY + 20 + i * BANDA_ROW; s += `<text x="14" y="${ry + 15}" font-size="11" font-weight="700" fill="#1E3A5F">${P[pid].alias}</text><text x="${NAME_W - 8}" y="${ry + 15}" font-size="8.5" fill="#4A6080" text-anchor="end">${Math.round(cs[2].cap)} h/sem</text>`;
+      for (const w of cs) { if (!w.horas) continue; const x = Xd(w.lunes); const col = colorPct(w.pct); s += `<rect x="${x + 1}" y="${ry + 4}" width="${7 * PX - 3}" height="${BANDA_ROW - 8}" rx="3" fill="${col}" opacity="${0.35 + 0.65 * Math.min(w.pct, 1)}"/>${w.pct >= .85 ? `<text x="${x + 7 * PX / 2}" y="${ry + 14}" font-size="8" font-weight="800" fill="${w.pct > 1 ? '#fff' : '#3B2A08'}" text-anchor="middle">${Math.round(w.pct * 100)}%</text>` : ''}`; } });
+    s += `<text x="${W - 8}" y="${hTot - 4}" font-size="8" fill="#8FA3BA" text-anchor="end">↓ y el resto queda cortado por el scroll</text></svg>`;
+    document.getElementById('asis').innerHTML = s;
+  })();
+
+  // ── BARRAS A
+  function barrasA(target, overlayCarga) {
+    const BAR = 24, ROW = 56; let y = HDR; const filas = [];
+    for (const c of cuentas) { const { carril, n } = carriles(c.barras.filter(b => b.tipo !== 'Cierre')); const h = ROW + (n - 1) * (BAR + 6) + 14; filas.push({ c, carril, y, h }); y += h; }
+    const hTot = y;
+    let s = svgOpen(hTot) + header(0, true, hTot);
+    // conectores de la cuenta seleccionada (Copetro), como hoy al seleccionar
+    for (const { c, carril, y, h } of filas) {
+      s += `<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/>` + corteLine(c, y, h, 'der') + nombreFila(c, y, h);
+      const yDe = b => y + 12 + (carril.get(b.id) ?? 0) * (BAR + 6);
+      if (c === cuentas[0]) for (const b of c.barras) for (const pid of b.preds) { const p = c.barras.find(x => x.id === pid); if (!p || p.tipo === 'Cierre' || b.tipo === 'Cierre') continue; const x1 = X(p.fin) + PX, y1 = yDe(p) + BAR / 2, x2 = X(b.inicio), y2 = yDe(b) + BAR / 2; s += `<path d="M${x1} ${y1} C${x1 + 14} ${y1}, ${x2 - 14} ${y2}, ${x2} ${y2}" fill="none" stroke="#8FA3BA" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arr)"/>`; }
+      for (const b of c.barras) {
+        if (b.tipo === 'Cierre') continue;
+        const x = X(b.inicio), w = ancho(b), by = yDe(b);
+        const sobre = overlayCarga && cargas[b.persona].filter(wk => wk.pct > 1.10 && wk.porBarra.some(pb => pb.b === b));
+        s += `<rect x="${x}" y="${by}" width="${w}" height="${BAR}" rx="6" fill="${F[b.tipo]}"/>`;
+        if (sobre && sobre.length) for (const wk of sobre) { const wx1 = Math.max(x, Xd(wk.lunes)), wx2 = Math.min(x + w, Xd(wk.lunes) + 5 * PX); if (wx2 > wx1) s += `<rect x="${wx1}" y="${by}" width="${wx2 - wx1}" height="${BAR}" fill="url(#hatch)" opacity=".9"/><rect x="${wx1}" y="${by}" width="${wx2 - wx1}" height="${BAR}" fill="none" stroke="#E85518" stroke-width="1.5"/>`; }
+        s += `<circle cx="${x + 12}" cy="${by + BAR / 2}" r="8" fill="#fff" opacity=".92"/><text x="${x + 12}" y="${by + BAR / 2 + 3.5}" font-size="8" font-weight="800" fill="${P[b.persona].color}" text-anchor="middle">${P[b.persona].ini}</text>`;
+        const t = textoQueEntra(w - 22, [b.nombre, b.nombre.split(' · ')[1] || b.nombre.split(' ')[0], b.nombre.slice(0, 4) + '.']);
+        if (t) s += `<text x="${x + 24}" y="${by + BAR / 2 + 3.5}" font-size="9.5" font-weight="700" fill="#fff">${esc(t)}</text>`;
+      }
+      // cierre como hito
+      const cierres = c.barras.filter(b => b.tipo === 'Cierre');
+      cierres.forEach((b, i) => s += rombo(X(b.inicio) + PX / 2, y + 12 + BAR / 2, 8, F.Cierre, i === cierres.length - 1 ? `cierre ${fmt(cierres[0].inicio)}–${fmt(b.inicio)}` : '') + `<text x="${X(b.inicio) + PX / 2}" y="${y + 12 + BAR / 2 + 3}" font-size="7" font-weight="800" fill="#fff" text-anchor="middle">${P[b.persona].ini}</text>`);
+      s += margen(c, y + h - 14, 'pruebas');
+    }
+    if (overlayCarga) for (const [pid, cs] of Object.entries(cargas)) for (const wk of cs) if (wk.pct > 1.10) { const x = Xd(wk.lunes) + 5 * PX / 2; s += `<rect x="${x - 26}" y="${HDR + 2}" width="52" height="14" rx="7" fill="#E85518"/><text x="${x}" y="${HDR + 12}" font-size="8.5" font-weight="800" fill="#fff" text-anchor="middle">${P[pid].ini} ${Math.round(wk.pct * 100)} %</text>`; }
+    s += '</svg>';
+    document.getElementById(target).innerHTML = s;
+  }
+  barrasA('barrasA', false);
+
+  // ── BARRAS B: sub-carril por persona
+  (function barrasB() {
+    const BAR = 20, LANE = 26, ordenP = ['willy', 'moni', 'gaby']; let y = HDR; const filas = [];
+    for (const c of cuentas) { const h = 10 + ordenP.length * LANE + 18; filas.push({ c, y, h }); y += h; }
+    const hTot = y; let s = svgOpen(hTot) + header(0, true, hTot);
+    for (const { c, y, h } of filas) {
+      s += `<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#E7E6E6"/>` + corteLine(c, y, h, 'der');
+      s += `<text x="12" y="${y + 20}" font-size="14" font-weight="700" fill="#1E3A5F">${esc(c.nombre)}</text><text x="12" y="${y + 34}" font-size="10" fill="#4A6080">${c.tier} · sale ene 27</text>`;
+      ordenP.forEach((pid, i) => { const ly = y + 6 + i * LANE; s += `<text x="${NAME_W - 8}" y="${ly + 14}" font-size="9" font-weight="700" fill="${P[pid].color}" text-anchor="end">${P[pid].alias}</text><line x1="${NAME_W}" y1="${ly + LANE}" x2="${W}" y2="${ly + LANE}" stroke="#F4F3F1"/>`;
+        for (const b of c.barras.filter(b => b.persona === pid)) { const x = X(b.inicio), w = ancho(b), by = ly + 3;
+          if (b.tipo === 'Cierre') { s += rombo(x + PX / 2, ly + LANE / 2, 7, F.Cierre, ''); continue; }
+          const t = textoQueEntra(w, [b.nombre, b.nombre.split(' · ')[1] || b.nombre.split(' ')[0], b.nombre.slice(0, 4) + '.']);
+          s += `<rect x="${x}" y="${by}" width="${w}" height="${BAR}" rx="5" fill="${F[b.tipo]}"/>${t ? `<text x="${x + 6}" y="${by + 14}" font-size="9.5" font-weight="700" fill="#fff">${esc(t)}</text>` : ''}`; } });
+      const cf = c.barras.filter(b => b.tipo === 'Cierre'); s += `<text x="${X(cf[0].inicio) + PX / 2}" y="${y + 6 + 3 * LANE - 3}" font-size="7.5" font-weight="700" fill="#2A4F7A" text-anchor="middle">cierre ${fmt(cf[0].inicio)}–${fmt(cf[1].inicio)}</text>`;
+      s += margen(c, y + h - 12, 'pruebas');
+    }
+    s += '</svg>'; document.getElementById('barrasB').innerHTML = s;
+  })();
+
+  // ── BARRAS C: cadena
+  (function barrasC() {
+    const BAR = 22, ROW = 56; let y = HDR; const filas = [];
+    for (const c of cuentas) { const { carril, n } = carriles(c.barras.filter(b => b.tipo !== 'Cierre')); const h = ROW + (n - 1) * (BAR + 8) + 14; filas.push({ c, carril, y, h }); y += h; }
+    const hTot = y; let s = svgOpen(hTot) + header(0, true, hTot);
+    for (const { c, carril, y, h } of filas) {
+      s += `<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/>` + corteLine(c, y, h, 'der') + nombreFila(c, y, h);
+      const yDe = b => y + 12 + (carril.get(b.id) ?? 0) * (BAR + 8);
+      for (const b of c.barras) for (const pid of b.preds) { const p = c.barras.find(x => x.id === pid); if (!p) continue; const x1 = (p.tipo === 'Cierre' ? X(p.inicio) + PX / 2 : X(p.fin) + PX), y1 = (p.tipo === 'Cierre' ? y + 12 + BAR / 2 : yDe(p) + BAR / 2), x2 = (b.tipo === 'Cierre' ? X(b.inicio) + PX / 2 : X(b.inicio)), y2 = (b.tipo === 'Cierre' ? y + 12 + BAR / 2 : yDe(b) + BAR / 2); s += `<path d="M${x1} ${y1} L${x1 + 5} ${y1} L${x2 - 5} ${y2} L${x2} ${y2}" fill="none" stroke="#4A6080" stroke-width="1.3"/>`; }
+      for (const b of c.barras) {
+        if (b.tipo === 'Cierre') { const x = X(b.inicio) + PX / 2, by = y + 12; s += `<line x1="${x}" y1="${by}" x2="${x}" y2="${by + BAR}" stroke="${F.Cierre}" stroke-width="2"/><path d="M${x} ${by} h14 l-4 5 l4 5 h-14 z" fill="${F.Cierre}"/><text x="${x + 4}" y="${by + 8}" font-size="6.5" font-weight="800" fill="#fff">${P[b.persona].ini}</text>`; continue; }
+        const x = X(b.inicio), w = ancho(b), by = yDe(b), k = 7;
+        s += `<path d="M${x} ${by} H${x + w - k} L${x + w} ${by + BAR / 2} L${x + w - k} ${by + BAR} H${x} L${x + k} ${by + BAR / 2} Z" fill="${F[b.tipo]}"/><path d="M${x} ${by} H${x + 5} L${x + 5 + k} ${by + BAR / 2} L${x + 5} ${by + BAR} H${x} L${x + k} ${by + BAR / 2} Z" fill="${P[b.persona].color}"/>`;
+        const t = textoQueEntra(w - 16, [b.nombre, b.nombre.split(' · ')[1] || b.nombre.split(' ')[0], P[b.persona].ini]);
+        if (t) s += `<text x="${x + k + 8}" y="${by + BAR / 2 + 3.5}" font-size="9.5" font-weight="700" fill="#fff">${esc(t)}</text>`;
+      }
+      s += margen(c, y + h - 14, 'pruebas');
+    }
+    s += `<text x="${NAME_W + 8}" y="${hTot - 6}" font-size="8.5" fill="#8FA3BA">franja izquierda = persona (navy Willy, celeste Moni, violeta Gaby) · bandera = cierre</text></svg>`;
+    document.getElementById('barrasC').innerHTML = s;
+  })();
+
+  // ── CARGA A: banda apilada por cuenta arriba de las filas
+  (function cargaA() {
+    const ROWH = 34, ids = ['willy', 'moni', 'gaby']; const bandaY = HDR, bandaH = ids.length * ROWH + 6; const filasY = bandaY + bandaH;
+    const BAR = 22, ROW = 46; let y = filasY; const filas = [];
+    for (const c of cuentas) { const { carril, n } = carriles(c.barras); const h = ROW + (n - 1) * (BAR + 6); filas.push({ c, carril, y, h }); y += h; }
+    const hTot = y; let s = svgOpen(hTot) + header(0, false, hTot);
+    s += `<rect x="0" y="${bandaY}" width="${W}" height="${bandaH}" fill="#FCFCFB"/><line x1="0" y1="${filasY}" x2="${W}" y2="${filasY}" stroke="#E7E6E6" stroke-width="2"/>`;
+    ids.forEach((pid, i) => { const ry = bandaY + 3 + i * ROWH, base = ry + ROWH - 6, hMax = ROWH - 12;
+      s += `<text x="12" y="${ry + 13}" font-size="11" font-weight="700" fill="#1E3A5F">${P[pid].alias}</text><text x="12" y="${ry + 25}" font-size="8.5" fill="#4A6080">cap. ${Math.round(cargas[pid][2].cap)} h/sem</text>`;
+      // línea 100 % y banda 110 %
+      s += `<line x1="${NAME_W}" y1="${base - hMax}" x2="${W}" y2="${base - hMax}" stroke="#8FA3BA" stroke-dasharray="2 3"/><rect x="${NAME_W}" y="${base - hMax * 1.1}" width="${W - NAME_W}" height="${hMax * .1}" fill="#F59E0B" opacity=".08"/>`;
+      for (const wk of cargas[pid]) { if (!wk.horas) continue; const x = Xd(wk.lunes) + 2, w = 7 * PX - 4; let acc = 0;
+        // apilado por cuenta
+        const porCuenta = []; for (const pb of wk.porBarra) { const e = porCuenta.find(q => q.c === pb.b.cuenta); if (e) e.h += pb.h; else porCuenta.push({ c: pb.b.cuenta, h: pb.h }); }
+        for (const q of porCuenta) { const hh = Math.min(hMax * 1.35, hMax * q.h / wk.cap); s += `<rect x="${x}" y="${base - acc - hh}" width="${w}" height="${hh}" fill="${q.c.color}" opacity="${wk.pct > 1.1 ? 1 : .8}"/>`; acc += hh; }
+        if (wk.pct > 1.10) s += `<rect x="${x}" y="${base - acc - 1}" width="${w}" height="${acc + 1}" fill="none" stroke="#E85518" stroke-width="1.5"/><text x="${x + w / 2}" y="${base - acc - 4}" font-size="8.5" font-weight="800" fill="#C0420F" text-anchor="middle">${Math.round(wk.pct * 100)} %</text>`; }
+      s += `<line x1="${NAME_W}" y1="${base}" x2="${W}" y2="${base}" stroke="#E7E6E6"/>`; });
+    // tooltip fijo de ejemplo
+    const peor = cargas.willy.reduce((m, w) => (w.pct > m.pct ? w : m)); const tx = Xd(peor.lunes) + 7 * PX + 6, ty = bandaY + 4;
+    s += `<g><rect x="${tx}" y="${ty}" width="196" height="${20 + peor.porBarra.length * 12}" rx="6" fill="#15263D" opacity=".94"/><text x="${tx + 8}" y="${ty + 13}" font-size="8.5" font-weight="800" fill="#fff">Willy · semana del ${peor.lunes.getDate()}/${String(peor.lunes.getMonth() + 1).padStart(2, '0')} · ${peor.horas.toFixed(1)} h de ${peor.cap} (${Math.round(peor.pct * 100)} %)</text>`;
+    peor.porBarra.forEach((pb, i) => s += `<text x="${tx + 8}" y="${ty + 25 + i * 12}" font-size="8" fill="#DCE6F0">${esc(pb.b.cuenta.nombre)} · ${esc(pb.b.nombre)} <tspan font-weight="800" fill="#fff">${pb.h.toFixed(1)} h</tspan></text>`);
+    s += '</g>';
+    for (const { c, carril, y, h } of filas) { s += `<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/><text x="12" y="${y + 22}" font-size="13" font-weight="700" fill="#1E3A5F">${esc(c.nombre)}</text><rect x="${NAME_W - 14}" y="${y + 8}" width="6" height="${h - 16}" rx="3" fill="${c.color}"/>`;
+      for (const b of c.barras) { const x = X(b.inicio), w = ancho(b), by = y + 12 + carril.get(b.id) * (BAR + 6); s += `<rect x="${x}" y="${by}" width="${w}" height="${BAR}" rx="5" fill="${F[b.tipo]}"/>`; } }
+    s += '</svg>'; document.getElementById('cargaA').innerHTML = s;
+  })();
+
+  // ── CARGA B: mapa de calor + ranking
+  (function cargaB() {
+    const ids = ['willy', 'moni', 'gaby'], CELL = 7 * PX, RH = 30; const gridY = HDR, hGrid = ids.length * RH; const rankY = gridY + hGrid + 14;
+    const peores = ids.flatMap(pid => cargas[pid].filter(w => w.pct > 1.10).map(w => ({ pid, ...w }))).sort((a, b) => b.pct - a.pct);
+    const hTot = rankY + 26 + Math.max(1, peores.length) * 34 + 8;
+    let s = svgOpen(hTot) + header(0, false, gridY + hGrid);
+    ids.forEach((pid, i) => { const ry = gridY + i * RH; s += `<text x="12" y="${ry + 19}" font-size="12" font-weight="700" fill="#1E3A5F">${P[pid].alias}</text>`;
+      for (const wk of cargas[pid]) { const x = Xd(wk.lunes); const p = wk.pct; const fill = p === 0 ? '#F4F3F1' : p > 1.1 ? '#E85518' : p >= .85 ? '#F59E0B' : `rgba(34,197,94,${0.15 + 0.6 * p})`; s += `<rect x="${x + 1}" y="${ry + 3}" width="${CELL - 2}" height="${RH - 6}" rx="3" fill="${fill}"/>${p ? `<text x="${x + CELL / 2}" y="${ry + 19}" font-size="9" font-weight="800" fill="${p > 1.1 ? '#fff' : '#1E3A5F'}" text-anchor="middle">${Math.round(p * 100)}</text>` : ''}`; } });
+    s += `<rect x="0" y="${gridY + hGrid}" width="${W}" height="${hTot - gridY - hGrid}" fill="#fff"/><text x="12" y="${rankY + 12}" font-size="10" font-weight="800" fill="#C0420F" letter-spacing=".08em">${peores.length} SEMANA${peores.length === 1 ? '' : 'S'} POR ENCIMA DEL 110 % · de peor a mejor</text>`;
+    peores.forEach((w, i) => { const ry = rankY + 24 + i * 34; s += `<rect x="12" y="${ry}" width="${W - 24}" height="30" rx="6" fill="#FCFCFB" stroke="#EFEEEC"/><text x="22" y="${ry + 19}" font-size="15" font-weight="800" fill="#C0420F">${Math.round(w.pct * 100)} %</text><text x="80" y="${ry + 13}" font-size="10" font-weight="700" fill="#1E3A5F">${P[w.pid].alias} · semana del ${w.lunes.getDate()}/${String(w.lunes.getMonth() + 1).padStart(2, '0')}</text><text x="80" y="${ry + 25}" font-size="8.5" fill="#4A6080">${w.horas.toFixed(1)} h de ${w.cap} · ${esc(w.porBarra.map(pb => `${pb.b.cuenta.nombre} ${pb.b.nombre} ${pb.h.toFixed(1)} h`).join(' · '))}</text>`; });
+    if (!peores.length) s += `<text x="12" y="${rankY + 40}" font-size="10" fill="#177A50">Ninguna semana por encima del 110 % en la muestra.</text>`;
+    s += '</svg>'; document.getElementById('cargaB').innerHTML = s;
+  })();
+
+  // ── CARGA C: pintada en las barras
+  barrasA('cargaC', true);
+
+  // ── PDF: datos del plan v3 (fixture del repo), calculados con el código de la app el 22/09/2026
+  const v3 = { yaEnAxton: 10, porMigrar: 15, total: 25, fin: 'abril 2027', finCuenta: 'Carrier',
+    meses: [['sep 26', ['POF*']], ['oct 26', ['TIM', 'Finadiet*']], ['nov 26', ['Piano', 'DLA']], ['dic 26', ['GSMA†', 'Bonafide†']], ['ene 27', ['Copetro', 'Campari']], ['feb 27', ['Lowsedo', 'Marval']], ['mar 27', ['Sportline', 'Aysa†', 'Ford†']], ['abr 27', ['Carrier']]],
+    margen: { TIM: 6, Piano: 6, DLA: 8, GSMA: 5, Bonafide: 5, Copetro: 7, Campari: 5, Lowsedo: 6, Marval: 7, Sportline: 9, Aysa: 9, Ford: 8, Carrier: 6 },
+    riesgos: [['rojo', 'Enero 2027: Willy tiene 86 h planificadas contra 84 h de capacidad (Marval, Lowsedo, Copetro, Campari).'], ['info', 'Marzo 2027 tiene 3 salidas en vivo (Sportline, Aysa y Ford): permitido porque dos son tier chico.']],
+    semanas: [['Willy', '14/12', 180, 'Copetro config. 17 h · Campari config. 17 h · Bonafide pruebas 4 h'], ['Willy', '01/02', 150, 'Sportline config. 21 h · Lowsedo pruebas 10 h'], ['Willy', '18/01', 140, 'Lowsedo config. 21 h · Marval config. 8 h'], ['Moni', '01/02', 128, 'Sportline config. 17 h · Lowsedo pruebas 8 h'], ['Moni', '14/12', 109, 'Copetro y Campari config. 21 h · Bonafide pruebas 4 h']] };
+  const ph = (t) => `<div class="ph"><div class="iso2">H&amp;A</div><span class="wm">Hidalgo &amp; Asociados</span><div class="doc"><b>${t}</b>Migración Meta 4 → Axton · 22 de septiembre de 2026</div></div>`;
+  const pf = (n) => `<div class="pf"><span>Hidalgo &amp; Asociados · Pacheco de Melo 1833 6° / Tucumán 829 1°-5° / Fotheringham 478 Neuquén · info_ar@bhidalgo.com.ar · +54 11 2284 2031</span><span>Página ${n} de 3</span></div>`;
+  const calTabla = (conMargen) => `<table><thead><tr><th style="width:52px">Mes</th><th>Salen en vivo</th>${conMargen ? '<th style="width:110px">Margen al corte</th>' : ''}</tr></thead><tbody>${v3.meses.map(([m, cs]) => `<tr><td><b>${m}</b></td><td>${cs.map(c => `<span class="chip${c.includes('*') ? ' fuera' : ''}${c.includes('†') ? ' chica' : ''}">${c.replace(/[*†]/g, '')}</span>`).join('')}</td>${conMargen ? `<td>${cs.map(c => v3.margen[c.replace(/[*†]/g, '')]).filter(Boolean).map(n => n + ' d').join(' · ') || '—'}</td>` : ''}</tr>`).join('')}</tbody></table><div class="foot-note">* Ya configurada, sale sin fases. † Cuenta chica (tier). Margen = días hábiles entre el fin de pruebas y el corte de novedades del cliente; mínimo 5.</div>`;
+
+  document.getElementById('pdf1').innerHTML = ph('Estado del programa') + `<div class="body">
+    <h1 class="t">Migración Meta 4 → Axton: estado a hoy</h1><p class="t-sub">Plan vigente cargado en el simulador. Todo lo que sigue sale del plan, no de una estimación.</p>
+    <div class="kpis"><div class="kpi"><div class="l">En Axton hoy</div><div class="v">${v3.yaEnAxton} <small>de ${v3.total}</small></div><div class="d">cuentas ya migradas</div></div><div class="kpi"><div class="l">Quedan</div><div class="v">${v3.porMigrar}</div><div class="d">con mes de salida definido</div></div><div class="kpi"><div class="l">Fin del programa</div><div class="v" style="font-size:16px;padding-top:4px">${v3.fin}</div><div class="d">última salida: ${v3.finCuenta}</div></div><div class="kpi"><div class="l">Riesgos abiertos</div><div class="v">1 <small>+ 1 aviso</small></div><div class="d">carga de enero</div></div></div>
+    <h2 class="s">Calendario de salidas en vivo</h2>${calTabla(false)}
+    <h2 class="s">Riesgos abiertos</h2>${v3.riesgos.map(([s, t]) => `<div class="risk"><span class="sev ${s === 'rojo' ? 'r' : 'i'}">${s === 'rojo' ? 'Rojo' : 'Aviso'}</span><span>${t}</span></div>`).join('')}
+    <div class="foot-note">Página 2: cronograma mes a mes. Página 3: capacidad del equipo, semanas por encima del 100 % y qué cuentas las causan.</div>
+  </div>` + pf(1);
+
+  document.getElementById('pdf2').innerHTML = ph('Resumen para dirección') + `<div class="body">
+    <h1 class="t">Dónde está la migración y qué hay que decidir</h1><p class="t-sub">Para Manuel Rossi · preparado por Willy Esposito · una carilla, tres decisiones</p>
+    <p>Hoy hay <b>${v3.yaEnAxton} cuentas en Axton</b> de las ${v3.total} que liquida el equipo de payroll. Quedan <b>${v3.porMigrar} por migrar</b>, todas con mes de salida asignado, y la última (${v3.finCuenta}) sale en <b>${v3.fin}</b>. Toyota y TPA no forman parte de este programa y siguen en Meta 4.</p>
+    <p>El ritmo es de <b>dos salidas por mes</b> como máximo, porque cada salida ocupa al mismo tiempo a quien configura, a quien prueba y al analista que liquida en los dos sistemas durante la transición. Marzo tiene tres, permitidas porque dos son cuentas chicas. En diciembre sale solo lo que ya está probado: entre el 21/12 y el 08/01 no se configura nada.</p>
+    <p>Cada salida está atada al <b>corte de novedades</b> del cliente: la fecha en que el cliente manda las novedades del mes. Las pruebas tienen que terminar al menos cinco días hábiles antes. Hoy todas las cuentas cumplen ese margen; la más ajustada es Campari, con cinco.</p>
+    <h2 class="s">Calendario</h2>${calTabla(true)}
+    <h2 class="s">Lo que hay que decidir</h2>
+    <p><b>1.</b> Enero de 2027 tiene a Willy con 86 horas planificadas contra 84 de capacidad, por la configuración de Marval y Lowsedo encima de las pruebas de Copetro y Campari. Las opciones son correr Lowsedo a marzo o sumar horas de configuración de otra persona ese mes.</p>
+    <p><b>2.</b> Susana pasa a soportar todo Meta 4 desde la transición: cada cuenta que sale le devuelve tiempo para migrar. Si la fecha se atrasa, se atrasan Marval y Sportline.</p>
+    <p><b>3.</b> El plan asume la jornada de cada persona dedicada a migración en la proporción de hoy. Cualquier proyecto nuevo que se sume al equipo cambia estas fechas.</p>
+  </div>` + pf(1);
+
+  document.getElementById('pdf3').innerHTML = ph('Calendario de salidas') + `<div class="body">
+    <h1 class="t">Cuándo sale cada cuenta</h1><p class="t-sub">${v3.porMigrar} cuentas por migrar · fin del programa en ${v3.fin} · máximo dos salidas por mes (tres si dos son chicas)</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">${v3.meses.map(([m, cs], i) => `<div style="border:.7pt solid #000;min-height:96px;padding:6px 8px;${i === 0 ? 'background:#F4F4F4;' : ''}"><div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#00ACD4;border-bottom:.5pt solid #BFC5CC;padding-bottom:3px;margin-bottom:5px;display:flex;justify-content:space-between"><span>${m}</span><span style="color:#555">${cs.length}/2</span></div>${cs.map(c => { const n = c.replace(/[*†]/g, ''); const mg = v3.margen[n]; return `<div style="font-size:9px;margin:3px 0;display:flex;justify-content:space-between;gap:4px"><span class="chip${c.includes('*') ? ' fuera' : ''}${c.includes('†') ? ' chica' : ''}">${n}${(n === 'Copetro' || n === 'Campari') ? ' <sup>①</sup>' : ''}${m === 'mar 27' ? ' <sup>②</sup>' : ''}</span><span style="color:#555;font-size:8px">${mg ? mg + ' d' : 'ya lista'}</span></div>`; }).join('')}</div>`).join('')}</div>
+    <div class="kpis" style="margin-top:12px;grid-template-columns:repeat(3,1fr)"><div class="kpi"><div class="l">En Axton hoy</div><div class="v">${v3.yaEnAxton} <small>de ${v3.total}</small></div></div><div class="kpi"><div class="l">Por migrar</div><div class="v">${v3.porMigrar}</div></div><div class="kpi"><div class="l">Última salida</div><div class="v" style="font-size:16px;padding-top:4px">${v3.fin}</div></div></div>
+    <h2 class="s">Notas</h2>
+    <p><b>①</b> Enero 2027: Willy con 86 h planificadas contra 84 de capacidad por configurar Marval y Lowsedo mientras se prueban Copetro y Campari.</p>
+    <p><b>②</b> Marzo 2027: tres salidas, permitidas porque Aysa y Ford son cuentas chicas.</p>
+    <div class="foot-note">El número a la derecha de cada cuenta es el margen en días hábiles entre el fin de pruebas y el corte de novedades del cliente (mínimo 5). Chip punteado = cuenta chica; gris = ya configurada, sale sin fases. Fondo gris = mes ya pasado.</div>
+  </div>` + pf(1);
+
+  // escalar hojas A4 al ancho disponible
+  function fit() { document.querySelectorAll('.a4-fit').forEach(f => { const s = f.clientWidth / 595; f.querySelector('.a4').style.transform = `scale(${s})`; }); }
+  fit(); window.addEventListener('resize', fit);
+  document.getElementById('bn').addEventListener('change', e => document.getElementById('pdfwrap').classList.toggle('bn', e.target.checked));
+})();
+</script>
