@@ -253,6 +253,23 @@ export interface EquipoConfidencial {
     toma_meta4_de: string[]
     _nota?: string
   }
+  /**
+   * Reparto histórico real de quién atiende los tickets Meta4 hoy (Ticketera Soporte de
+   * monday, agrupado por Asignado en vez de por Cliente). Informativo: no alimenta ningún
+   * cálculo de disponibilidad (ver `capacidad.susi_soporte_meta4`, que es por cliente, no
+   * por persona) — solo explica de dónde sale el volumen. Si falta, el panel "Quién atiende
+   * hoy" no se muestra. `por_persona` puede traer gente fuera del plan (analistas que no son
+   * `Persona` del simulador); en ese caso el alias se toma tal cual la clave.
+   */
+  reparto_historico_meta4?: {
+    fuente: string
+    /** Igual convención que `soporte_tickets.meses_medidos`: tickets por mes = total / esto. */
+    meses_medidos: number
+    /** persona (id del plan, o alias libre si es de afuera) → tickets totales del período. */
+    por_persona: Record<string, number>
+    sin_asignar?: number
+    _nota?: string
+  }
 }
 
 /** 'info' = dato que conviene ver pero no es un problema (ej. 3 salidas permitidas por tier chico). */

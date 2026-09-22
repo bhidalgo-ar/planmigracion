@@ -23,7 +23,7 @@ function storageFalso(): Storage {
 import type { Asignacion, Config, Persona } from '../src/types'
 import {
   bloquear, desbloquear, estaDesbloqueado, filasConfidencial, filasReparto, lecturaTransicion, mesesConfidencial,
-  soporteMesAMes, tieneBloqueConfidencial, verificarContrasena,
+  rankingTicketsPorCuenta, repartoHistoricoMeta4, soporteMesAMes, tieneBloqueConfidencial, verificarContrasena,
 } from '../src/confidencial'
 import planV3 from './fixtures/plan-v3.json'
 
@@ -143,6 +143,36 @@ eq('sep: 12 tickets/mes en Axton con 11 cuentas', `${sop[0].ticketsAxton}/${sop[
 check('oct: Susi 1 − 3/11', Math.abs(sop[1].dispSusi - (1 - 3 / 11)) < 0.005)
 check('la disponibilidad de Moni baja mes a mes', sop.every((s, i) => i === 0 || s.dispMoni <= sop[i - 1].dispMoni))
 eq('sin ticketera los tickets son null, no cero', soporteMesAMes(configV3, personas, asignaciones)[0].ticketsMeta4, null)
+
+titulo('Peso real de cada cuenta (ranking de tickets)')
+const proyectosV3 = planV3.proyectos as unknown as import('../src/types').Proyecto[]
+const ranking = rankingTicketsPorCuenta(configTickets, proyectosV3)
+eq('una fila por cuenta del bloque', ranking.length, 4)
+eq('ordenado de mayor a menor tickets/mes', ranking.map(f => f.clave).join(','), 'tim,dla,POF,Finadiet')
+eq('tim: 50/10 = 5 tickets/mes, alias del proyecto, sale octubre', `${ranking[0].alias}/${ranking[0].ticketsMes}/${ranking[0].mesSale}`, 'TIM/5/2026-10')
+eq('una cuenta fuera del plan (POF) también resuelve su mes de salida', ranking[2].mesSale, '2026-09')
+eq('sin soporte_tickets, no hay filas', rankingTicketsPorCuenta(configV3, proyectosV3).length, 0)
+const configTicketsConPiso: Config = { ...configTickets, soporte_tickets: { ...configTickets.soporte_tickets!, meta4_no_migra: { Toyota: 20 } } }
+const rankingConPiso = rankingTicketsPorCuenta(configTicketsConPiso, proyectosV3)
+eq('el piso permanente (Toyota) queda marcado', rankingConPiso.find(f => f.clave === 'Toyota')?.esPiso, true)
+eq('el piso va siempre al final, aunque pese más que la última cuenta que migra', rankingConPiso[rankingConPiso.length - 1].clave, 'Toyota')
+
+titulo('Reparto histórico real (quién atiende hoy)')
+const configConReparto: Config = {
+  ...configTickets,
+  equipo_confidencial: {
+    ...bloqueLargo,
+    reparto_historico_meta4: { fuente: 'test', meses_medidos: 10, por_persona: { lucas: 40, leo: 30, susi: 20 }, sin_asignar: 10 },
+  },
+}
+const repartoH = repartoHistoricoMeta4(configConReparto, personas)!
+eq('una fila por persona más "sin asignar"', repartoH.length, 4)
+eq('ordenado de mayor a menor tickets/mes', repartoH.map(f => f.id).join(','), 'lucas,leo,susi,_sin_asignar')
+eq('lucas: 40/10 = 4 tickets/mes, 40 % del total', `${repartoH[0].ticketsMes}/${repartoH[0].pct}`, '4/0.4')
+eq('susi toma su alias de Persona, no el fallback', repartoH.find(f => f.id === 'susi')?.alias, personas.find(p => p.id === 'susi')!.alias)
+eq('lucas no es Persona del plan: usa el alias fallback', repartoH.find(f => f.id === 'lucas')?.alias, 'Lucas')
+eq('sin_asignar se etiqueta a mano', repartoH.find(f => f.id === '_sin_asignar')?.alias, 'Sin asignar')
+eq('sin el bloque, devuelve null (el panel no se muestra)', repartoHistoricoMeta4(configTickets, personas), null)
 
 titulo('Lectura de la transición con la ticketera')
 const lecturaTk = lecturaTransicion(configTickets, personas)!

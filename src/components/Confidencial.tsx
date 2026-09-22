@@ -3,7 +3,8 @@ import { useSimuladorStore } from '../store'
 import { ticketsMeta4Piso } from '../capacidad'
 import { nombreMes } from '../rules'
 import {
-  bloquear, desbloquear, estaDesbloqueado, filasReparto, lecturaTransicion, soporteMesAMes, verificarContrasena,
+  bloquear, desbloquear, estaDesbloqueado, filasReparto, lecturaTransicion, rankingTicketsPorCuenta,
+  repartoHistoricoMeta4, soporteMesAMes, verificarContrasena,
   FRENTES, FRENTE_LABEL, type Frente, type MesSoporte,
 } from '../confidencial'
 import { Card, Leyenda, Vacio } from './Insights'
@@ -30,7 +31,7 @@ function mesCorto(mes: string): string {
  * desbloqueo vive en sessionStorage y se pierde al cerrar la pestaña del navegador.
  */
 export function Confidencial() {
-  const { personas, asignaciones, config } = useSimuladorStore()
+  const { personas, proyectos, asignaciones, config } = useSimuladorStore()
   const [abierto, setAbierto] = useState(estaDesbloqueado())
   const [clave, setClave] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -75,17 +76,19 @@ export function Confidencial() {
     )
   }
 
-  return <VistaConfidencial personas={personas} asignaciones={asignaciones} config={config} onCerrar={cerrar} />
+  return <VistaConfidencial personas={personas} proyectos={proyectos} asignaciones={asignaciones} config={config} onCerrar={cerrar} />
 }
 
 type Estado = ReturnType<typeof useSimuladorStore.getState>
 
-function VistaConfidencial({ personas, asignaciones, config, onCerrar }: {
-  personas: Estado['personas']; asignaciones: Estado['asignaciones']; config: Estado['config']; onCerrar: () => void
+function VistaConfidencial({ personas, proyectos, asignaciones, config, onCerrar }: {
+  personas: Estado['personas']; proyectos: Estado['proyectos']; asignaciones: Estado['asignaciones']; config: Estado['config']; onCerrar: () => void
 }) {
   const filas = useMemo(() => filasReparto(config, personas), [config, personas])
   const lectura = useMemo(() => lecturaTransicion(config, personas), [config, personas])
   const soporte = useMemo(() => soporteMesAMes(config, personas, asignaciones), [config, personas, asignaciones])
+  const ranking = useMemo(() => rankingTicketsPorCuenta(config, proyectos), [config, proyectos])
+  const reparto = useMemo(() => repartoHistoricoMeta4(config, personas), [config, personas])
   const meses = filas[0]?.meses.map(m => m.mes) ?? []
   const desde = lectura?.desde ?? null
   const idxTransicion = desde ? meses.indexOf(desde) : -1
@@ -107,6 +110,19 @@ function VistaConfidencial({ personas, asignaciones, config, onCerrar }: {
       </div>
 
       <div style={{ padding: 24, maxWidth: 1232, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {ranking.length > 0 && (
+          <Card titulo="Cuánto pesa en tickets cada cuenta que falta migrar"
+            subtitulo="No es lo mismo que salga una cuenta chica que una grande: acá está el tickets/mes real de cada una (Ticketera Soporte de monday), de mayor a menor. Las de abajo, en gris, no migran en este programa y no bajan nunca: son el piso del soporte.">
+            <RankingCuentas filas={ranking} />
+          </Card>
+        )}
+
+        {reparto && reparto.length > 0 && (
+          <Card titulo="Quién atiende esos tickets hoy" subtitulo={config.equipo_confidencial?.reparto_historico_meta4?.fuente ?? 'Reparto real por persona, mismo tablero que el ranking de arriba.'}>
+            <RepartoHoy filas={reparto} />
+          </Card>
+        )}
+
         <Card titulo="Cómo se reparte el día de cada persona, mes a mes"
           subtitulo="Cada barra es un mes: lo gris es soporte Meta 4, lo verde soporte Axton, lo celeste lo que queda para migración. La línea punteada es la transición de Susana. Susi y Moni se calculan (tickets y cuentas en Axton); el resto es lo cargado en el bloque, y lo que no está dice [FALTA].">
           <Leyenda series={FRENTES.map(f => ({ key: f, label: FRENTE_LABEL[f], color: COLOR_FRENTE[f] }))} />
@@ -257,6 +273,53 @@ function PanelSoporte({ titulo, sub, meses, tickets, cuentas, disp, colorBarra, 
       <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 11, color: 'var(--t2)' }}>
         <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: colorBarra, marginRight: 5, verticalAlign: -1 }} />Tickets por mes (barra)</span>
         <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: colorLinea, marginRight: 5, verticalAlign: -1 }} />{etiquetaLinea} (línea, % del día)</span>
+      </div>
+    </div>
+  )
+}
+
+/** Ranking horizontal: una fila por cuenta, ancho de barra proporcional a tickets/mes. */
+function RankingCuentas({ filas }: { filas: import('../confidencial').FilaRankingTicket[] }) {
+  const max = Math.max(1, ...filas.map(f => f.ticketsMes))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {filas.map(f => (
+        <div key={f.clave} style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: f.esPiso ? 0.75 : 1 }}>
+          <div style={{ width: 128, flex: 'none', minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: f.esPiso ? 'var(--t2)' : 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.alias}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--t3)' }}>{f.esPiso ? 'no migra' : f.mesSale ? `sale ${nombreMes(f.mesSale).slice(0, 3).toLowerCase()}-${f.mesSale.slice(2, 4)}` : '[FALTA: mes de salida]'}</div>
+          </div>
+          <div style={{ flex: 1, height: 15, background: 'var(--line-soft)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.max(2, (f.ticketsMes / max) * 100)}%`, height: '100%', background: f.esPiso ? 'var(--t3)' : 'var(--celeste)', borderRadius: 4 }} />
+          </div>
+          <div className="num" style={{ width: 62, flex: 'none', textAlign: 'right', fontSize: 12, fontWeight: 800, color: 'var(--ink)' }}>{f.ticketsMes.toFixed(1)}/mes</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const COLOR_REPARTO = ['var(--celeste)', 'var(--celeste-deeper)', 'var(--t3)', 'var(--warn)', 'var(--line)']
+
+/** Barra apilada + leyenda: quién se lleva qué porción de los tickets Meta4 hoy. */
+function RepartoHoy({ filas }: { filas: import('../confidencial').FilaRepartoHistorico[] }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', height: 30, borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+        {filas.map((f, i) => (
+          <div key={f.id} title={`${f.alias} · ${Math.round(f.pct * 100)} %`}
+            style={{ flex: Math.max(f.pct, 0.01), background: COLOR_REPARTO[i % COLOR_REPARTO.length], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800 }}>
+            {f.pct >= 0.06 ? `${Math.round(f.pct * 100)}%` : ''}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 11.5, color: 'var(--t2)' }}>
+        {filas.map((f, i) => (
+          <span key={f.id}>
+            <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: COLOR_REPARTO[i % COLOR_REPARTO.length], marginRight: 5, verticalAlign: -1 }} />
+            {f.alias} · <b className="num" style={{ color: 'var(--ink)' }}>{f.ticketsMes.toFixed(1)}/mes</b>
+          </span>
+        ))}
       </div>
     </div>
   )
