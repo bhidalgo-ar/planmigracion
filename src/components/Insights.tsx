@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { useSimuladorStore } from '../store'
 import { formatFecha, formatFechaCorta, toISO } from '../utils/dates'
+import { curvaRestante, type PuntoRestante } from '../capacidad'
 import {
   cuentasFueraDelPlan, cuentasMigracion, migracionPorTrimestre, resumenMigracion,
 } from '../insightsMigracion'
@@ -15,7 +16,7 @@ import {
  * barra superior, que están siempre a la vista.
  */
 export function Insights() {
-  const { proyectos, asignaciones, config } = useSimuladorStore()
+  const { personas, proyectos, asignaciones, config } = useSimuladorStore()
 
   const hoyISO = toISO(new Date())
   const legacy = config.cartera_legacy_axton?.cuentas ?? []
@@ -34,9 +35,10 @@ export function Insights() {
       fuera,
       trimestres: migracionPorTrimestre(todas),
       r: resumenMigracion(todas, hoyISO, new Set(overrideIds)),
+      curva: curvaRestante(personas, asignaciones, config),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proyectos, asignaciones, config, hoyISO, overrideKey])
+  }, [personas, proyectos, asignaciones, config, hoyISO, overrideKey])
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: 24, background: 'var(--lienzo)' }}>
@@ -70,6 +72,11 @@ export function Insights() {
       {/* ── Fila media: avance por trimestre (el reparto del equipo vive en la pestaña Equipo) ── */}
       <div style={{ marginBottom: 18 }}>
         <TrimestresCard trimestres={d.trimestres} totalPrograma={d.r.totalCuentas} legacyCount={legacyCount} />
+      </div>
+
+      {/* ── ¿Entra el programa? Horas que faltan vs. capacidad que queda, por persona ── */}
+      <div style={{ marginBottom: 18 }}>
+        <CapacidadRestanteCard curva={d.curva} />
       </div>
 
     </div>
@@ -310,6 +317,73 @@ function TablaTrimestres({ trimestres, legacyCount }: {
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ══ ¿Entra el programa? ══════════════════════════════════════════════════════
+
+/**
+ * Por persona, desde hoy: cuántas horas le quedan planificadas hasta el final de sus
+ * fases contra cuánta capacidad le queda en ese mismo horizonte. Si la curva de horas
+ * queda por encima de la de capacidad, esa persona no entra aunque ninguna semana
+ * puntual esté en rojo (eso ya lo marca el Timeline): es un problema de volumen total,
+ * no de una semana puntual. `curvaRestante` (capacidad.ts) hace la cuenta.
+ */
+function CapacidadRestanteCard({ curva }: { curva: ReturnType<typeof curvaRestante> }) {
+  if (!curva.length) {
+    return (
+      <Card titulo="¿Entra el programa? Horas que faltan vs. capacidad que queda">
+        <Vacio>Nadie tiene fases planificadas desde hoy en adelante.</Vacio>
+      </Card>
+    )
+  }
+  return (
+    <Card
+      titulo="¿Entra el programa? Horas que faltan vs. capacidad que queda"
+      subtitulo="Desde hoy y por persona: lo que le queda planificado contra lo que le queda de capacidad hasta que termina su última fase."
+    >
+      <Leyenda series={[
+        { key: 'horas', label: 'Horas que faltan', color: 'var(--celeste-deeper)' },
+        { key: 'cap', label: 'Capacidad que queda', color: 'var(--t3)' },
+      ]} />
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {curva.map(c => <MiniCurva key={c.personaId} c={c} />)}
+      </div>
+    </Card>
+  )
+}
+
+function MiniCurva({ c }: { c: { personaId: string; alias: string; puntos: PuntoRestante[] } }) {
+  const H = 66
+  const n = c.puntos.length
+  const maxY = Math.max(1, ...c.puntos.flatMap(p => [p.horasQueFaltan, p.capacidadQueQueda]))
+  const x = (i: number) => (n > 1 ? (i / (n - 1)) * 100 : 50)
+  const y = (v: number) => 100 - (v / maxY) * 100
+  const polyCap = c.puntos.map((p, i) => `${x(i).toFixed(1)},${y(p.capacidadQueQueda).toFixed(1)}`).join(' ')
+  const polyHoras = c.puntos.map((p, i) => `${x(i).toFixed(1)},${y(p.horasQueFaltan).toFixed(1)}`).join(' ')
+
+  const primero = c.puntos[0]
+  const ultimo = c.puntos[n - 1]
+  const alcanza = primero.horasQueFaltan <= primero.capacidadQueQueda + 0.05
+  const balance = Math.round(Math.abs(primero.capacidadQueQueda - primero.horasQueFaltan))
+
+  return (
+    <div style={{ minWidth: 168, flex: '1 1 168px' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{c.alias}</div>
+      <div style={{ position: 'relative', height: H, background: 'var(--lienzo)', borderRadius: 8 }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+          <polyline points={polyCap} fill="none" stroke="var(--t3)" strokeDasharray="3,3" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <polyline points={polyHoras} fill="none" stroke="var(--celeste-deeper)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        </svg>
+      </div>
+      <div className="num" style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 3, display: 'flex', justifyContent: 'space-between' }}>
+        <span>{formatFechaCorta(primero.semana)}</span>
+        <span>{formatFechaCorta(ultimo.semana)}</span>
+      </div>
+      <div style={{ fontSize: 11, color: alcanza ? 'var(--t2)' : 'var(--warn-tx)', marginTop: 3, fontWeight: alcanza ? 400 : 700 }}>
+        {alcanza ? `Alcanza · sobran ${balance} h` : `No alcanza · faltan ${balance} h`}
+      </div>
     </div>
   )
 }

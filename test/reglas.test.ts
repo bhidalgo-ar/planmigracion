@@ -47,7 +47,7 @@ titulo('horasDiaDe — jornada disponible real')
 eq('Willy: 7 h (default del config)', horasDiaDe(de('guille'), config), 7)
 eq('Moni: 7 h', horasDiaDe(de('moni'), config), 7)
 eq('Gaby: 4 h (jornada fija)', horasDiaDe(de('gaby_f'), config), 4)
-eq('sin config.capacidad cae al default 7', horasDiaDe(de('moni'), { ...config, capacidad: undefined }), 7)
+eq('sin config.capacidad cae al default 8 (jornada de H&A)', horasDiaDe(de('moni'), { ...config, capacidad: undefined }), 8)
 
 // ── cuentas en Axton y disponibilidad de Moni ─────────────────────────────────
 titulo('cuentasEnAxton — 9 legacy + Coty + salidas hasta el mes inclusive')
@@ -62,7 +62,7 @@ eq('Moni ene-27 (19 cuentas)', disponibilidadMes('moni', '2027-01', config).toFi
 eq('Moni abr-27 toca el piso', disponibilidadMes('moni', '2027-04', config), 0.5)
 eq('Moni nunca supera la base aunque haya menos cuentas', disponibilidadMes('moni', '2020-01', config), 0.8)
 eq('Willy: 0,6 constante (perilla por año)', disponibilidadMes('guille', '2027-01', config), 0.6)
-eq('Gaby: 1,0 sobre sus 4 h (la reducción ya está en horas_dia)', disponibilidadMes('gaby_f', '2026-10', config, undefined, de('gaby_f')), 1)
+eq('Gaby: 1,0 sobre sus 4 h (todas para migración, 20 h/sem; Willy 22/09/2026)', disponibilidadMes('gaby_f', '2026-10', config, undefined, de('gaby_f')), 1)
 eq('una persona sin tabla usa el default', disponibilidadMes('nadie', '2026-10', config), 1)
 check('el bloque confidencial manda si trae un número', (() => {
   const c: Config = { ...config, equipo_confidencial: { dedicacion_por_mes: { guille: { '2026-10': { migracion: 0.4 } } } } }

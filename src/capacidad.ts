@@ -3,18 +3,21 @@ import type { Asignacion, Config, Persona } from './types'
 import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
 
 /**
- * Modelo de capacidad del programa (brief 10/09/2026 §2). Es el ÚNICO lugar donde vive
- * la matemática de horas: la usan las reglas de carga (`rules.ts`) y la pestaña Equipo.
- * Todo en horas, todo día por día:
+ * Modelo de capacidad del programa (brief 10/09/2026 §2; horas por barra 22/09/2026). Es el
+ * ÚNICO lugar donde vive la matemática de horas: la usan las reglas de carga (`rules.ts`),
+ * la banda de carga del Timeline y la pestaña Equipo. Todo en horas, todo día por día:
  *
- *   horas de una fase en un mes = días hábiles de la fase en ese mes × horas_dia × dedicacion_pct
- *   capacidad de una persona    = días hábiles del mes × horas_dia × disponibilidad(persona, mes)
+ *   horas de una barra por día hábil = `_horas` / días hábiles de la barra, si la barra trae
+ *                                      `_horas` (plantilla v2); si no, horas_dia × dedicacion_pct
+ *   horas de una barra en un mes/semana = Σ de esas horas por cada día hábil que cae adentro
+ *   capacidad de una persona            = días hábiles × horas_dia × disponibilidad(persona, mes)
  *
- * "Día hábil" = lunes a viernes menos los feriados del JSON. `horas_dia` es 7 por default
- * (jornada disponible real) y Gaby tiene 4 (jornada fija, no una fracción de 7).
+ * "Día hábil" = lunes a viernes menos los feriados del JSON. `horas_dia` es 8 por default
+ * (la jornada de H&A) y Gaby tiene 4 (jornada fija, no una fracción de 8), todas para
+ * migración: 20 h por semana.
  */
 
-export const HORAS_DIA_DEFAULT = 7
+export const HORAS_DIA_DEFAULT = 8
 
 /**
  * Umbral de ámbar (uso = horas/capacidad) para pintar una persona en riesgo antes de
@@ -148,7 +151,8 @@ function numeroONull(v: unknown): number | null {
  *  1. `equipo_confidencial.dedicacion_por_mes[persona][mes].migracion` si es un número
  *     (solo existe en el JSON local de Willy).
  *  2. Moni: la fórmula del soporte Axton, que baja con cada cuenta que entra a Axton.
- *  3. Quien tiene `horas_dia` propio (Gaby): 1,0 — la reducción ya está en sus horas.
+ *  3. Quien tiene `horas_dia` propio (Gaby): 1,0. Sus 4 h son todas para migración, 20 h por
+ *     semana (Willy lo confirmó el 22/09/2026); la tabla por año no le aplica.
  *  4. La disponibilidad por año (`config.disponibilidad`), fallback para no romper planes viejos.
  *  5. 1,0.
  */
@@ -232,14 +236,50 @@ export function diasDeVacaciones(personaId: string, asignaciones: Asignacion[], 
   return out
 }
 
+/** `_horas` de una barra si es un número válido; null si no lo trae (se deriva de la dedicación). */
+export function horasDeBarra(asig: Asignacion): number | null {
+  const h = asig._horas
+  return typeof h === 'number' && Number.isFinite(h) && h >= 0 ? h : null
+}
+
+/**
+ * Horas que una barra consume por cada día hábil que dura. Si trae `_horas` (las horas reales
+ * de la plantilla v2), se reparten parejo entre sus días hábiles: así la suma de la barra da
+ * exactamente sus horas, sin importar cuántos días se estiró. Si no las trae, la lectura
+ * vieja: la fracción `dedicacion_pct` de la jornada de quien la hace.
+ */
+export function horasPorDiaHabil(
+  asig: Asignacion, persona: Persona | undefined, config: Config, feriados: ReadonlySet<string>,
+): number {
+  if (asig.es_bloqueo) return 0
+  const horas = horasDeBarra(asig)
+  if (horas !== null) {
+    const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).length
+    return horas / Math.max(1, dias)
+  }
+  return horasDiaDe(persona, config) * asig.dedicacion_pct
+}
+
+/**
+ * Días hábiles que lleva una barra de `horas` a quien le dedica `dedicacion` de una jornada
+ * de `horasDia`: redondeo al entero más cercano, mínimo 1. Es la fórmula de "Recalcular
+ * duraciones" (22/09/2026) y la que se usó para armar el plan v12, así que aplicada sobre
+ * ese plan devuelve las mismas duraciones que ya tiene.
+ */
+export function duracionPorHoras(horas: number, horasDia: number, dedicacion: number): number {
+  const porDia = horasDia * dedicacion
+  if (!(porDia > 0) || !(horas >= 0)) return 1
+  return Math.max(1, Math.round(horas / porDia))
+}
+
 /** Horas que una fase consume en un mes dado. Los bloqueos (vacaciones) no son carga. */
 export function horasFaseEnMes(
   asig: Asignacion, mesISO: string, persona: Persona | undefined, feriados: ReadonlySet<string>, config: Config,
 ): number {
   if (asig.es_bloqueo) return 0
-  const hd = horasDiaDe(persona, config)
+  const porDia = horasPorDiaHabil(asig, persona, config, feriados)
   const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).filter(d => mesDe(toISO(d)) === mesISO).length
-  return red(dias * hd * asig.dedicacion_pct)
+  return red(dias * porDia)
 }
 
 export interface CargaMensual {
@@ -260,6 +300,8 @@ export interface CargaSemanal {
   semana: string
   horas: number
   capacidad: number
+  /** Horas desglosadas por barra (id de asignación): qué causa la carga de esa semana. */
+  porBarra: Record<string, number>
 }
 
 /** Meses 'YYYY-MM' entre dos fechas ISO, inclusive. */
@@ -347,8 +389,10 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
       if (v === undefined) { v = disponibilidadMes(p.id, mes, config, undefined, p); dispCache.set(mes, v) }
       return v
     }
+    const porDiaDe = new Map(propias.map(a => [a.id, horasPorDiaHabil(a, p, config, feriados)]))
     for (let lunes = primerLunes; lunes <= ultimo; lunes = addDays(lunes, 7)) {
       let horas = 0, capacidad = 0
+      const porBarra: Record<string, number> = {}
       for (let i = 0; i < 5; i++) {
         const d = addDays(lunes, i)
         if (!esHabil(d, feriados)) continue
@@ -356,10 +400,56 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
         // Un día de vacaciones no aporta capacidad; las horas planificadas ese día sí cuentan
         // (ese choque es justamente lo que marca la regla `vacaciones`).
         if (!vacaciones.has(iso)) capacidad += hd * dispDe(mesDe(iso))
-        for (const a of propias) if (a.inicio <= iso && a.fin >= iso) horas += hd * a.dedicacion_pct
+        for (const a of propias) {
+          if (a.inicio > iso || a.fin < iso) continue
+          const h = porDiaDe.get(a.id) ?? 0
+          horas += h
+          porBarra[a.id] = (porBarra[a.id] ?? 0) + h
+        }
       }
-      out.push({ personaId: p.id, semana: toISO(lunes), horas: red(horas), capacidad: red(capacidad) })
+      for (const k of Object.keys(porBarra)) porBarra[k] = red(porBarra[k])
+      out.push({ personaId: p.id, semana: toISO(lunes), horas: red(horas), capacidad: red(capacidad), porBarra })
     }
+  }
+  return out
+}
+
+export interface PuntoRestante {
+  /** Lunes ISO de la semana. */
+  semana: string
+  /** Horas planificadas que faltan desde esta semana hasta el fin de sus fases (inclusive). */
+  horasQueFaltan: number
+  /** Capacidad que le queda desde esta semana hasta el fin del horizonte de sus fases. */
+  capacidadQueQueda: number
+}
+
+/**
+ * "¿Entra el programa?", semana a semana: cuánto trabajo planificado le queda a cada
+ * persona desde esa semana en adelante, contra cuánta capacidad le queda hasta que termina
+ * el plan. Si la curva de horas cruza a la de capacidad, no entra aunque ninguna semana
+ * puntual esté en rojo; si hay margen en las dos, los picos semanales son un problema de
+ * orden, no de gente. Reusa `cargaSemanal`: misma fuente que la banda del Timeline y la
+ * pestaña Equipo.
+ */
+export function curvaRestante(
+  personas: Persona[], asignaciones: Asignacion[], config: Config, hoy: Date = new Date(),
+): Array<{ personaId: string; alias: string; puntos: PuntoRestante[] }> {
+  const desdeISO = toISO(getMondayOfWeek(hoy))
+  const semanal = cargaSemanal(personas, asignaciones, config)
+  const out: Array<{ personaId: string; alias: string; puntos: PuntoRestante[] }> = []
+  for (const p of personas) {
+    const propias = semanal
+      .filter(c => c.personaId === p.id && c.semana >= desdeISO)
+      .sort((a, b) => (a.semana < b.semana ? -1 : 1))
+    if (!propias.length) continue
+    const puntos: PuntoRestante[] = new Array(propias.length)
+    let horas = 0, capacidad = 0
+    for (let i = propias.length - 1; i >= 0; i--) {
+      horas += propias[i].horas
+      capacidad += propias[i].capacidad
+      puntos[i] = { semana: propias[i].semana, horasQueFaltan: red(horas), capacidadQueQueda: red(capacidad) }
+    }
+    out.push({ personaId: p.id, alias: p.alias, puntos })
   }
   return out
 }

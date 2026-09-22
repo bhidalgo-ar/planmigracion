@@ -4,9 +4,11 @@ import { es } from 'date-fns/locale'
 import { cascadaIds, useSimuladorStore } from '../store'
 import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, Persona, TipoFase } from '../types'
-import { TIPO_COLOR } from '../theme/fases'
+import { TIPO_COLOR, TIPO_LABEL } from '../theme/fases'
 import { cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
 import { tierDe, TIER_LABEL } from '../insightsEquipo'
+import { margenesPorCuenta, predecesoraViolada } from '../rules'
+import { nombreTarea } from '../tareas'
 import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
 // Píxeles por día calendario según nivel de zoom
@@ -27,11 +29,13 @@ const HEADER_H = 48
 const MIN_BAR_W = 8
 /** Separación vertical entre dos carriles (renglones) de la misma fila. */
 const GAP_CARRIL = 6
+/** Radio del rombo de una barra de Cierre (hito de un día) y del monograma de persona. */
+const HITO_R = 8
 
 /**
- * Iniciales de una persona para cuando la barra es muy angosta: 'Gaby F.' → 'GF',
- * 'Moni' → 'Mo'. Siempre dos letras a propósito: con una sola, Moni y Mati (o Guille y
- * Gaby) quedarían iguales, que es justo lo que se quiere poder distinguir.
+ * Iniciales de una persona para el monograma de la barra: 'Gaby F.' → 'GF', 'Moni' → 'Mo'.
+ * Siempre dos letras a propósito: con una sola, Moni y Mati (o Guille y Gaby) quedarían
+ * iguales, que es justo lo que se quiere poder distinguir.
  */
 function inicialesDe(alias: string): string {
   const palabras = alias.trim().split(/\s+/).filter(Boolean)
@@ -41,8 +45,8 @@ function inicialesDe(alias: string): string {
 }
 
 /**
- * Una barra angosta no puede gastar 19 px en aire: con el padding de siempre, las dos
- * letras de las iniciales no entran y la barra queda muda.
+ * Una barra angosta no puede gastar 19 px en aire: con el padding de siempre, el texto no
+ * entra y la barra queda muda.
  */
 const esBarraAngosta = (width: number) => width < 64
 const padDeBarra = (width: number) => (esBarraAngosta(width) ? 4 : 9)
@@ -50,9 +54,9 @@ const padDeBarra = (width: number) => (esBarraAngosta(width) ? 4 : 9)
 /**
  * Ancho real de un texto en píxeles. Se mide con un canvas en lugar de estimar por cantidad
  * de letras porque la diferencia es enorme: en esta tipografía "GF" ocupa casi lo mismo que
- * "Gaby" —las mayúsculas miden casi el doble que las minúsculas— y con un promedio único las
- * iniciales entraban donde no entraban. Se cachea porque son pocas combinaciones repetidas
- * muchas veces.
+ * "Gaby" —las mayúsculas miden casi el doble que las minúsculas— y con un promedio único el
+ * texto entraba donde no entraba. Se cachea porque son pocas combinaciones repetidas muchas
+ * veces.
  */
 const anchoCache = new Map<string, number>()
 let ctxMedidor: CanvasRenderingContext2D | null | undefined
@@ -72,24 +76,15 @@ function anchoDeTexto(txt: string, fontSize: number): number {
 }
 
 /**
- * Qué texto entra en una barra de `width` píxeles. Recibe las variantes de la más completa a
- * la más corta y devuelve la primera que entra entera.
- *
- * El orden de las variantes es lo que importa: el color de la barra ya dice el tipo de fase y
- * la fila ya dice la cuenta, así que al apretar se cae primero el tipo y lo último que se
- * resigna es quién la hace, que es el dato que no está repetido en ningún otro lado.
+ * Qué texto entra en una barra de `width` píxeles, descontando el lugar del monograma
+ * cuando corresponde. Recibe las variantes de la más completa a la más corta y devuelve la
+ * primera que entra entera.
  */
-function textoDeBarra(variantes: string[], width: number, fontSize: number): string {
-  // En las anchas se descuenta también la manija de estirar; en las angostas es translúcida
-  // y el texto se lee por debajo, así que no se le reserva lugar.
-  const util = width - padDeBarra(width) * 2 - (esBarraAngosta(width) ? 0 : 10)
-  const entra = variantes.find(v => anchoDeTexto(v, fontSize) <= util)
-  if (entra !== undefined) return entra
-  // No entró ni la más corta. Si es un nombre, se muestra cortado con "…", que algo dice;
-  // si son las iniciales, cortarlas deja una letra suelta que no distingue a nadie: en ese
-  // caso la barra va muda y el dato lo da el tooltip.
-  const ultima = variantes[variantes.length - 1]
-  return ultima.length <= 3 ? '' : ultima
+function textoDeBarra(variantes: string[], width: number, fontSize: number, conMonograma: boolean): string {
+  const reservaMono = conMonograma ? HITO_R * 2 + 6 : 0
+  const util = width - padDeBarra(width) * 2 - reservaMono - (esBarraAngosta(width) ? 0 : 10)
+  const entra = variantes.find(v => v === '' || anchoDeTexto(v, fontSize) <= util)
+  return entra ?? ''
 }
 
 /** 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto). */
@@ -112,6 +107,10 @@ interface DragState {
 const ROL_LABEL: Record<string, string> = {
   relevamiento: 'RELEV.', configuracion: 'CONFIG.', pruebas: 'PRUEBAS',
 }
+
+/** Las tres fases que se compactan en una sola barra por fase cuando la cuenta no está
+ * seleccionada (el Cierre queda siempre aparte, como hito). */
+const FASES_COMPACTABLES: TipoFase[] = ['Relevamiento', 'Configuracion', 'Pruebas']
 
 // ── helpers de períodos ──────────────────────────────────────────────────────
 
@@ -192,7 +191,7 @@ interface Fila { id: string; titulo: string }
 const SIN_CUENTA = '__sin_cuenta__'
 /** Alto de la banda de carga semanal (modo cuenta): encabezado + una fila por persona con fases. */
 const BANDA_HDR = 22
-const BANDA_ROW = 26
+const BANDA_ROW = 34
 /** 'oct 26' */
 const mesCorto = (mes: string) => format(parseISO(`${mes}-01`), 'MMM yy', { locale: es })
 
@@ -201,6 +200,27 @@ const SIN_ASIGNAR = '__sin_asignar__'
 const FILA_SIN_ASIGNAR: Persona = {
   id: SIN_ASIGNAR, alias: 'Sin asignar', skills: [], capacidad_horas_semana: 0, buffer_pct: 0,
   _nota: 'Fases con una persona que no existe en el plan. Arrastralas a alguien del equipo.',
+}
+
+/**
+ * Lo que se dibuja en el timeline. En modo cuenta, mientras la cuenta no está seleccionada
+ * ("colapsada"), Relevamiento, Configuración y Pruebas entran como un solo item por fase
+ * (`kind: 'fase'`), y solo al seleccionarla (`kind: 'barra'`, una por tarea) se ve el detalle.
+ * El Cierre es siempre un hito (`kind: 'cierre'`), colapsada o no: un rombo de un día no
+ * necesita esconderse. `asig` viaja en los items de una sola barra real (barra/cierre); los
+ * de fase agrupan varias (`asigIds`) y no son arrastrables.
+ */
+interface ItemBarra {
+  id: string
+  kind: 'barra' | 'fase' | 'cierre'
+  tipo: TipoFase
+  inicio: string
+  fin: string
+  personaIds: string[]
+  asigIds: string[]
+  filaId: string
+  asig?: Asignacion
+  esBloqueo?: boolean
 }
 
 // ── Componente ──────────────────────────────────────────────────────────────
@@ -280,41 +300,82 @@ export function Timeline() {
   const filaDe        = useMemo(() => new Map(filas.map((f, i) => [f.id, i])), [filas])
 
   /**
-   * Carriles (renglones) dentro de una fila. En modo cuenta, dos personas trabajan la misma
-   * cuenta a la vez —el solapamiento es el diseño— y antes las barras se dibujaban una encima
-   * de la otra: se leía solo la de arriba. Acá cada fase va al primer carril donde no se pise
-   * con otra, y la fila crece de alto solo si hizo falta más de uno.
+   * Los items a dibujar por fila (`ItemBarra`, ver arriba) y sus carriles. En modo cuenta,
+   * la cuenta seleccionada se "expande" a una barra por tarea (Opción A); el resto queda
+   * compactada a una barra por fase (Opción D: menos densidad, un clic la abre). En modo
+   * persona y en la fila "Sin cuenta" siempre es una barra por asignación, como antes.
    *
-   * En modo persona no se usa (una fila por persona, un carril): el arrastre vertical para
-   * reasignar depende de que todas las filas midan ROW_H.
+   * Antes se empacaban SIEMPRE las asignaciones individuales de la cuenta entera, así que
+   * cada fila medía lo que pedía su peor solapamiento aunque estuviera colapsada; ahora la
+   * mayoría de las filas quedan en un carril (la fase-resumen rara vez se pisa con otra) y
+   * solo la fila expandida crece.
    */
-  const { carrilDe, carrilesDeFila } = useMemo(() => {
+  const { itemsPorFila, carrilDe, carrilesDeFila } = useMemo(() => {
+    const itemsPorFila = new Map<string, ItemBarra[]>()
     const carrilDe = new Map<string, number>()
     const carrilesDeFila = new Map<string, number>()
-    if (!porCuenta) return { carrilDe, carrilesDeFila }
 
-    const porFila = new Map<string, Asignacion[]>()
-    for (const a of asignaciones) {
-      const k = a.proyecto_id ?? SIN_CUENTA
-      const arr = porFila.get(k)
-      if (arr) arr.push(a); else porFila.set(k, [a])
-    }
-    for (const [k, arr] of porFila) {
-      // Orden por inicio (y fin a igualdad) para que el reparto sea siempre el mismo.
-      const orden = [...arr].sort((x, y) =>
+    function empacar(items: ItemBarra[]): number {
+      const orden = [...items].sort((x, y) =>
         x.inicio < y.inicio ? -1 : x.inicio > y.inicio ? 1 : x.fin < y.fin ? -1 : x.fin > y.fin ? 1 : 0)
-      const finDeCarril: string[] = []   // hasta qué día quedó ocupado cada carril
-      for (const a of orden) {
-        // `fin` es inclusivo: si una termina el 10 y la otra abre el 11, comparten carril.
-        let c = finDeCarril.findIndex(fin => fin < a.inicio)
-        if (c === -1) { c = finDeCarril.length; finDeCarril.push(a.fin) }
-        else if (finDeCarril[c] < a.fin) finDeCarril[c] = a.fin
-        carrilDe.set(a.id, c)
+      const finDeCarril: string[] = []
+      for (const it of orden) {
+        let c = finDeCarril.findIndex(fin => fin < it.inicio)
+        if (c === -1) { c = finDeCarril.length; finDeCarril.push(it.fin) }
+        else if (finDeCarril[c] < it.fin) finDeCarril[c] = it.fin
+        carrilDe.set(it.id, c)
       }
-      carrilesDeFila.set(k, Math.max(1, finDeCarril.length))
+      return Math.max(1, finDeCarril.length)
     }
-    return { carrilDe, carrilesDeFila }
-  }, [porCuenta, asignaciones])
+
+    if (porCuenta) {
+      for (const f of filasCuenta) {
+        if (f.id === SIN_CUENTA) continue
+        const propias = asignaciones.filter(a => a.proyecto_id === f.id && !a.es_bloqueo)
+        const cierres = propias.filter(a => a.tipo === 'Cierre')
+        const expandida = clienteSeleccionado === f.id
+        const items: ItemBarra[] = []
+        if (expandida) {
+          for (const a of propias) {
+            if (a.tipo === 'Cierre') continue
+            items.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a })
+          }
+        } else {
+          for (const tipo of FASES_COMPACTABLES) {
+            const bs = propias.filter(a => a.tipo === tipo)
+            if (!bs.length) continue
+            const inicio = bs.reduce((m, a) => (a.inicio < m ? a.inicio : m), bs[0].inicio)
+            const fin = bs.reduce((m, a) => (a.fin > m ? a.fin : m), bs[0].fin)
+            items.push({
+              id: `${f.id}::${tipo}`, kind: 'fase', tipo, inicio, fin,
+              personaIds: [...new Set(bs.map(a => a.persona_id))], asigIds: bs.map(a => a.id), filaId: f.id,
+            })
+          }
+        }
+        for (const c of cierres) {
+          items.push({ id: c.id, kind: 'cierre', tipo: 'Cierre', inicio: c.inicio, fin: c.fin, personaIds: [c.persona_id], asigIds: [c.id], filaId: f.id, asig: c })
+        }
+        itemsPorFila.set(f.id, items)
+        carrilesDeFila.set(f.id, empacar(items))
+      }
+    }
+    // Filas de persona y la fila "Sin cuenta": siempre una barra por asignación.
+    for (const a of asignaciones) {
+      const filaId = porCuenta ? (a.proyecto_id ? null : SIN_CUENTA) : (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
+      if (filaId === null) continue
+      const item: ItemBarra = {
+        id: a.id, kind: a.tipo === 'Cierre' && !a.es_bloqueo ? 'cierre' : 'barra', tipo: a.tipo,
+        inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId, asig: a, esBloqueo: a.es_bloqueo,
+      }
+      const arr = itemsPorFila.get(filaId)
+      if (arr) arr.push(item); else itemsPorFila.set(filaId, [item])
+    }
+    for (const [filaId, items] of itemsPorFila) {
+      if (carrilesDeFila.has(filaId)) continue
+      carrilesDeFila.set(filaId, empacar(items))
+    }
+    return { itemsPorFila, carrilDe, carrilesDeFila }
+  }, [porCuenta, filasCuenta, asignaciones, clienteSeleccionado, idsPersonas])
 
   /**
    * Dónde empieza y cuánto mide cada fila. Con un solo carril el alto es ROW_H y todo queda
@@ -350,11 +411,30 @@ export function Timeline() {
     return m
   }, [violaciones, asignaciones])
 
-  // Banda de carga (modo cuenta): horas planificadas contra capacidad, por persona y semana.
+  /** Margen de cada cuenta contra el corte de novedades (fin del cierre, o de Pruebas si no
+   * tiene). Solo modo cuenta: un corchete y una fecha de corte por fila. */
+  const margenPorCuenta = useMemo(() => {
+    if (!porCuenta) return new Map<string, ReturnType<typeof margenesPorCuenta>[number]>()
+    return new Map(margenesPorCuenta(asignaciones, config, proyectos).map(m => [m.proyectoId, m]))
+  }, [porCuenta, asignaciones, config, proyectos])
+
+  const minimoMargen = config.capacidad?.margen_minimo_habiles ?? 2
+  const blackout = config.tiers_v3?.blackout_config
+
+  const asigProyecto = useMemo(() => new Map(asignaciones.map(a => [a.id, a.proyecto_id])), [asignaciones])
+
+  // Carga semanal de todas las personas con fases: la usan la banda (modo cuenta) y la curva
+  // de ocupación de fondo (modo persona). Un solo cálculo para las dos vistas.
+  const cargaSemanalTodas = useMemo(() => {
+    const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
+    return { personas: conFases, semanas: cargaSemanal(conFases, asignaciones, config) }
+  }, [personasTodas, asignaciones, config])
+
+  // Banda de carga (modo cuenta): horas planificadas contra capacidad, por persona y semana,
+  // con el desglose por cuenta para apilar sin necesitar una leyenda de colores.
   const bandaFilas = useMemo(() => {
     if (!porCuenta) return []
-    const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
-    const carga = cargaSemanal(conFases, asignaciones, config)
+    const { personas: conFases, semanas: carga } = cargaSemanalTodas
     const hoyMs = Date.now()
     const semanaHoyISO = toISO(getMondayOfWeek(new Date()))
     return conFases.map(p => {
@@ -364,13 +444,20 @@ export function Timeline() {
       // todo el horizonte: la de Moni baja con el tiempo y un promedio la disimula (D2 con Willy).
       const actual = conCap.find(c => c.semana === semanaHoyISO)
         ?? conCap.slice().sort((a, b) => Math.abs(parseISO(a.semana).getTime() - hoyMs) - Math.abs(parseISO(b.semana).getTime() - hoyMs))[0]
-      return {
-        persona: p,
-        celdas: propias.filter(c => c.horas > 0),
-        capSemana: actual?.capacidad ?? 0,
-      }
+      const semanas = propias.filter(c => c.horas > 0).map(c => {
+        const porCuentaHoras = new Map<string, number>()
+        for (const [barraId, h] of Object.entries(c.porBarra)) {
+          const pid = asigProyecto.get(barraId) ?? SIN_CUENTA
+          porCuentaHoras.set(pid, (porCuentaHoras.get(pid) ?? 0) + h)
+        }
+        return {
+          semana: c.semana, horas: c.horas, capacidad: c.capacidad,
+          porCuenta: [...porCuentaHoras.entries()].sort((a, b) => b[1] - a[1]),
+        }
+      })
+      return { persona: p, semanas, capSemana: actual?.capacidad ?? 0 }
     })
-  }, [porCuenta, personasTodas, asignaciones, config])
+  }, [porCuenta, cargaSemanalTodas, asigProyecto])
   const bandaH = porCuenta && bandaFilas.length ? BANDA_HDR + bandaFilas.length * BANDA_ROW : 0
 
   // barras que se pintan enteras de rojo: la fase en sí rompe una regla del calendario
@@ -384,7 +471,7 @@ export function Timeline() {
     return s
   }, [violaciones, mostrarConflictos])
 
-  // carga: (personaId|lunesISO) → severidad. Alimenta el tinte semanal ("Carga semanal")
+  // carga: (personaId|lunesISO) → severidad. Alimenta la curva de ocupación (modo persona)
   // y el anillo de las barras. `carga_semana` (ámbar) tiñe su semana; `carga_mes` (rojo)
   // tiñe todas las semanas del mes que se pasa de capacidad.
   const cargaCelda = useMemo(() => {
@@ -659,13 +746,13 @@ export function Timeline() {
           y1: topBarra(filaP, carrilDe.get(pred.id) ?? 0) + BAR_H / 2,
           x2: dateToX(a.inicio),
           y2: topBarra(filaA, carrilDe.get(a.id) ?? 0) + BAR_H / 2,
-          viola: a.inicio < pred.fin,
+          viola: predecesoraViolada(a, pred, config, feriados) === true,
         })
       }
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe])
+  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
 
   // ── períodos para header ─────────────────────────────────────────────────
 
@@ -754,6 +841,68 @@ export function Timeline() {
           </div>
         </div>
 
+        {/* BANDA DE CARGA (modo cuenta): pegada debajo del encabezado, siempre visible mientras
+            se scrollea — antes vivía al pie de la pantalla y el scroll se la comía. Apilada por
+            cuenta (sin leyenda de colores: el nombre va escrito adentro de cada tramo) en vez
+            de por severidad, así se ve de un vistazo qué cuenta causa el pico. */}
+        {bandaH > 0 && (
+          <div style={{ position: 'sticky', top: HEADER_H, height: bandaH, zIndex: 25, background: 'var(--white)', borderBottom: '2px solid var(--line)', boxShadow: '0 4px 12px rgba(30,58,95,0.06)', display: 'flex' }}>
+            <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, flexShrink: 0, zIndex: 20 }}>
+              <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}>
+                Carga por semana
+              </div>
+              {bandaFilas.map((f, i) => (
+                <div key={f.persona.id} style={{ height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>{f.persona.alias}</span>
+                  {f.capSemana > 0 && <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>{Math.round(f.capSemana)} h/sem</span>}
+                </div>
+              ))}
+            </div>
+            <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: bodyW - NAME_W, height: BANDA_HDR, background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)' }} />
+              {bandaFilas.map((f, i) => (
+                <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
+              ))}
+              {gridLines.map((p, i) => (
+                <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p) - NAME_W, height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
+              ))}
+              {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX - NAME_W, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
+              {bandaFilas.map((f, i) => f.semanas.map(c => {
+                const x1 = dateToX(c.semana) - NAME_W
+                if (x1 < -1 || x1 > bodyW) return null
+                const w = Math.max(3, 7 * pxPerDay - 2)
+                const pct = c.capacidad > 0 ? c.horas / c.capacidad : 9
+                const hMax = BANDA_ROW - 8
+                let acc = 0
+                return (
+                  <div key={c.semana} style={{ position: 'absolute', left: x1 + 1, top: BANDA_HDR + i * BANDA_ROW + 4, width: w, height: hMax }}
+                    title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${c.capacidad > 0 ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}>
+                    {c.porCuenta.map(([pid, h], k) => {
+                      const alto = Math.min(hMax * 1.6, hMax * (h / c.capacidad))
+                      const y = hMax - acc - alto
+                      acc += alto
+                      const nombre = proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)
+                      const esSeleccionada = pid === clienteSeleccionado
+                      const fondo = esSeleccionada ? 'var(--celeste)' : k === 0 ? 'var(--t1)' : k === 1 ? 'var(--t2)' : k === 2 ? 'var(--t3)' : 'var(--line)'
+                      const oscuro = esSeleccionada || k < 2
+                      // Ellipsis por CSS, no por cantidad de letras: con el texto centrado, cortar
+                      // por longitud recortaba los dos lados y dejaba una tira ilegible del medio.
+                      return (
+                        <div key={pid} style={{ position: 'absolute', left: 0, top: y, width: '100%', height: Math.max(0, alto), background: fondo, borderRadius: 2, border: '1px solid var(--white)', boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                          {alto >= 9 && w >= 26 && <span className="num" style={{ fontSize: 7.5, fontWeight: 700, color: oscuro ? '#fff' : 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 3px', display: 'block', width: '100%' }}>{nombre}</span>}
+                        </div>
+                      )
+                    })}
+                    {pct > 1.10 && (
+                      <span className="num" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -13, fontSize: 8.5, fontWeight: 800, color: 'var(--error-tx)', whiteSpace: 'nowrap' }}>{Math.round(pct * 100)}%</span>
+                    )}
+                  </div>
+                )
+              }))}
+            </div>
+          </div>
+        )}
+
         {/* BODY */}
         <div ref={rowsRef} style={{ position: 'relative', height: bodyH }}>
 
@@ -762,6 +911,18 @@ export function Timeline() {
             <div key={f.id} style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: bodyW, height: altoDeFila.get(f.id) ?? ROW_H, background: porCuenta && clienteSeleccionado === f.id ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
           ))}
 
+          {/* blackout de configuración: contexto de por qué una barra de Configuración da roja */}
+          {blackout && blackout.length === 2 && (() => {
+            const x0 = dateToX(blackout[0]), x1 = dateToX(blackout[1]) + pxPerDay
+            if (x1 <= NAME_W || x0 >= bodyW) return null
+            return (
+              <div title={`Blackout de configuración: ${formatFechaCorta(blackout[0])} → ${formatFechaCorta(blackout[1])}`} style={{
+                position: 'absolute', top: 0, left: Math.max(x0, NAME_W), width: Math.min(x1, bodyW) - Math.max(x0, NAME_W), height: bodyH, zIndex: 1, pointerEvents: 'none',
+                background: 'repeating-linear-gradient(135deg, var(--error-tint) 0 6px, transparent 6px 12px)',
+              }} />
+            )
+          })()}
+
           {/* líneas de grilla vertical */}
           {gridLines.map((p, i) => {
             const x = dateToXd(p)
@@ -769,15 +930,26 @@ export function Timeline() {
             return <div key={i} style={{ position: 'absolute', top: 0, left: x, height: bodyH, borderLeft: `1px solid ${strong ? 'var(--line)' : 'var(--line-soft)'}`, zIndex: 1, pointerEvents: 'none' }} />
           })}
 
-          {/* tintes de carga (semana ámbar / mes rojo) */}
-          {mostrarCarga && !porCuenta && [...cargaCelda.entries()].map(([key, sev]) => {
-            const [pid, lunesISO] = key.split('|')
-            if (!filaDe.has(pid)) return null
-            const x1 = dateToX(lunesISO)
-            const x2 = dateToX(toISO(addDays(parseISO(lunesISO), 4))) + pxPerDay
-            return (
-              <div key={key} style={{ position: 'absolute', top: topDeFila.get(pid) ?? 0, left: x1, width: x2 - x1, height: altoDeFila.get(pid) ?? ROW_H, background: sev === 'rojo' ? 'var(--error-tint)' : 'var(--warn-tint)', zIndex: 2, pointerEvents: 'none' }} />
-            )
+          {/* Curva de ocupación (modo persona): el área de fondo de cada fila muestra la forma
+              de la carga semana a semana contra su capacidad, no solo un tinte plano. */}
+          {mostrarCarga && !porCuenta && personas.map(p => {
+            const top = topDeFila.get(p.id) ?? 0
+            const semanas = cargaSemanalTodas.semanas.filter(c => c.personaId === p.id && c.capacidad > 0)
+            if (!semanas.length) return null
+            const hMax = ROW_H - 6
+            return semanas.map(c => {
+              const x = dateToX(c.semana)
+              if (x < NAME_W - 1 || x > bodyW) return null
+              const w = Math.max(2, 7 * pxPerDay - 1)
+              const pct = c.horas / c.capacidad
+              const color = pct > 1 ? 'var(--error)' : pct >= UMBRAL_AMBAR ? 'var(--warn)' : 'var(--ok)'
+              const alto = Math.min(hMax * 1.3, hMax * pct)
+              return (
+                <div key={`${p.id}-${c.semana}`}
+                  title={`${p.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${Math.round(pct * 100)} %)`}
+                  style={{ position: 'absolute', left: x, top: top + (ROW_H - alto), width: w, height: alto, background: color, opacity: 0.16, zIndex: 2, pointerEvents: 'none' }} />
+              )
+            })
           })}
 
           {/* Línea de hoy (celeste) */}
@@ -797,6 +969,34 @@ export function Timeline() {
               </span>
             </div>
           )}
+
+          {/* Corte de novedades y margen (modo cuenta): una línea punteada por fila en la
+              fecha del corte, y un corchete con los hábiles entre el fin de la última barra
+              (el Cierre, o Pruebas si la cuenta no tiene) y esa fecha. */}
+          {porCuenta && filasCuenta.map(f => {
+            const mg = margenPorCuenta.get(f.id)
+            if (!mg || !mg.corte || !mg.finBarra) return null
+            const top = topDeFila.get(f.id) ?? 0
+            const alto = altoDeFila.get(f.id) ?? ROW_H
+            const xCorte = dateToX(mg.corte) + pxPerDay / 2
+            const xFin = dateToX(mg.finBarra) + pxPerDay
+            const cumple = mg.habiles !== null && mg.habiles >= minimoMargen
+            const color = cumple ? 'var(--ok-tx)' : 'var(--error-tx)'
+            const yBracket = top + alto - 13
+            return (
+              <div key={`margen-${f.id}`} style={{ position: 'absolute', top, left: 0, width: bodyW, height: alto, pointerEvents: 'none', zIndex: 3 }}>
+                <div style={{ position: 'absolute', top: 0, left: xCorte, height: alto, borderLeft: '1.5px dashed var(--t1)' }} />
+                {mg.habiles !== null && xCorte - xFin > 10 && (
+                  <>
+                    <div style={{ position: 'absolute', top: yBracket, left: xFin, width: Math.max(0, xCorte - xFin), height: 0, borderTop: `1.2px solid ${color}` }} />
+                    <span className="num" style={{ position: 'absolute', top: yBracket - 12, left: (xFin + xCorte) / 2, transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color, whiteSpace: 'nowrap', background: 'var(--white)', padding: '0 3px' }}>
+                      {mg.habiles} h. al corte
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          })}
 
           {/* Dependencias de la cuenta seleccionada */}
           {depSegs.length > 0 && (
@@ -886,77 +1086,115 @@ export function Timeline() {
           </div>
 
           {/* Barras de fase */}
-          {asignaciones.map(a => {
-            // descartar si está completamente fuera del horizonte
+          {filas.flatMap(f => (itemsPorFila.get(f.id) ?? []).map(item => {
+            // descartar si está completamente fuera del horizonte, o si la fila está oculta
             if (
-              differenceInDays(parseISO(a.fin),    horizonStart) < 0 ||
-              differenceInDays(parseISO(a.inicio),  horizonEnd)   > 0
+              differenceInDays(parseISO(item.fin),    horizonStart) < 0 ||
+              differenceInDays(parseISO(item.inicio),  horizonEnd)   > 0
             ) return null
-            // la persona está oculta en esta vista → no hay fila donde pintarla
-            if (!filaDe.has(filaIdDe(a))) return null
+            if (!filaDe.has(item.filaId)) return null
 
-            const { left, width, top } = geom(a)
-            const proyecto    = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) : null
-            const esRojo      = barRojo.has(a.id)
-            const fill        = esRojo ? 'var(--error)' : TIPO_COLOR[a.tipo as TipoFase]
-            const ring        = (a.es_bloqueo || !mostrarConflictos) ? null : ringDe(a)
-            const seleccionada = !!clienteSeleccionado && a.proyecto_id === clienteSeleccionado
-            const atenuada    = !!clienteSeleccionado && a.proyecto_id !== clienteSeleccionado
-            const boxShadow   = ring === 'rojo'
-              ? '0 0 0 2px var(--error)'
-              : ring === 'ambar' ? '0 0 0 2px var(--warn)'
-              : seleccionada   ? '0 0 0 2px var(--celeste)'
-              : 'none'
-            const alias      = aliasPorId.get(a.persona_id) ?? a.persona_id
-            const label      = a.es_bloqueo ? (a._nombre ?? a.tipo) : `${proyecto?.nombre ?? ''} · ${a.tipo}`
-            const arrastrando = drag?.id === a.id
-            const tipoCorto  = a.tipo === 'Relevamiento' ? 'Relev.' : a.tipo === 'Configuracion' ? 'Config.' : a.tipo
+            const seleccionada = !!clienteSeleccionado && item.filaId === clienteSeleccionado
+            const atenuada    = !!clienteSeleccionado && item.filaId !== clienteSeleccionado && (porCuenta || (item.asig ? item.asig.proyecto_id !== clienteSeleccionado : false))
             const fontSize   = BAR_H > 34 ? 11.5 : 10
-            const angosta    = esBarraAngosta(width)
-            const padX       = padDeBarra(width)
-            // Barra angosta: antes se leía "Pr…" y se perdía la persona, que es lo que se
-            // quiere saber. Ahora cae primero el tipo de fase y al final quedan las iniciales.
-            const texto = !proyecto
-              ? label
-              : porCuenta
-                ? textoDeBarra([`${tipoCorto} · ${alias}`, alias, inicialesDe(alias)], width, fontSize)
-                : textoDeBarra([`${proyecto.nombre} · ${tipoCorto}`, proyecto.nombre], width, fontSize)
+
+            // ── Cierre: hito de un día, siempre rombo, no se arrastra ──────────────
+            if (item.kind === 'cierre') {
+              const a = item.asig!
+              const x = dateToX(a.inicio) + pxPerDay / 2
+              const y = topBarra(item.filaId, carrilDe.get(item.id) ?? 0) + BAR_H / 2
+              const alias = aliasPorId.get(a.persona_id) ?? a.persona_id
+              const esRojo = barRojo.has(a.id)
+              const fill = esRojo ? 'var(--error)' : TIPO_COLOR.Cierre
+              return (
+                <div key={item.id}
+                  onMouseDown={porCuenta ? e => e.stopPropagation() : undefined}
+                  onClick={porCuenta ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
+                  title={`${nombreTarea(a)} · ${alias}\n${a.inicio} → ${a.fin}`}
+                  style={{
+                    position: 'absolute', left: x - HITO_R, top: y - HITO_R, width: HITO_R * 2, height: HITO_R * 2,
+                    background: fill, transform: 'rotate(45deg)', borderRadius: 3,
+                    boxShadow: seleccionada ? '0 0 0 2px var(--celeste)' : esRojo && mostrarConflictos ? '0 0 0 2px var(--error)' : 'none',
+                    opacity: atenuada ? 0.35 : 1, cursor: porCuenta ? 'pointer' : 'default', zIndex: 11,
+                  }} />
+              )
+            }
+
+            // geometría real: para 'barra' usa geom() (soporta preview de drag); 'fase' es estática.
+            const g = item.kind === 'barra' ? geom(item.asig!) : {
+              left: dateToX(item.inicio),
+              width: Math.max(MIN_BAR_W, dateToX(item.fin) + pxPerDay - dateToX(item.inicio)),
+              top: topBarra(item.filaId, carrilDe.get(item.id) ?? 0),
+            }
+            const esRojoItem = item.asigIds.some(id => barRojo.has(id))
+            const fill = esRojoItem ? 'var(--error)' : TIPO_COLOR[item.tipo]
+            const ring = item.kind === 'barra' && !item.esBloqueo && mostrarConflictos ? ringDe(item.asig!) : null
+            const boxShadow = ring === 'rojo' ? '0 0 0 2px var(--error)'
+              : ring === 'ambar' ? '0 0 0 2px var(--warn)'
+              : seleccionada && item.kind === 'fase' ? '0 0 0 2px var(--celeste)'
+              : 'none'
+            const angosta = esBarraAngosta(g.width)
+            const padX = padDeBarra(g.width)
+            const arrastrando = item.kind === 'barra' && drag?.id === item.id
+            const enPrevisualizacion = item.kind === 'barra' && previsualizacion?.asignaciones.some(x => x.id === item.id)
+
+            let texto = ''
+            let monograma: string | null = null
+            if (item.kind === 'fase') {
+              const iniciales = item.personaIds.map(pid => inicialesDe(aliasPorId.get(pid) ?? pid))
+              texto = textoDeBarra([`${TIPO_LABEL[item.tipo]} · ${iniciales.join(' ')}`, iniciales.join(' ')], g.width, fontSize, false)
+            } else if (item.esBloqueo) {
+              texto = textoDeBarra([item.asig!._nombre ?? item.tipo], g.width, fontSize, false)
+            } else {
+              const alias = aliasPorId.get(item.personaIds[0]) ?? item.personaIds[0]
+              monograma = inicialesDe(alias)
+              const tarea = nombreTarea(item.asig!)
+              const proyecto = item.asig!.proyecto_id ? proyectoPorId.get(item.asig!.proyecto_id) : null
+              const variantes = porCuenta
+                ? [tarea]
+                : [proyecto ? `${proyecto.nombre} · ${tarea}` : tarea, tarea]
+              texto = textoDeBarra([...variantes, ''], g.width, fontSize, g.width >= 22)
+            }
+
+            const title = item.kind === 'fase'
+              ? `${TIPO_LABEL[item.tipo]} de ${proyectoPorId.get(item.filaId)?.nombre ?? item.filaId} · ${item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')}\n${item.inicio} → ${item.fin} · clic para ver el detalle`
+              : `${item.esBloqueo ? (item.asig!._nombre ?? item.tipo) : nombreTarea(item.asig!)} · ${aliasPorId.get(item.asig!.persona_id) ?? item.asig!.persona_id}\n${item.asig!.inicio} → ${item.asig!.fin} · ${item.asig!.duracion_dias} días hábiles${item.esBloqueo ? '' : (modoMovimiento === 'estricto'
+                ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
+                : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`
 
             return (
-              <div key={a.id}
-                onMouseDown={e => onBarDown(e, a, 'phase')}
-                title={`${label} · ${alias}\n${a.inicio} → ${a.fin} · ${a.duracion_dias} días hábiles${a.es_bloqueo ? '' : (modoMovimiento === 'estricto'
-                  ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
-                  : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`}
+              <div key={item.id}
+                onMouseDown={item.kind === 'barra' && !item.esBloqueo ? e => onBarDown(e, item.asig!, 'phase') : porCuenta ? e => e.stopPropagation() : undefined}
+                onClick={item.kind === 'fase' ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
+                title={title}
                 style={{
-                  position: 'absolute', left, top, width, height: BAR_H,
+                  position: 'absolute', left: g.left, top: g.top, width: g.width, height: BAR_H,
                   background: fill, borderRadius: BAR_H > 34 ? 8 : 6, display: 'flex',
-                  flexDirection: 'column', alignItems: angosta ? 'center' : 'flex-start', justifyContent: 'center', gap: 1,
+                  alignItems: 'center', justifyContent: angosta && !monograma ? 'center' : 'flex-start', gap: 5,
                   paddingLeft: padX, paddingRight: padX,
                   overflow: 'hidden', fontSize, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
-                  boxShadow, cursor: a.es_bloqueo ? 'default' : 'grab',
-                  opacity: a.es_bloqueo ? (atenuada ? 0.25 : 0.55)
-                    : previsualizacion?.asignaciones.some(x => x.id === a.id) ? 0.22
+                  boxShadow, cursor: item.kind === 'barra' && !item.esBloqueo ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
+                  opacity: item.esBloqueo ? (atenuada ? 0.25 : 0.55)
+                    : enPrevisualizacion ? 0.22
                     : (atenuada ? 0.38 : 1),
-                  zIndex: arrastrando ? 15 : 10,
+                  zIndex: arrastrando ? 15 : item.kind === 'fase' ? 9 : 10,
                   transition: arrastrando ? 'none' : 'left var(--t-fast) var(--ease), top var(--t-fast) var(--ease), width var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease)',
                   userSelect: 'none',
                 }}>
-                <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
-                  {texto}
-                </span>
-                {BAR_H > 34 && width > 130 && (
-                  <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 9.5, fontWeight: 500, opacity: 0.85 }}>
-                    {formatFechaCorta(a.inicio)} → {formatFechaCorta(a.fin)} · {a.duracion_dias}d
-                  </span>
+                {monograma && (
+                  <span style={{
+                    flexShrink: 0, width: HITO_R * 2, height: HITO_R * 2, borderRadius: '50%', background: 'rgba(255,255,255,0.92)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8.5, fontWeight: 800, color: TIPO_COLOR[item.tipo],
+                  }}>{monograma}</span>
                 )}
-                {!a.es_bloqueo && (
-                  <div onMouseDown={e => onBarDown(e, a, 'resize')}
+                {texto && <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{texto}</span>}
+                {item.kind === 'barra' && !item.esBloqueo && (
+                  <div onMouseDown={e => onBarDown(e, item.asig!, 'resize')}
                     style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
                 )}
               </div>
             )
-          })}
+          }))}
 
           {/* Fases fantasma: dónde quedaría la cuenta si saliera en el mes que el mouse está tocando en el panel. */}
           {previsualizacion?.asignaciones.map(a => {
@@ -974,48 +1212,6 @@ export function Timeline() {
             )
           })}
         </div>
-
-        {/* Banda de carga (modo cuenta): cuánto de la capacidad de cada persona ocupan las fases,
-            semana por semana, en el mismo eje que las barras. Reemplaza al tinte por fila del modo persona. */}
-        {bandaH > 0 && (
-          <div style={{ position: 'sticky', bottom: 0, height: bandaH, borderTop: '2px solid var(--line)', background: 'var(--white)', zIndex: 25, boxShadow: '0 -4px 12px rgba(30,58,95,0.06)' }}>
-            <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, height: bandaH, zIndex: 20, pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, width: NAME_W, height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}>
-                Carga por semana
-              </div>
-              {bandaFilas.map((f, i) => (
-                <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>{f.persona.alias}</span>
-                  {f.capSemana > 0 && <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>{Math.round(f.capSemana)} h/sem</span>}
-                </div>
-              ))}
-            </div>
-            <div style={{ position: 'absolute', top: 0, left: 0, width: bodyW, height: BANDA_HDR, background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)' }} />
-            {bandaFilas.map((f, i) => (
-              <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: bodyW, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
-            ))}
-            {gridLines.map((p, i) => (
-              <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p), height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
-            ))}
-            {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
-            {bandaFilas.map((f, i) => f.celdas.map(c => {
-              const x1 = dateToX(c.semana)
-              if (x1 < NAME_W - 1 || x1 > bodyW) return null
-              const w = Math.max(3, 7 * pxPerDay - 2)
-              const pct = c.capacidad > 0 ? c.horas / c.capacidad : 9
-              const color = pct > 1 ? 'var(--error)' : pct >= UMBRAL_AMBAR ? 'var(--warn)' : 'var(--ok)'
-              return (
-                <div key={c.semana}
-                  title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${c.capacidad > 0 ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})`}
-                  style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW + 4, left: x1 + 1, width: w, height: BANDA_ROW - 8, background: color, opacity: 0.35 + 0.65 * Math.min(pct, 1), borderRadius: 3, zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {pct >= UMBRAL_AMBAR && w >= 26 && (
-                    <span className="num" style={{ fontSize: 8.5, fontWeight: 800, color: pct > 1 ? '#fff' : '#3B2A08' }}>{Math.round(pct * 100)}%</span>
-                  )}
-                </div>
-              )
-            }))}
-          </div>
-        )}
       </div>
     </div>
   )

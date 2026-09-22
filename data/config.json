@@ -121,10 +121,12 @@
     "cuentas_programa_ya_en_vivo": ["coty"]
   },
   "capacidad": {
-    "_doc": "Modelo de capacidad (brief 10/09/2026 s.2). Todo en horas: horas_dia x dias habiles x dedicacion. Ver src/capacidad.ts.",
-    "horas_dia_default": 7,
-    "margen_minimo_habiles": 5,
-    "aviso_semanal_tolerancia": 1.15,
+    "_doc": "Modelo de capacidad (brief 10/09/2026 s.2; jornada de 8 h desde el 22/09/2026). Todo en horas: horas de la barra (_horas de la plantilla v2, o horas_dia x dedicacion) contra horas_dia x dias habiles x disponibilidad. Ver src/capacidad.ts.",
+    "horas_dia_default": 8,
+    "margen_minimo_habiles": 2,
+    "_margen_nota": "Habiles entre el fin del Cierre (Actualizacion Final) y el corte de novedades; el dia del corte cuenta. Willy 22/09/2026: 2. Antes era 5 medido desde el fin de Pruebas.",
+    "aviso_semanal_tolerancia": 1.10,
+    "_aviso_nota": "El aviso semanal salta por encima del 110 % de la capacidad de la semana (antes 115 %; criterio del 22/09/2026).",
     "moni_soporte_axton": {
       "base": 0.80,
       "cuentas_base": 10,

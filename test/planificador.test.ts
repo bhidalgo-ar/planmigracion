@@ -129,7 +129,7 @@ eq('0 blackout', vTodas.filter(v => v.tipo === 'blackout').length, 0)
 check('toda fase arranca un lunes hábil', todas.every(a => new Date(a.inicio + 'T00:00:00').getDay() === 1 || a.tipo === 'Relevamiento'),
   todas.filter(a => new Date(a.inicio + 'T00:00:00').getDay() !== 1 && a.tipo !== 'Relevamiento').map(a => a.id).join(' '))
 
-titulo('Cierre (forma v5): pegado al corte, encadenado hacia atrás')
+titulo('Cierre (forma v5): a `minimo` hábiles del corte, encadenado hacia atrás, con las pruebas delante')
 const v5: Asignacion[] = [
   { id: 'x-repaso', proyecto_id: 'x', tipo: 'Relevamiento', persona_id: 'gaby_f', inicio: '2026-01-05', fin: '2026-01-06', duracion_dias: 2, dedicacion_pct: 0.5, predecesoras: [], es_bloqueo: false },
   { id: 'x-cw', proyecto_id: 'x', tipo: 'Configuracion', persona_id: 'guille', inicio: '2026-01-05', fin: '2026-01-08', duracion_dias: 4, dedicacion_pct: 0.6, predecesoras: [], es_bloqueo: false },
@@ -143,15 +143,17 @@ const cfgX: Config = { ...config, cortes_novedades_dia: { x: 20 } }
 const rx = planificarCuenta('x', v5, '2026-10', cfgX)
 check('planifica', rx.ok)
 if (rx.ok) {
-  // Corte 20/10 (martes). Aplica termina el hábil anterior, 19/10, y dura 2: 16 y 19. Delta termina el 15/10.
-  eq('aplica termina el 19/10', porId(rx.asignaciones, 'x-aplica').fin, '2026-10-19')
-  eq('aplica arranca el 16/10', porId(rx.asignaciones, 'x-aplica').inicio, '2026-10-16')
-  eq('delta termina el 15/10', porId(rx.asignaciones, 'x-delta').fin, '2026-10-15')
-  eq('delta arranca el 15/10', porId(rx.asignaciones, 'x-delta').inicio, '2026-10-15')
-  // Pruebas 8 días con margen ≥ 5 antes del 20/10: lunes 28/09 → fin 07/10, margen 8,9,13,14,15,16,19,20 = 8.
+  // Corte 20/10 (martes), mínimo 5 (config del v3). El cierre termina 5 hábiles antes: 13/10.
+  // Aplica dura 2 y el lunes 12/10 es feriado: 09 y 13/10. Delta termina el hábil anterior, 08/10.
+  eq('aplica termina el 13/10', porId(rx.asignaciones, 'x-aplica').fin, '2026-10-13')
+  eq('aplica arranca el 09/10 (el 12/10 es feriado)', porId(rx.asignaciones, 'x-aplica').inicio, '2026-10-09')
+  eq('delta termina el 08/10', porId(rx.asignaciones, 'x-delta').fin, '2026-10-08')
+  eq('delta arranca el 08/10', porId(rx.asignaciones, 'x-delta').inicio, '2026-10-08')
+  // Pruebas 8 días que terminen antes del cierre (08/10): lunes 28/09 → fin 07/10.
   eq('pruebas arrancan el 28/09', porId(rx.asignaciones, 'x-pg').inicio, '2026-09-28')
-  eq('margen 8', rx.margen, 8)
-  eq('el cierre no pisa las pruebas (07/10 < 15/10)', rx.cierrePisaPruebas, false)
+  eq('margen = mínimo (5): el cierre termina 5 hábiles antes del corte del 20/10', rx.margen, 5)
+  eq('las pruebas terminan antes del cierre (07/10 < 08/10)', rx.asignaciones.find(a => a.id === 'x-pg')!.fin < '2026-10-08', true)
+  eq('el cierre no pisa las pruebas', rx.cierrePisaPruebas, false)
 }
 
 titulo('mesesCandidatos — desde el mes de hoy hasta el fin del horizonte')

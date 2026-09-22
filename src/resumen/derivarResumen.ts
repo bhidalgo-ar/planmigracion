@@ -244,7 +244,8 @@ function diasEntre(desde: string, hasta: string): number {
  * El mes crítico del plan y su gantt.
  *
  * Cuál es el mes: el de la primera alerta roja de carga que devuelve el motor de reglas
- * (`carga_mes`), que es exactamente la definición de "el equipo no da abasto". Si no hay
+ * (`carga_mes`), que es exactamente la definición de "el equipo no da abasto"; con dos personas
+ * en rojo el mismo mes, la que más se pasa en proporción. Si no hay
  * ninguna, el mes con más cuentas distintas trabajándose a la vez.
  *
  * Qué cuentas se muestran: cuando el mes viene de una alerta roja, las de la persona
@@ -261,9 +262,12 @@ function derivarCuello(
   const fases = asignaciones.filter(a => !a.es_bloqueo && a.tipo !== 'Vacaciones' && a.proyecto_id)
   if (!fases.length) return null
 
+  // La primera alerta roja de carga; si en ese mes hay más de una persona en rojo, la que
+  // más se pasa en proporción a su capacidad (no la que aparece primero en el JSON).
+  const exceso = (v: Violacion) => (v.horas && v.capacidad ? v.horas / v.capacidad : 0)
   const roja = violaciones
     .filter(v => v.tipo === 'carga_mes' && v.severidad === 'rojo' && v.mes)
-    .sort((a, b) => (a.mes! < b.mes! ? -1 : 1))[0]
+    .sort((a, b) => (a.mes! !== b.mes! ? (a.mes! < b.mes! ? -1 : 1) : exceso(b) - exceso(a)))[0]
 
   let mes: string | null = roja?.mes ?? null
   if (!mes) {
@@ -348,9 +352,12 @@ export function enLetras(n: number, femenino = true): string {
 function derivarAlertas(violaciones: Violacion[], mesCuello: string | null): AlertaResumen[] {
   const out: AlertaResumen[] = []
 
+  // La primera alerta roja de carga; si en ese mes hay más de una persona en rojo, la que
+  // más se pasa en proporción a su capacidad (no la que aparece primero en el JSON).
+  const exceso = (v: Violacion) => (v.horas && v.capacidad ? v.horas / v.capacidad : 0)
   const roja = violaciones
     .filter(v => v.tipo === 'carga_mes' && v.severidad === 'rojo' && v.mes)
-    .sort((a, b) => (a.mes! < b.mes! ? -1 : 1))[0]
+    .sort((a, b) => (a.mes! !== b.mes! ? (a.mes! < b.mes! ? -1 : 1) : exceso(b) - exceso(a)))[0]
   if (roja && (!mesCuello || roja.mes === mesCuello)) {
     out.push({ severidad: 'rojo', texto: `Carga del equipo en ${mesLargo(roja.mes!)} por encima de la capacidad` })
   }

@@ -14,7 +14,7 @@ import {
   aplicarPlan, aplicarTraspaso, configConSalida, describirMovimiento, describirTraspaso, MOTIVO_TEXTO, planificarCuenta,
   type ReporteMovimiento, type ReporteTraspaso, type Traspaso,
 } from './planificador'
-import { mesSalidaDe } from './capacidad'
+import { duracionPorHoras, horasDeBarra, horasDiaDe, mesSalidaDe } from './capacidad'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
 import asignacionesRaw from '../data/asignaciones.json'
@@ -861,28 +861,30 @@ export const useSimuladorStore = create<SimuladorState>()(
         return { creadas }
       },
 
-      // Pasa el plan existente al cálculo por horas: cada fase dura lo que le lleva a SU
-      // persona con su disponibilidad de ese año, en vez de los 10/15/8 días fijos de antes.
+      // Recalcula la duración de cada barra desde sus horas (22/09/2026):
       //
-      // NO mueve fechas: el inicio de cada fase queda tal cual está y solo cambian fin,
-      // duracion_dias y dedicacion_pct. Es una decisión explícita: reencadenar y correr las
-      // fases hacia adelante para que nadie se pise desplazaba la cola de trabajo hasta 50
-      // días hábiles y dejaba el timeline irreconocible contra el tablero real. Los choques
-      // que aparecen al estirarse las duraciones quedan a la vista en rojo (Reglas 2 y 3) y
-      // se resuelven a mano moviendo barras, que es de lo que se trata la mesa de
-      // planificación. El encadenado con solapamiento sí se aplica a las fases NUEVAS
-      // (planificar pendientes / alta de cuenta).
+      //   días = horas / (horas_dia de la persona × dedicacion_pct), al entero más cercano, mínimo 1
       //
-      // Quedan afuera los bloqueos y las cuentas especiales (TASA), que no salen del
-      // template estándar: aplicarles la tabla estándar convertiría un relevamiento de
-      // 88 días en uno de 7.
+      // Las horas son las de la barra (`_horas`, plantilla v2) y, solo si la barra no las trae,
+      // las de `horas_por_fase` para su tipo. La dedicación NO se pisa: es la intención del plan
+      // (0,1 / 0,3 / 0,5 / 0,6), no un promedio de disponibilidad como antes. Con las horas y
+      // jornadas con las que se armó el v12, devuelve las mismas duraciones que ya tiene.
+      //
+      // NO mueve fechas: el inicio de cada barra queda tal cual y solo cambian fin y
+      // duracion_dias. Reencadenar y correr las fases hacia adelante desplazaba la cola de trabajo
+      // y dejaba el timeline irreconocible contra el tablero real. Los choques que aparecen al
+      // estirarse quedan a la vista en rojo y se resuelven a mano (mover la cuenta de mes).
+      //
+      // Quedan afuera los bloqueos, las cuentas especiales (TASA), las barras sin horas (ni
+      // `_horas` ni fila en `horas_por_fase`, ej. un Cierre viejo) y las de dedicación 0.
       recalcularDuraciones() {
         let reporte: RecalculoReporte = { recalculadas: 0, cambiadas: [], intactas: 0, conflictos: 0 }
         set(state => {
           const feriados = feriadosDeConfig(state.config)
           const proyectoPorId = new Map(state.proyectos.map(p => [p.id, p]))
+          const personaPorId = new Map(state.personas.map(p => [p.id, p]))
           const esRecalculable = (a: Asignacion) =>
-            !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial
+            !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial && a.dedicacion_pct > 0
 
           const cambiadas: RecalculoReporte['cambiadas'] = []
           let recalculadas = 0
@@ -891,14 +893,15 @@ export const useSimuladorStore = create<SimuladorState>()(
           const asignaciones = state.asignaciones.map(a => {
             if (!esRecalculable(a)) { intactas++; return a }
             const proyecto = a.proyecto_id ? proyectoPorId.get(a.proyecto_id) ?? null : null
-            const horas = horasDeFase(state.config, proyecto, a.tipo)
-            const medida = medirFase(a.inicio, horas, a.persona_id, state.config, feriados)
+            const horas = horasDeBarra(a) ?? horasDeFase(state.config, proyecto, a.tipo)
+            if (horas === null) { intactas++; return a }
+            const dias = duracionPorHoras(horas, horasDiaDe(personaPorId.get(a.persona_id), state.config), a.dedicacion_pct)
             recalculadas++
-            if (medida.duracion_dias !== a.duracion_dias) {
-              cambiadas.push({ id: a.id, diasAntes: a.duracion_dias, diasDespues: medida.duracion_dias })
+            if (dias !== a.duracion_dias) {
+              cambiadas.push({ id: a.id, diasAntes: a.duracion_dias, diasDespues: dias })
             }
-            // Preserva id, proyecto_id, tipo, persona_id, inicio y predecesoras.
-            return { ...a, fin: medida.fin, duracion_dias: medida.duracion_dias, dedicacion_pct: medida.dedicacion_pct }
+            // Preserva id, proyecto_id, tipo, persona_id, inicio, dedicacion_pct, predecesoras y _horas.
+            return { ...a, fin: calcularFin(a.inicio, dias, feriados), duracion_dias: dias }
           })
 
           if (recalculadas === 0) return {}

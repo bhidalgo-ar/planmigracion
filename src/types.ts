@@ -11,8 +11,8 @@ export interface Persona {
   capacidad_horas_semana: number
   buffer_pct: number
   /**
-   * Horas disponibles por día hábil. Default `config.capacidad.horas_dia_default` (7).
-   * Gaby tiene 4: su jornada es fija, no una fracción de la jornada estándar.
+   * Horas disponibles por día hábil. Default `config.capacidad.horas_dia_default` (8, la
+   * jornada de H&A). Gaby tiene 4: su jornada es fija, no una fracción de la estándar.
    */
   horas_dia?: number
   custom?: boolean   // true si se agregó desde la UI (no viene del seed)
@@ -44,6 +44,15 @@ export interface Asignacion {
   predecesoras: string[]
   es_bloqueo: boolean
   _nombre?: string // nombre libre para bloques especiales
+  /**
+   * Horas reales de ESTA barra (plantilla EMPRESA_MMAAAA v2; plan v12, 22/09/2026). Si está,
+   * la carga y "Recalcular duraciones" la usan; si falta, se derivan de `horas_por_fase`.
+   * Una fase puede tener varias barras, así que las horas van por barra, no por fase.
+   */
+  _horas?: number
+  /** Nombre de la tarea de la barra ("Alta y carga base"). Si falta se deriva del id (ver `src/tareas.ts`). */
+  _tarea?: string
+  _nota?: string
 }
 
 /** Horas de esfuerzo por fase, por tipo de cuenta. Tabla de datos (`config.horas_por_fase`). */
@@ -136,6 +145,12 @@ export interface Config {
     inicio_siempre_lunes?: boolean
     nunca_feriado?: boolean
     tope_salidas_en_vivo_por_mes?: number
+    /**
+     * Días hábiles que las pruebas de cruces (Willy) arrancan después de que ARRANCA la ejecución
+     * (Gaby). Es el único vínculo entre barras que no es "termina una, empieza la otra": las dos
+     * Pruebas corren en paralelo con este desfasaje (v12, `_modelo_barras`). Default 2.
+     */
+    desfasaje_pruebas_habiles?: number
     _nota?: string
   }
   /** Modelo de capacidad (brief 10/09/2026 §2). Ver `src/capacidad.ts`. */
@@ -263,6 +278,9 @@ export interface Violacion {
   proyecto_id?: string
   semana?: string  // YYYY-MM-DD lunes de la semana afectada
   mes?: string     // YYYY-MM del mes afectado
+  /** Solo en `carga_mes` y `carga_semana`: las horas planificadas y la capacidad del período, para ordenar por gravedad. */
+  horas?: number
+  capacidad?: number
   mensaje: string
   severidad: SeveridadViolacion
 }

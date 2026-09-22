@@ -45,6 +45,8 @@ const AsignacionSchema = z.object({
   dedicacion_pct: z.number().nonnegative(),
   predecesoras: z.array(z.string()).default([]),
   es_bloqueo: z.boolean().default(false),
+  /** Horas reales de la barra (plan v12). Opcional: sin ella se deriva de `horas_por_fase`. */
+  _horas: z.number().nonnegative().optional(),
 }).passthrough().refine(a => a.inicio <= a.fin, { message: 'la fase termina antes de empezar (fin < inicio)', path: ['fin'] })
 
 const FeriadoSchema = z.object({ fecha: FECHA, nombre: z.string() }).passthrough()

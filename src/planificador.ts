@@ -1,7 +1,7 @@
 import { addDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from './types'
 import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
-import { computeViolaciones, fechaCorteDe, habilesHasta } from './rules'
+import { computeViolaciones, fechaCorteDe, habilesHasta, MARGEN_MINIMO_DEFAULT } from './rules'
 import { cargaMensual, mesSalidaDe } from './capacidad'
 
 /**
@@ -9,14 +9,16 @@ import { cargaMensual, mesSalidaDe } from './capacidad'
  * de la app. Recibe UNA decisión (el mes de salida en vivo de una cuenta) y deriva las
  * fechas de todas sus fases desde el corte de novedades de ese mes:
  *
- *   1. Pruebas: el lunes hábil más tarde que deje `margen_minimo_habiles` antes del corte y
+ *   1. Pruebas: el lunes hábil más tarde que termine antes del Cierre (o, si la cuenta no tiene
+ *      Cierre, que deje `margen_minimo_habiles` antes del corte) y
  *      no toque el blackout de fin de año. Todas las pruebas arrancan ese lunes.
  *   2. Configuración: el lunes hábil más tarde que termine antes de las pruebas, fuera del
  *      blackout. Todas las configuraciones arrancan ese lunes.
  *   3. Relevamiento: la última (por orden actual) el lunes anterior a la configuración; las
  *      anteriores encadenan hacia atrás, cada una terminando el hábil previo a la siguiente.
- *   4. Cierre: pegado al corte, no a las pruebas. La última barra termina el hábil anterior
- *      al corte y las demás encadenan hacia atrás. Puede pisar las pruebas: se informa.
+ *   4. Cierre: la última barra termina `margen_minimo_habiles` hábiles antes del corte (el margen
+ *      se mide desde el cierre; Willy, 22/09/2026) y las demás encadenan hacia atrás. Se ubica
+ *      ANTES que las pruebas, que van delante de él.
  *
  * Solo cambia `inicio` y `fin`. Conserva id, persona, duración, dedicación y predecesoras,
  * así funciona con cualquier forma de cuenta (v3 con corrida, v5 con Cierre) y sin depender
@@ -104,7 +106,7 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
   const feriados = feriadosDeConfig(config)
   const corte = fechaCorteDe(proyectoId, mesSalida, config, feriados)
   if (!corte) return { ok: false, motivo: 'sin_corte' }
-  const minimo = config.capacidad?.margen_minimo_habiles ?? 5
+  const minimo = config.capacidad?.margen_minimo_habiles ?? MARGEN_MINIMO_DEFAULT
   const blackout = config.tiers_v3?.blackout_config
 
   const porTipo = (tipo: Asignacion['tipo']) => propias.filter(a => a.tipo === tipo).sort(ORDEN_CRONO)
@@ -129,22 +131,45 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
     return dias[dias.length - 1]
   }
 
-  // 1. Pruebas: el lunes más tarde que deje el margen mínimo antes del corte y no toque el blackout.
+  // 4 (primero). Cierre: la última barra termina `minimo` hábiles antes del corte, las demás
+  // encadenan hacia atrás. Las pruebas van delante de él, así que no lo pueden pisar.
+  let cierrePisaPruebas = false
+  let topePruebas: string | null = null   // último día que pueden ocupar las pruebas
+  if (cierres.length) {
+    let fin = corte
+    for (let k = 0; k < minimo; k++) fin = habilAnterior(fin, feriados)
+    for (let i = cierres.length - 1; i >= 0; i--) {
+      fijarHasta(cierres[i], fin)
+      fin = habilAnterior(nuevas.get(cierres[i].id)!.inicio, feriados)
+    }
+    topePruebas = fin
+  }
+
+  // 1. Pruebas: el lunes más tarde que termine antes del cierre (o que deje el margen mínimo
+  // antes del corte, si no hay cierre) y no toque el blackout.
   let margen = 0
   let iniPruebas: string | null = null
   if (pruebas.length) {
     const dur = durMax(pruebas)
-    let lunes = lunesHabilAnteriorOIgual(corte, feriados)
+    let lunes = lunesHabilAnteriorOIgual(topePruebas ?? corte, feriados)
     let encontrado = false
     for (let i = 0; i < MAX_INTENTOS; i++) {
       const fin = finDesde(lunes, dur)
-      const m = fin < corte ? habilesHasta(fin, corte, feriados) : -1
-      if (m >= minimo && !pisaBlackout(lunes, fin, blackout)) { margen = m; encontrado = true; break }
+      const entra = topePruebas ? fin <= topePruebas : (fin < corte && habilesHasta(fin, corte, feriados) >= minimo)
+      if (entra && !pisaBlackout(lunes, fin, blackout)) { encontrado = true; break }
       lunes = lunesAnterior(lunes)
     }
     if (!encontrado) return { ok: false, motivo: 'sin_lugar' }
     iniPruebas = lunes
     for (const a of pruebas) fijarDesde(a, lunes)
+  }
+  // Margen que se informa: desde el fin de la última barra (cierre, o pruebas sin cierre) al corte.
+  {
+    const ultimas = cierres.length ? cierres : pruebas
+    if (ultimas.length) {
+      const fin = ultimas.map(a => nuevas.get(a.id)!.fin).sort()[ultimas.length - 1]
+      margen = fin < corte ? habilesHasta(fin, corte, feriados) : 0
+    }
   }
 
   // 2. Configuración: termina antes de las pruebas (o del corte, si la cuenta no tiene pruebas).
@@ -174,20 +199,6 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
     for (let i = relevs.length - 2; i >= 0; i--) {
       fijarHasta(relevs[i], habilAnterior(siguienteInicio, feriados))
       siguienteInicio = nuevas.get(relevs[i].id)!.inicio
-    }
-  }
-
-  // 4. Cierre: pegado al corte, encadenado hacia atrás en su orden actual.
-  let cierrePisaPruebas = false
-  if (cierres.length) {
-    let fin = habilAnterior(corte, feriados)
-    for (let i = cierres.length - 1; i >= 0; i--) {
-      fijarHasta(cierres[i], fin)
-      fin = habilAnterior(nuevas.get(cierres[i].id)!.inicio, feriados)
-    }
-    if (pruebas.length) {
-      const finPruebas = pruebas.map(a => nuevas.get(a.id)!.fin).sort()[pruebas.length - 1]
-      cierrePisaPruebas = nuevas.get(cierres[0].id)!.inicio <= finPruebas
     }
   }
 
