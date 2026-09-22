@@ -26,6 +26,7 @@ import {
 import { UMBRAL_AMBAR } from '../src/capacidad'
 import { toISO } from '../src/utils/dates'
 import planV3 from './fixtures/plan-v3.json'
+import configSeed from '../data/config.json'
 
 let fallos = 0
 let corridos = 0
@@ -110,6 +111,20 @@ eq('el 300 % también', a300.excedida, true)
 eq('al 100 % clavado todavía no está excedida', a100.excedida, false)
 eq('media carga mide la mitad', altoDeBarra(20, 40).alto, BANDA_BAR_H / 2)
 eq('sin horas no dibuja nada', altoDeBarra(0, 40).alto, 0)
+
+console.log('\n— Perillas del seed (22/09/2026) —')
+
+// Dos valores que Willy fijó a mano y que no se mueven sin que él lo pida. El blackout
+// cubre diciembre entero: hasta el 22/09/2026 iba del 21/12 al 08/01 y dejaba hábil la
+// primera quincena, que es donde caían tres configuraciones del plan v3.
+const seed = configSeed as unknown as {
+  tiers_v3?: { blackout_config?: [string, string] }
+  disponibilidad?: { por_persona_ano: Record<string, Record<string, number>> }
+}
+eq('el blackout del seed arranca el 1/12', seed.tiers_v3?.blackout_config?.[0], '2026-12-01')
+eq('y termina el 31/12', seed.tiers_v3?.blackout_config?.[1], '2026-12-31')
+eq('Willy al 80 % en 2026', seed.disponibilidad?.por_persona_ano.guille?.['2026'], 0.8)
+eq('Willy al 80 % en 2027', seed.disponibilidad?.por_persona_ano.guille?.['2027'], 0.8)
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLAS`} — ${corridos} chequeos`)
 process.exit(fallos === 0 ? 0 : 1)
