@@ -1,12 +1,11 @@
 /**
- * Tests de la geometría de la vista del timeline (spec 2026-09-22, §3 y §5): el rango del eje
- * de tiempo y la banda de carga semanal.
+ * Tests de la geometría de la vista del timeline: el rango del eje de tiempo y la banda de
+ * carga (spec 2026-09-22 §3 y §5; círculos en vez de barras, mockup aprobado por Willy el
+ * mismo día).
  *
- * Los dos bugs que motivaron la spec tienen su chequeo acá:
- *  - la banda pintaba por ORDEN DE APILADO, no por % de capacidad, así que una semana al 40 %
- *    y una al 100 % se veían idénticas;
- *  - la altura se clampeaba a 1,6 × el alto de caja, con lo cual una barra podía dibujar
- *    15 px fuera de su fila y pisar la de al lado, y 160 % se veía igual que 300 %.
+ * El bug que motivó la primera versión de la banda por % (antes de los círculos) tiene su
+ * chequeo acá igual: pintaba por ORDEN DE APILADO, no por % de capacidad, así que una semana
+ * al 40 % y una al 100 % se veían idénticas.
  */
 
 // localStorage falso: zustand/persist lo pide al importar el store.
@@ -21,9 +20,9 @@ const mem = new Map<string, string>()
 }
 
 import {
-  altoDeBarra, estadoDeCarga, rangoDelEje, BANDA_ROW, BANDA_ETQ, BANDA_BAR_H,
+  celdasDia, celdasMes, celdasSemana, estadoDeCarga, pctDeCarga, rangoDelEje, BANDA_DOT, BANDA_ROW,
 } from '../src/vistaTimeline'
-import { UMBRAL_AMBAR } from '../src/capacidad'
+import { UMBRAL_AMBAR, type CargaDiaria, type CargaSemanal } from '../src/capacidad'
 import { toISO } from '../src/utils/dates'
 import planV3 from './fixtures/plan-v3.json'
 import configSeed from '../data/config.json'
@@ -90,27 +89,51 @@ ok('una semana al 40 % y una al 100 % ya no se ven igual',
 eq('capacidad 0 con horas planificadas se dibuja distinto', estadoDeCarga(8, 0), 'sin_capacidad')
 eq('capacidad 0 sin horas no alarma', estadoDeCarga(0, 0), 'ok')
 
-console.log('\n— Banda de carga: ninguna barra pisa la fila de al lado —')
+console.log('\n— Banda de carga: el círculo entra en el alto de fila —')
 
-eq('la etiqueta y la barra entran en el alto de fila', BANDA_ETQ + BANDA_BAR_H <= BANDA_ROW, true)
+eq('el círculo entra en la fila con margen', BANDA_DOT < BANDA_ROW, true)
 
-// El clamp viejo era 1,6 × el alto de caja: a 160 % la barra medía 41 px dentro de una caja
-// de 26 y se metía en la fila de arriba.
-for (const [horas, cap] of [[10, 40], [40, 40], [64, 40], [120, 40], [8, 0]] as const) {
-  const { alto } = altoDeBarra(horas, cap)
-  ok(`${horas} h sobre ${cap} h no dibuja más alto que su caja`, alto <= BANDA_BAR_H + 1e-9, `${alto} px de ${BANDA_BAR_H}`)
-}
+console.log('\n— pctDeCarga — el número que va adentro del círculo —')
 
-const a100 = altoDeBarra(40, 40)
-const a160 = altoDeBarra(64, 40)
-const a300 = altoDeBarra(120, 40)
-eq('al 100 % la barra llega justo al techo', Math.round(a100.alto), BANDA_BAR_H)
-eq('al 160 % no sobresale: lo dice el tope', a160.alto, BANDA_BAR_H)
-eq('el 160 % queda marcado como excedido', a160.excedida, true)
-eq('el 300 % también', a300.excedida, true)
-eq('al 100 % clavado todavía no está excedida', a100.excedida, false)
-eq('media carga mide la mitad', altoDeBarra(20, 40).alto, BANDA_BAR_H / 2)
-eq('sin horas no dibuja nada', altoDeBarra(0, 40).alto, 0)
+eq('40 de 40 es 100', pctDeCarga(40, 40), 100)
+eq('20 de 40 es 50', pctDeCarga(20, 40), 50)
+eq('64 de 40 es 160, no se clampea (el color ya dice rojo)', pctDeCarga(64, 40), 160)
+eq('sin capacidad, null: no hay contra qué medir', pctDeCarga(8, 0), null)
+
+console.log('\n— celdasSemana / celdasDia — mismo dato, sin agrupar —')
+
+const semanaEj: CargaSemanal = { personaId: 'guille', semana: '2027-02-08', horas: 14.4, capacidad: 24, porBarra: { a: 14.4 } }
+const diaEj: CargaDiaria = { personaId: 'guille', dia: '2027-02-08', horas: 2.4, capacidad: 8, porBarra: { a: 2.4 } }
+eq('celdasSemana usa la semana como fecha ancla', celdasSemana([semanaEj])[0].fecha, '2027-02-08')
+eq('celdasDia usa el día como fecha ancla', celdasDia([diaEj])[0].fecha, '2027-02-08')
+eq('ninguna de las dos trae alerta (eso es solo de celdasMes)', celdasSemana([semanaEj])[0].alerta, undefined)
+
+console.log('\n— celdasMes — promedio de las semanas del mes, con aviso si alguna se pasó —')
+
+// Cuatro semanas de febrero: una se pasa de capacidad (44/40), pero el promedio del mes
+// (104/160 = 65 %) queda por debajo del umbral de aviso. El promedio solo lo escondería.
+const semanasFeb: CargaSemanal[] = [
+  { personaId: 'x', semana: '2027-02-01', horas: 20, capacidad: 40, porBarra: { a1: 20 } },
+  { personaId: 'x', semana: '2027-02-08', horas: 44, capacidad: 40, porBarra: { a1: 44 } },
+  { personaId: 'x', semana: '2027-02-15', horas: 20, capacidad: 40, porBarra: { a1: 20 } },
+  { personaId: 'x', semana: '2027-02-22', horas: 20, capacidad: 40, porBarra: { a1: 20 } },
+]
+const mesFeb = celdasMes(semanasFeb)[0]
+eq('una celda por mes', celdasMes(semanasFeb).length, 1)
+eq('ancla en el 1° del mes', mesFeb.fecha, '2027-02-01')
+eq('horas y capacidad son la suma de las 4 semanas', `${mesFeb.horas}/${mesFeb.capacidad}`, '104/160')
+eq('el promedio del mes da verde (65 % < 85 %)', estadoDeCarga(mesFeb.horas, mesFeb.capacidad), 'ok')
+eq('pero avisa: una semana adentro se pasó de capacidad', mesFeb.alerta, true)
+eq('sin ninguna semana roja, no avisa', celdasMes([semanasFeb[0], semanasFeb[2], semanasFeb[3]])[0].alerta, false)
+eq('porBarra suma las horas de las 4 semanas', mesFeb.porBarra.a1, 104)
+
+// Dos meses distintos no se mezclan, y cada persona se agrupa aparte (celdasMes recibe la
+// tira ya filtrada a una sola persona: si no, dos personas en el mismo mes sumarían mal).
+const semanasDosMeses: CargaSemanal[] = [
+  { personaId: 'x', semana: '2027-02-22', horas: 10, capacidad: 40, porBarra: {} },
+  { personaId: 'x', semana: '2027-03-01', horas: 30, capacidad: 40, porBarra: {} },
+]
+eq('dos meses, dos celdas, en orden', celdasMes(semanasDosMeses).map(c => c.fecha).join(','), '2027-02-01,2027-03-01')
 
 console.log('\n— Perillas del seed (22/09/2026) —')
 

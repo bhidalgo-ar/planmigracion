@@ -22,7 +22,7 @@ const mem = new Map<string, string>()
 
 import type { Asignacion, Config, Persona, Proyecto } from '../src/types'
 import {
-  cargaMensual, cargaSemanal, curvaRestante, duracionPorHoras, horasDeBarra, horasDiaDe, horasPorDiaHabil,
+  cargaDiaria, cargaMensual, cargaSemanal, curvaRestante, duracionPorHoras, horasDeBarra, horasDiaDe, horasPorDiaHabil,
 } from '../src/capacidad'
 import { feriadosDeConfig } from '../src/utils/dates'
 import { validarPlan } from '../src/validacionPlan'
@@ -141,6 +141,20 @@ check('la suma de todas las semanas de una barra da sus _horas', (() => {
   let suma = 0
   for (const c of semanal.filter(c => c.personaId === 'guille')) suma += c.porBarra['demo-pr-cruces'] ?? 0
   return Math.abs(suma - 19) < 0.02
+})())
+
+titulo('cargaDiaria — el mismo cálculo día por día que cargaSemanal, sin agrupar')
+const diaria = cargaDiaria(personas, asignaciones, configV12)
+const diasDe = (p: string, desde: string, hasta: string) => diaria.filter(c => c.personaId === p && c.dia >= desde && c.dia <= hasta)
+const semana1502 = diasDe('guille', '2027-02-15', '2027-02-19')
+eq('semana del 15/2, sin feriado: 5 días hábiles', semana1502.length, 5)
+cerca('la suma de horas de esos 5 días es la misma que cargaSemanal', semana1502.reduce((s, c) => s + c.horas, 0), sem('guille', '2027-02-15').horas, 0.01)
+cerca('la suma de capacidad de esos 5 días es la misma que cargaSemanal', semana1502.reduce((s, c) => s + c.capacidad, 0), sem('guille', '2027-02-15').capacidad, 0.01)
+eq('Carnaval (8 y 9/2 feriados): 3 días hábiles, no 5', diasDe('guille', '2027-02-08', '2027-02-12').length, 3)
+check('porBarra de un día suma lo mismo que sus horas', (() => {
+  const d = semana1502.find(c => Object.keys(c.porBarra).length > 0)
+  if (!d) return true
+  return Math.abs(Object.values(d.porBarra).reduce((s, h) => s + h, 0) - d.horas) < 0.01
 })())
 
 titulo('cargaMensual — misma fuente de horas')

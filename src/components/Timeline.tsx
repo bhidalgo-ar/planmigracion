@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { format, addDays, parseISO, differenceInDays } from 'date-fns'
+import { format, addDays, parseISO, differenceInDays, getDaysInMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cascadaIds, useSimuladorStore } from '../store'
 import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, Persona, TipoFase } from '../types'
 import { TIPO_COLOR, TIPO_LABEL } from '../theme/fases'
-import { cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
-import { altoDeBarra, estadoDeCarga, rangoDelEje, BANDA_ROW, BANDA_ETQ, BANDA_BAR_H } from '../vistaTimeline'
+import { cargaDiaria, cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
+import {
+  celdasDia, celdasMes, celdasSemana, estadoDeCarga, pctDeCarga, rangoDelEje,
+  BANDA_DOT, BANDA_ROW, type CeldaBandaCarga,
+} from '../vistaTimeline'
 import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { margenesPorCuenta, predecesoraViolada } from '../rules'
 import { nombreTarea } from '../tareas'
@@ -440,34 +443,44 @@ export function Timeline() {
     return { personas: conFases, semanas: cargaSemanal(conFases, asignaciones, config) }
   }, [personasTodas, asignaciones, config])
 
-  // Banda de carga (modo cuenta): horas planificadas contra capacidad, por persona y semana,
-  // con el desglose por cuenta para apilar sin necesitar una leyenda de colores.
+  // Carga diaria de todas las personas con fases: solo se calcula si el zoom activo la
+  // necesita (Día); las otras vistas se arman con `cargaSemanalTodas`, que ya está.
+  const cargaDiariaTodas = useMemo(
+    () => (porCuenta && zoom === 'dias' ? cargaDiaria(cargaSemanalTodas.personas, asignaciones, config) : []),
+    [porCuenta, zoom, cargaSemanalTodas, asignaciones, config],
+  )
+
+  // Banda de carga (modo cuenta): horas planificadas contra capacidad, por persona y celda —
+  // un círculo por día, semana (el de siempre) o mes/trimestre agrupado, según el zoom activo
+  // del Gantt —, con el desglose por cuenta para el detalle al hacer clic (spec-html
+  // 22/09/2026: círculos en vez de barras apiladas).
   const bandaFilas = useMemo(() => {
     if (!porCuenta) return []
-    const { personas: conFases, semanas: carga } = cargaSemanalTodas
+    const { personas: conFases, semanas } = cargaSemanalTodas
     const hoyMs = Date.now()
     const semanaHoyISO = toISO(getMondayOfWeek(new Date()))
     return conFases.map(p => {
-      const propias = carga.filter(c => c.personaId === p.id)
-      const conCap = propias.filter(c => c.capacidad > 0)
+      const semanasPropias = semanas.filter(c => c.personaId === p.id)
+      const conCap = semanasPropias.filter(c => c.capacidad > 0)
       // Capacidad real de la semana actual (o la más cercana con capacidad), no un promedio de
       // todo el horizonte: la de Moni baja con el tiempo y un promedio la disimula (D2 con Willy).
       const actual = conCap.find(c => c.semana === semanaHoyISO)
         ?? conCap.slice().sort((a, b) => Math.abs(parseISO(a.semana).getTime() - hoyMs) - Math.abs(parseISO(b.semana).getTime() - hoyMs))[0]
-      const semanas = propias.filter(c => c.horas > 0).map(c => {
+      const propias: CeldaBandaCarga[] =
+        zoom === 'dias' ? celdasDia(cargaDiariaTodas.filter(c => c.personaId === p.id)) :
+        zoom === 'semanas' ? celdasSemana(semanasPropias) :
+        celdasMes(semanasPropias)
+      const celdas = propias.filter(c => c.horas > 0).map(c => {
         const porCuentaHoras = new Map<string, number>()
         for (const [barraId, h] of Object.entries(c.porBarra)) {
           const pid = asigProyecto.get(barraId) ?? SIN_CUENTA
           porCuentaHoras.set(pid, (porCuentaHoras.get(pid) ?? 0) + h)
         }
-        return {
-          semana: c.semana, horas: c.horas, capacidad: c.capacidad,
-          porCuenta: [...porCuentaHoras.entries()].sort((a, b) => b[1] - a[1]),
-        }
+        return { ...c, porCuenta: [...porCuentaHoras.entries()].sort((a, b) => b[1] - a[1]) }
       })
-      return { persona: p, semanas, capSemana: actual?.capacidad ?? 0 }
+      return { persona: p, celdas, capSemana: actual?.capacidad ?? 0 }
     })
-  }, [porCuenta, cargaSemanalTodas, asigProyecto])
+  }, [porCuenta, zoom, cargaSemanalTodas, cargaDiariaTodas, asigProyecto])
   const bandaH = porCuenta && bandaFilas.length ? BANDA_HDR + bandaFilas.length * BANDA_ROW : 0
 
   // barras que se pintan enteras de rojo: la fase en sí rompe una regla del calendario
@@ -516,6 +529,10 @@ export function Timeline() {
     }
     return worst
   }
+
+  // Círculo de la banda de carga abierto (clic → detalle de qué cuentas la componen). Un
+  // solo popover a la vez; clic de nuevo en el mismo círculo lo cierra.
+  const [popoverCarga, setPopoverCarga] = useState<{ personaId: string; fecha: string; x: number; top: number } | null>(null)
 
   // ── drag ────────────────────────────────────────────────────────────────────
 
@@ -852,79 +869,114 @@ export function Timeline() {
         </div>
 
         {/* BANDA DE CARGA (modo cuenta): pegada debajo del encabezado, siempre visible mientras
-            se scrollea. Una barra por persona y semana, con el ESTADO primero: color por % de
-            capacidad, techo dibujado, y el exceso marcado con un tope en vez de desbordando
-            sobre la fila de al lado (spec 2026-09-22, §5).
-
-            El trade-off, explícito: la versión vieja apilaba las horas por cuenta con el nombre
-            escrito adentro a 7,5 px, y por eso usaba el color para el orden de la pila. Las dos
-            cosas no caben en el mismo canal. Ahora la pregunta "¿alguien está pasado esta
-            semana?" se contesta de un vistazo, y "¿qué cuenta causa el pico?" se contesta al
-            pasar el mouse o al seleccionar la cuenta (su parte se marca en celeste). */}
-        {bandaH > 0 && (
-          <div style={{ position: 'sticky', top: HEADER_H, height: bandaH, zIndex: 25, background: 'var(--white)', borderBottom: '2px solid var(--line)', boxShadow: '0 4px 12px rgba(30,58,95,0.06)', display: 'flex' }}>
-            <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, flexShrink: 0, zIndex: 20 }}>
-              <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}
-                title="Horas planificadas contra la capacidad de cada persona, semana a semana. Verde: por debajo del 85 % de su capacidad. Ámbar: entre el 85 % y el 100 %. Rojo: se pasa (la barra llega al techo y lo marca con un tope). La línea punteada es el 100 %.">
-                Carga por semana
-              </div>
-              {bandaFilas.map((f, i) => (
-                <div key={f.persona.id} style={{ height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>{f.persona.alias}</span>
-                  {f.capSemana > 0 && <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>{Math.round(f.capSemana)} h/sem</span>}
+            se scrollea. Un círculo por persona y celda — día, semana o mes/trimestre según el
+            zoom del Gantt —, color por % de capacidad. Reemplaza la barra apilada (22/09/2026,
+            mockup aprobado por Willy): con el color como único canal, la pregunta "¿alguien
+            está pasado?" se contesta de un vistazo, y "¿qué cuenta causa el pico?" al pasar el
+            mouse o al hacer clic, que abre el detalle completo (antes solo estaba en el title). */}
+        {bandaH > 0 && (() => {
+          const etiquetaZoom = zoom === 'dias' ? 'día' : zoom === 'semanas' ? 'semana' : 'mes'
+          const anchoCelda = (fecha: string): number => {
+            if (zoom === 'dias') return Math.max(3, pxPerDay - 2)
+            if (zoom === 'semanas') return Math.max(3, 7 * pxPerDay - 2)
+            return Math.max(3, getDaysInMonth(parseISO(fecha)) * pxPerDay - 2)
+          }
+          const etiquetaCelda = (fecha: string): string =>
+            zoom === 'dias' ? formatFechaCorta(fecha)
+              : zoom === 'semanas' ? `semana del ${formatFechaCorta(fecha)}`
+                : mesCorto(fecha.slice(0, 7))
+          return (
+            <div style={{ position: 'sticky', top: HEADER_H, height: bandaH, zIndex: 25, background: 'var(--white)', borderBottom: '2px solid var(--line)', boxShadow: '0 4px 12px rgba(30,58,95,0.06)', display: 'flex' }}>
+              <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, flexShrink: 0, zIndex: 20 }}>
+                <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}
+                  title="Horas planificadas contra la capacidad de cada persona. Verde: por debajo del 85 % de su capacidad. Ámbar: entre el 85 % y el 100 %. Rojo: se pasa. A nivel Mes, el número es el promedio de las semanas y el ⚠ avisa si alguna se pasó aunque el promedio no lo diga.">
+                  Carga por {etiquetaZoom}
                 </div>
-              ))}
-            </div>
-            <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, width: bodyW - NAME_W, height: BANDA_HDR, background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)' }} />
-              {bandaFilas.map((f, i) => (
-                <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
-              ))}
-              {gridLines.map((p, i) => (
-                <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p) - NAME_W, height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
-              ))}
-              {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX - NAME_W, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
-              {/* Línea de capacidad al 100 %, una por persona, cruzando toda la fila. Antes el
-                  techo no se dibujaba: había que leer alturas relativas contra un número que
-                  no estaba en pantalla. */}
-              {bandaFilas.map((f, i) => f.capSemana > 0 && (
-                <div key={`cap-${f.persona.id}`} title={`Capacidad de ${f.persona.alias}: ${Math.round(f.capSemana)} h por semana`}
-                  style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW + BANDA_ETQ, left: 0, width: bodyW - NAME_W, borderTop: '1px dashed var(--t3)', opacity: 0.5, zIndex: 2, pointerEvents: 'none' }} />
-              ))}
-
-              {bandaFilas.map((f, i) => f.semanas.map(c => {
-                const x1 = dateToX(c.semana) - NAME_W
-                if (x1 < -1 || x1 > bodyW) return null
-                const w = Math.max(3, 7 * pxPerDay - 2)
-                const pct = c.capacidad > 0 ? c.horas / c.capacidad : null
-                const estado = estadoDeCarga(c.horas, c.capacidad)
-                const { alto, excedida } = altoDeBarra(c.horas, c.capacidad)
-                // Atribución por cuenta, a demanda (spec §5.6): el detalle completo vive en el
-                // title, y la cuenta seleccionada en el timeline se marca dentro de la barra.
-                const horasSel = clienteSeleccionado ? (c.porCuenta.find(([pid]) => pid === clienteSeleccionado)?.[1] ?? 0) : 0
-                const altoSel = horasSel > 0 && c.horas > 0 ? alto * (horasSel / c.horas) : 0
-                const topCaja = BANDA_HDR + i * BANDA_ROW + BANDA_ETQ
-                return (
-                  <div key={c.semana} style={{ position: 'absolute', left: x1 + 1, top: topCaja, width: w, height: BANDA_BAR_H, zIndex: 3 }}
-                    title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${pct !== null ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}>
-                    <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: alto, background: COLOR_CARGA[estado], borderRadius: '2px 2px 0 0' }} />
-                    {altoSel > 0 && (
-                      <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: altoSel, background: 'var(--celeste)', borderRadius: altoSel >= alto ? '2px 2px 0 0' : 0 }} />
-                    )}
-                    {/* El exceso no desborda hacia la fila de al lado: lo dice un tope saliente. */}
-                    {excedida && (
-                      <div style={{ position: 'absolute', left: 0, top: -3, width: '100%', height: 3, background: 'var(--error)', borderRadius: 1 }} />
-                    )}
-                    {/* El % solo cuando hay algo que avisar: en verde el color ya lo dijo. */}
-                    {pct !== null && estado !== 'ok' && w >= 22 && (
-                      <span className="num" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -BANDA_ETQ, fontSize: 8, lineHeight: '9px', fontWeight: 800, color: estado === 'rojo' ? 'var(--error-tx)' : 'var(--warn-tx)', whiteSpace: 'nowrap' }}>{Math.round(pct * 100)}%</span>
-                    )}
+                {bandaFilas.map((f, i) => (
+                  <div key={f.persona.id} style={{ height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>{f.persona.alias}</span>
+                    {f.capSemana > 0 && <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>{Math.round(f.capSemana)} h/sem</span>}
                   </div>
-                )
-              }))}
+                ))}
+              </div>
+              <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, width: bodyW - NAME_W, height: BANDA_HDR, background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)' }} />
+                {bandaFilas.map((f, i) => (
+                  <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
+                ))}
+                {gridLines.map((p, i) => (
+                  <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p) - NAME_W, height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
+                ))}
+                {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX - NAME_W, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
+
+                {bandaFilas.map((f, i) => f.celdas.map(c => {
+                  const x1 = dateToX(c.fecha) - NAME_W
+                  const w = anchoCelda(c.fecha)
+                  if (x1 + w < -1 || x1 > bodyW) return null
+                  const pct = pctDeCarga(c.horas, c.capacidad)
+                  const estado = estadoDeCarga(c.horas, c.capacidad)
+                  const top = BANDA_HDR + i * BANDA_ROW + (BANDA_ROW - BANDA_DOT) / 2
+                  const left = x1 + w / 2 - BANDA_DOT / 2
+                  // Atribución por cuenta, a demanda: antes vivía solo en el title; ahora
+                  // además un clic abre el detalle completo (Opción B del mockup, 22/09/2026).
+                  const horasSel = clienteSeleccionado ? (c.porCuenta.find(([pid]) => pid === clienteSeleccionado)?.[1] ?? 0) : 0
+                  const key = `${f.persona.id}|${c.fecha}`
+                  const abierto = popoverCarga?.personaId === f.persona.id && popoverCarga?.fecha === c.fecha
+                  return (
+                    <div key={key} role="button" tabIndex={0}
+                      onClick={() => setPopoverCarga(abierto ? null : { personaId: f.persona.id, fecha: c.fecha, x: left, top: top + BANDA_DOT })}
+                      title={`${f.persona.alias} · ${etiquetaCelda(c.fecha)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${pct !== null ? pct + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}
+                      style={{
+                        position: 'absolute', left, top, width: BANDA_DOT, height: BANDA_DOT, borderRadius: '50%', zIndex: 3, cursor: 'pointer',
+                        background: COLOR_CARGA[estado],
+                        boxShadow: horasSel > 0 ? '0 0 0 2px var(--white), 0 0 0 4px var(--celeste)' : abierto ? '0 0 0 2px var(--ink)' : undefined,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                      {pct !== null ? (
+                        <span className="num" style={{ fontSize: 8, lineHeight: 1, fontWeight: 800, color: '#fff' }}>{pct}</span>
+                      ) : c.horas > 0 ? (
+                        <span style={{ fontSize: 9, lineHeight: 1, fontWeight: 800, color: '#fff' }}>!</span>
+                      ) : null}
+                      {c.alerta && (
+                        <span title="Alguna semana de este mes llegó a rojo, aunque el promedio no lo diga"
+                          style={{ position: 'absolute', top: -5, right: -5, width: 10, height: 10, borderRadius: '50%', background: 'var(--error)', color: '#fff', fontSize: 7, lineHeight: '10px', textAlign: 'center', boxShadow: '0 0 0 1.5px var(--white)' }}>!</span>
+                      )}
+                    </div>
+                  )
+                }))}
+
+                {/* Detalle al clic: qué cuentas componen la carga de esa celda (spec-html, Opción B). */}
+                {popoverCarga && (() => {
+                  const fila = bandaFilas.find(f => f.persona.id === popoverCarga.personaId)
+                  const celda = fila?.celdas.find(c => c.fecha === popoverCarga.fecha)
+                  if (!fila || !celda) return null
+                  const pct = pctDeCarga(celda.horas, celda.capacidad)
+                  return (
+                    <div style={{
+                      position: 'absolute', left: Math.min(Math.max(popoverCarga.x - 90, 0), bodyW - NAME_W - 220), top: popoverCarga.top + 6, width: 220, zIndex: 30,
+                      background: 'var(--white)', border: '1px solid var(--celeste-border)', borderRadius: 10, boxShadow: 'var(--sh)', padding: '10px 12px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--celeste-dark)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {fila.persona.alias} · {etiquetaCelda(celda.fecha)}{pct !== null ? ` · ${pct} %` : ''}
+                        </span>
+                        <button onClick={() => setPopoverCarga(null)} style={{ border: 'none', background: 'transparent', color: 'var(--t3)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 2 }}>✕</button>
+                      </div>
+                      {celda.porCuenta.length === 0 ? (
+                        <div style={{ fontSize: 11.5, color: 'var(--t3)' }}>Sin cuenta asociada.</div>
+                      ) : celda.porCuenta.map(([pid, h]) => (
+                        <div key={pid} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, padding: '2px 0' }}>
+                          <span style={{ color: 'var(--t1)' }}>{proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}</span>
+                          <span className="num" style={{ fontWeight: 700, color: 'var(--ink)' }}>{Math.round(h)} h</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* BODY */}
         <div ref={rowsRef} style={{ position: 'relative', height: bodyH }}>
