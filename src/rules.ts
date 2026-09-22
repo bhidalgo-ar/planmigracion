@@ -77,6 +77,8 @@ export function checkCargaMensual(
       asignacion_id: asigRef?.id ?? '',
       persona_id: c.personaId,
       mes: c.mes,
+      horas: c.horas,
+      capacidad: c.capacidad,
       severidad: 'rojo',
       mensaje: `${nombreMes(c.mes)}: ${alias} tiene ${h(c.horas)} planificadas contra ${h(c.capacidad)} de capacidad (${cuentas.join(', ')})`,
     })
@@ -105,6 +107,8 @@ export function checkCargaSemanal(
       asignacion_id: asigRef?.id ?? '',
       persona_id: c.personaId,
       semana: c.semana,
+      horas: c.horas,
+      capacidad: c.capacidad,
       severidad: 'ambar',
       mensaje: `${alias} concentra ${h(c.horas)} en la ${textoSemana(c.semana)} (capacidad ${h(c.capacidad)})`,
     })
@@ -278,7 +282,7 @@ export function margenesPorCuenta(asignaciones: Asignacion[], config: Config, pr
  */
 export function checkMargenYBlackout(asignaciones: Asignacion[], config: Config, proyectos: Proyecto[]): Violacion[] {
   const out: Violacion[] = []
-  const minimo = config.capacidad?.margen_minimo_habiles ?? 5
+  const minimo = config.capacidad?.margen_minimo_habiles ?? MARGEN_MINIMO_DEFAULT
 
   for (const m of margenesPorCuenta(asignaciones, config, proyectos)) {
     if (m.habiles === null || m.habiles >= minimo) continue
@@ -350,6 +354,9 @@ export function checkDependenciaConfigPruebas(asignaciones: Asignacion[], proyec
   }
   return out
 }
+
+/** Hábiles mínimos entre el fin del cierre y el corte (Willy, 22/09/2026: 2; era 5 medido desde Pruebas). */
+export const MARGEN_MINIMO_DEFAULT = 2
 
 export const DESFASAJE_PRUEBAS_DEFAULT = 2
 

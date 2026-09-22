@@ -32,7 +32,7 @@
       "capacidad_horas_semana": 20,
       "buffer_pct": 0,
       "horas_dia": 4,
-      "_nota": "Media jornada: 20 hs/sem contractuales = horas_dia 4 (jornada fija, no una fraccion de 7; su disponibilidad para capacidad es 1.0 sobre esas 4 hs). PENDIENTE DE DEFINIR: rol definitivo y skills."
+      "_nota": "Media jornada: 20 hs/sem contractuales = horas_dia 4 (jornada fija, no una fraccion de 8), todas para migracion: disponibilidad 1.0 sobre esas 4 hs (Willy, 22/09/2026). PENDIENTE DE DEFINIR: rol definitivo y skills."
     },
     {
       "id": "axton",

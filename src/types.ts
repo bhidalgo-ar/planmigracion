@@ -278,6 +278,9 @@ export interface Violacion {
   proyecto_id?: string
   semana?: string  // YYYY-MM-DD lunes de la semana afectada
   mes?: string     // YYYY-MM del mes afectado
+  /** Solo en `carga_mes` y `carga_semana`: las horas planificadas y la capacidad del período, para ordenar por gravedad. */
+  horas?: number
+  capacidad?: number
   mensaje: string
   severidad: SeveridadViolacion
 }

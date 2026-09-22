@@ -13,7 +13,8 @@ import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
  *   capacidad de una persona            = días hábiles × horas_dia × disponibilidad(persona, mes)
  *
  * "Día hábil" = lunes a viernes menos los feriados del JSON. `horas_dia` es 8 por default
- * (la jornada de H&A) y Gaby tiene 4 (jornada fija, no una fracción de 8).
+ * (la jornada de H&A) y Gaby tiene 4 (jornada fija, no una fracción de 8), todas para
+ * migración: 20 h por semana.
  */
 
 export const HORAS_DIA_DEFAULT = 8
@@ -150,7 +151,8 @@ function numeroONull(v: unknown): number | null {
  *  1. `equipo_confidencial.dedicacion_por_mes[persona][mes].migracion` si es un número
  *     (solo existe en el JSON local de Willy).
  *  2. Moni: la fórmula del soporte Axton, que baja con cada cuenta que entra a Axton.
- *  3. Quien tiene `horas_dia` propio (Gaby): 1,0 — la reducción ya está en sus horas.
+ *  3. Quien tiene `horas_dia` propio (Gaby): 1,0. Sus 4 h son todas para migración, 20 h por
+ *     semana (Willy lo confirmó el 22/09/2026); la tabla por año no le aplica.
  *  4. La disponibilidad por año (`config.disponibilidad`), fallback para no romper planes viejos.
  *  5. 1,0.
  */

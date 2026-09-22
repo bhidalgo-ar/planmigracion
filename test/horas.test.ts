@@ -125,11 +125,10 @@ const sem = (p: string, lunes: string) => semanal.find(c => c.personaId === p &&
 // Semana del 8/2/2027: lunes y martes son Carnaval → 3 hábiles.
 cerca('Willy, semana del 8/2 (Carnaval): capacidad 3 × 8 × 0,6 = 14,4', sem('guille', '2027-02-08').capacidad, 14.4)
 cerca('Willy, semana del 15/2: capacidad 5 × 8 × 0,6 = 24', sem('guille', '2027-02-15').capacidad, 24)
-// Lectura vigente para Gaby: horas_dia 4 y disponibilidad 1,0 sobre esas 4 h (20 h/sem).
-// Es la decisión 1.5 pendiente de Willy: si sus 20 h contractuales fueran la jornada y solo la
-// mitad fuera a migraciones, acá daría 6 y 10.
-cerca('Gaby, semana del 8/2 (Carnaval): 3 × 4 × 1,0 = 12 (lectura vigente, decisión 1.5 pendiente)', sem('gaby_f', '2027-02-08').capacidad, 12)
-cerca('Gaby, semana del 15/2: 5 × 4 × 1,0 = 20 (lectura vigente, decisión 1.5 pendiente)', sem('gaby_f', '2027-02-15').capacidad, 20)
+// Gaby (Willy, 22/09/2026): 4 h por día, todas para migración → 20 h por semana. La tabla
+// `disponibilidad` (0,5) no le aplica porque tiene `horas_dia` propio.
+cerca('Gaby, semana del 8/2 (Carnaval): 3 × 4 × 1,0 = 12', sem('gaby_f', '2027-02-08').capacidad, 12)
+cerca('Gaby, semana del 15/2: 5 × 4 × 1,0 = 20', sem('gaby_f', '2027-02-15').capacidad, 20)
 cerca('Gaby, semana del 8/2: 3 días de repaso = 3 × 14,4/7', sem('gaby_f', '2027-02-08').horas, 3 * 14.4 / 7)
 cerca('Gaby, semana del 15/2: 4 días de repaso = 4 × 14,4/7', sem('gaby_f', '2027-02-15').horas, 4 * 14.4 / 7)
 cerca('Willy, semana del 22/2: conceptos 8 h + imputación 11,5 h = 19,5', sem('guille', '2027-02-22').horas, 19.5)

@@ -66,10 +66,9 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
 - **Recalcular duraciones**: días = horas / (horas_dia × dedicación), al entero más cercano,
   mínimo 1 (`duracionPorHoras`). No pisa `dedicacion_pct` ni mueve inicios. Sobre el v12
   devuelve las mismas duraciones que ya tiene. Tests en `test/horas.test.ts`.
-- **Pendiente (decisión de Willy, 1.5 del pedido del 22/09)**: Gaby tiene `horas_dia: 4`,
-  `capacidad_horas_semana: 20` y `disponibilidad: 0.5`. Hoy el código toma 4 h × 1,0
-  (20 h/sem para migraciones). Si las 20 h fueran su jornada y solo la mitad fuera a migración
-  serían 10 h/sem. No está cerrado; no cambiar sin su palabra.
+- **Gaby (Willy, 22/09/2026)**: `horas_dia: 4`, todas para migración: **20 h por semana**.
+  Quien tiene `horas_dia` propio tiene disponibilidad 1,0; la tabla por año (que dice 0,5 para
+  ella) no le aplica. Sus barras a dedicación 0,5 consumen 2 h por día.
 - Disponibilidad por mes: bloque confidencial si lo hay; **Susi por tickets** desde
   `capacidad.susi_soporte_meta4.desde` (`1 − tickets Meta 4 que quedan / base_tickets_mes`:
   desde la transición toma todo el soporte Meta 4 y los tickets de hoy son su día completo;
@@ -92,8 +91,9 @@ fin de las fases. POF y Finadiet salen sin fases (`salidas_en_vivo_fuera_del_pla
 **Mover una cuenta es cambiar su mes de salida**, no arrastrar sus barras. `src/planificador.ts`
 porta el algoritmo del script `armar_calendario_migracion.py`: desde el corte de novedades del
 mes elegido arma hacia atrás Pruebas (margen mínimo, fuera del blackout), Configuración,
-Relevamiento y el Cierre pegado al corte; conserva id, persona, duración y dedicación de cada
-barra. El panel de la cuenta ("Sale en vivo") muestra cada mes candidato pintado según qué
+Relevamiento, y el Cierre termina `margen_minimo_habiles` hábiles antes del corte con las
+Pruebas delante de él (22/09/2026; antes iba pegado al corte); conserva id, persona, duración y
+dedicación de cada barra. El panel de la cuenta ("Sale en vivo") muestra cada mes candidato pintado según qué
 pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar, actualiza
 `salidas_en_vivo_propuestas` y resume qué cambió. "Más → Replanificar desde el corte" hace lo
 mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
@@ -129,7 +129,7 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | `carga_mes` | rojo | horas de una persona en el mes > su capacidad |
 | `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026) |
 | `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo) |
-| `margen` | rojo | menos de `margen_minimo_habiles` días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
+| `margen` | rojo | menos de `margen_minimo_habiles` (2 en el seed y en el código desde el 22/09/2026; el v12 todavía trae 5) días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config` |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |
 | `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
@@ -159,8 +159,10 @@ clavar una escena en una reunión. El hash se mantiene solo mientras el video es
 (con `replaceState`, así el botón Atrás no se llena de pasos del scrubber).
 
 El mes crítico es el de la primera alerta roja de `carga_mes`, y las cuentas que muestra
-son las de la persona sobrecargada. Con el plan v3: enero 2027, Copetro, Campari, Marval y
-Lowsedo. La referencia de diseño está en `docs/handoff/resumen-animado/`.
+son las de la persona sobrecargada; si hay dos en rojo el mismo mes, la que más se pasa en
+proporción a su capacidad (`horas`/`capacidad` viajan en la violación). Con el plan v3: enero
+2027, Willy, con Copetro, Campari, Marval y Lowsedo. La referencia de diseño está en
+`docs/handoff/resumen-animado/`.
 
 ## 4. Datos
 

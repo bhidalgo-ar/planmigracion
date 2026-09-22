@@ -186,7 +186,7 @@
       <div class="opt reco">
         <div class="opt-head"><span class="opt-letter">A</span><h3>Tarea adentro, persona como monograma<span class="sub">La mínima cirugía sobre lo que hay</span></h3><span class="reco-tag">Recomendada</span></div>
         <div class="mock"><div id="barrasA"></div></div>
-        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>La etiqueta pasa a ser la tarea; la persona queda como círculo con iniciales al inicio de la barra y en tooltip.</li><li>Cierre como rombo con fecha; corchete de margen desde el cierre hasta el corte, con los hábiles, rojo si no llega al mínimo.</li><li>Predecesoras como conectores finos al seleccionar la cuenta (ya existe el mecanismo; en la maqueta, Copetro).</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Las barras de 1 y 2 días (alta y carga base, conceptos) no tienen lugar para texto: queda solo el monograma.</li><li>Quién hace qué sigue exigiendo leer iniciales.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>Es la que menos cambia el hábito y arregla los cuatro problemas visuales sin crecer en altura. Con el v12 real se ve que la pelea es el ancho: en zoom de semanas la mayoría de las barras miden 2 a 4 días.</p></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>La etiqueta pasa a ser la tarea; la persona queda como círculo con iniciales al inicio de la barra y en tooltip.</li><li>Cierre como rombo con fecha; corchete de margen desde el cierre hasta el corte, con los hábiles, rojo si no llega al mínimo (2).</li><li>Predecesoras como conectores finos al seleccionar la cuenta (ya existe el mecanismo; en la maqueta, Copetro).</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Las barras de 1 y 2 días (alta y carga base, conceptos) no tienen lugar para texto: queda solo el monograma.</li><li>Quién hace qué sigue exigiendo leer iniciales.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>Es la que menos cambia el hábito y arregla los cuatro problemas visuales sin crecer en altura. Con el v12 real se ve que la pelea es el ancho: en zoom de semanas la mayoría de las barras miden 2 a 4 días.</p></div></div>
       </div>
       <div class="opt">
         <div class="opt-head"><span class="opt-letter">B</span><h3>Un carril por persona dentro de la cuenta<span class="sub">La posición dice quién; la barra dice qué</span></h3></div>
@@ -216,9 +216,14 @@
     <div class="sec-head"><div><div class="eyebrow">3</div><h2>El bloque de carga</h2></div><p>Las cinco parten del mismo cálculo nuevo (horas de cada barra desde `_horas`, contra jornada × disponibilidad × hábiles de la semana) y difieren en dónde y cómo se muestra. Los números son los del v12: las 13 semanas por encima del 110 % están en las maquetas.</p></div>
     <div class="stack">
       <div class="opt reco">
-        <div class="opt-head"><span class="opt-letter">A</span><h3>Banda apilada por cuenta, arriba de las filas<span class="sub">La banda de hoy, pero que explica</span></h3><span class="reco-tag">Recomendada</span></div>
+        <div class="opt-head"><span class="opt-letter">A1</span><h3>Banda apilada con el nombre de la cuenta adentro<span class="sub">Sin colores por cuenta: un solo tono, el nombre escrito, la cuenta seleccionada en celeste</span></h3><span class="reco-tag">Recomendada</span></div>
         <div class="mock"><div id="cargaA"></div></div>
-        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Cada semana es una columna apilada por cuenta: se ve qué cuentas suman el 155 % sin abrir nada.</li><li>Línea del 100 % y banda del 110 % dibujadas; el número solo cuando se pasa.</li><li>Pegada debajo del encabezado de meses: nunca la corta el scroll. Al pasar el mouse, la lista de barras con horas.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Con cuatro cuentas en una semana (Willy, 25/01) los colores de cuenta se confunden.</li><li>Ocupa unos 34 px por persona arriba, fijos.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>Responde la pregunta exacta ("qué causa el 155 %") en el mismo eje que las barras. Default.</p></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Nadie tiene que recordar un color: cada tramo de la columna lleva el nombre de la cuenta, y los tramos van del más oscuro (la cuenta que más pesa esa semana) al más claro.</li><li>La cuenta seleccionada (Copetro en la maqueta) se pinta celeste en todas las semanas: se ve dónde pesa esa cuenta en el equipo.</li><li>Línea del 100 % y banda del 110 %; el número solo cuando se pasa. Pegada debajo del encabezado, no la corta el scroll. Al pasar el mouse, la lista completa con horas.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>En una semana con cuatro cuentas los tramos miden 5 px y el nombre no entra: quedan mudos y lo dice el tooltip.</li><li>Ocupa unos 36 px por persona arriba, fijos.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>Es la A original con el problema de los colores resuelto por texto, no por leyenda. Default para el Timeline.</p></div></div>
+      </div>
+      <div class="opt">
+        <div class="opt-head"><span class="opt-letter">A2</span><h3>Banda apilada por fase<span class="sub">Los cuatro colores que ya conoce todo el mundo, y el nombre de la cuenta adentro</span></h3><span class="new-tag">Alternativa</span></div>
+        <div class="mock"><div id="cargaA2"></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Reusa los colores de fase del Timeline (violeta, celeste, verde, navy): no hay que aprender nada nuevo, y se ve si la semana es de configuración o de pruebas.</li><li>El nombre de la cuenta va escrito en cada tramo, igual que en A1.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>Una cuenta con conceptos e imputación la misma semana aparece como dos tramos celestes seguidos: hay más tramos y más chicos que en A1.</li><li>La cuenta seleccionada no se puede resaltar con color (ya está tomado por la fase): queda un borde.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>Vale si la pregunta al mirar la banda es "¿es semana de configurar o de probar?". Si la pregunta es "¿qué cuenta saco?", A1.</p></div></div>
       </div>
       <div class="opt">
         <div class="opt-head"><span class="opt-letter">B</span><h3>Mapa de calor con ranking de las peores semanas<span class="sub">Un panel aparte, para la reunión</span></h3></div>
@@ -238,7 +243,7 @@
       <div class="opt">
         <div class="opt-head"><span class="opt-letter">E</span><h3>Lo que queda por hacer contra lo que queda de capacidad<span class="sub">La curva del programa, para gerencia</span></h3><span class="new-tag">Nueva</span></div>
         <div class="mock"><div id="cargaE"></div></div>
-        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Una sola pregunta: ¿entra el programa? Semana a semana, las horas que faltan planificadas contra las horas de capacidad que quedan hasta el fin, por persona.</li><li>Cuando la curva de horas pasa a la de capacidad, el programa no entra aunque ninguna semana puntual esté en rojo. Y al revés: picos semanales con holgura total dicen "es un problema de orden, no de gente".</li><li>Es la explicación de fondo para el CEO: con la jornada de 7 h del v12, Willy tiene 501 h por hacer contra 672 h de capacidad hasta mayo (holgura del 25 %); Gaby 317 contra 640; Moni 201 contra 735. El programa entra; los picos son de orden, no de gente.</li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>No dice qué semana ni qué barra: es un gráfico de Insights o del PDF, no del Timeline.</li><li>Depende de la disponibilidad como perilla; si la de Willy no es 0,6, la curva se mueve entera.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>No reemplaza a nada de lo anterior; es otra pregunta. La pondría en Insights y en la página 3 del PDF, arriba del ranking de semanas.</p></div></div>
+        <div class="rs3"><div class="si"><h4>Resuelve</h4><ul><li>Una sola pregunta: ¿entra el programa? Semana a semana, las horas que faltan planificadas contra las horas de capacidad que quedan hasta el fin, por persona.</li><li>Cuando la curva de horas pasa a la de capacidad, el programa no entra aunque ninguna semana puntual esté en rojo. Y al revés: picos semanales con holgura total dicen "es un problema de orden, no de gente".</li><li id="e-lectura"></li></ul></div><div class="no"><h4>Sacrifica</h4><ul><li>No dice qué semana ni qué barra: es un gráfico de Insights o del PDF, no del Timeline.</li><li>Depende de la disponibilidad como perilla; si la de Willy no es 0,6, la curva se mueve entera.</li></ul></div><div class="le"><h4>Mi lectura</h4><p>No reemplaza a nada de lo anterior; es otra pregunta. La pondría en Insights y en la página 3 del PDF, arriba del ranking de semanas.</p></div></div>
       </div>
     </div>
   </section>
@@ -253,18 +258,21 @@
   <section id="decidir">
     <div class="sec-head"><div><div class="eyebrow">5</div><h2>Qué elegir y qué quedó</h2></div></div>
     <div class="decide">
-      <div><h3>Elegís tres letras</h3><ol><li><b>Barras:</b> A, B, C, D o E (o "A con D" / "A con B como modo").</li><li><b>Carga:</b> A, B, C, D o E, y dónde va cada una (Timeline, Equipo, Insights, PDF).</li><li><b>PDF:</b> 1 a 5 para la primera página.</li></ol></div>
-      <div><h3>Resuelto con tus respuestas</h3><ul>
-        <li><span class="done">✓ Gaby 20 h/sem.</span> Es lo que el código ya hacía: 4 h × 1,0. Queda documentado.</li>
-        <li><span class="done">✓ Margen desde el fin del cierre.</span> Implementado y con tests. Con el mínimo de 5 que trae el v12 quedan en rojo Piano (2), Copetro (3), DLA (3) y Carrier (4). <b>Falta que digas el mínimo</b> para esta lectura: con 2 pasan todas; el número vive en el JSON (`margen_minimo_habiles`).</li>
-        <li><span class="done">✓ Predecesoras como dice el v12.</span> Las 9 cruces arrancan 2 hábiles después de que arranca la ejecución; el resto es "termina una, empieza la otra". Implementado como regla `dependencia`, perilla `desfasaje_pruebas_habiles` (default 2). El v12 da cero violaciones.</li>
+      <div><h3>Elegido (Willy, 22/09)</h3><ul>
+        <li><b>Barras:</b> A + D. La etiqueta es la tarea, la persona un monograma, el cierre un rombo con el margen al corte; por default una barra por fase y la cuenta seleccionada se abre en sus tareas.</li>
+        <li><b>Carga:</b> A + D. A mejorada arriba (A1 recomendada, A2 alternativa): sin colores por cuenta. D en la vista Por persona.</li>
+        <li><b>PDF:</b> 2 + 5, con más contexto. Barras E (planilla) y carga B (ranking) van a la página 3; carga E (curva del programa) a Insights y al PDF.</li>
       </ul></div>
-      <div><h3>Lo que apareció con el v12</h3><ul>
-        <li><b>Recalcular no devuelve las mismas duraciones.</b> El v12 se armó con 7 h parejas para todos: las 23 barras de Gaby están medidas como si tuviera 7 h × 0,5 y no 4 h × 0,5 (repaso 4 días en vez de 7). Con 8 h cambian 50 de 99. El criterio "Recalcular sobre el v12 devuelve lo mismo" solo se cumple si el v12 se regenera con la fórmula nueva, y eso es un cambio de plan (Cowork), no de app.</li>
-        <li><b>Jornada en el v12: 7 h y aviso al 115 %.</b> Con eso hay 11 semanas por encima del aviso (tu "once") y 13 por encima del 110 %. Con 8 h serían 10 y Willy bajaría a 135 % en la peor. Lo revisás vos.</li>
-        <li><b>Nombre de la tarea.</b> El JSON no lo trae; lo derivo del sufijo del id. Si querés que sea dato, una clave `_tarea` por barra la pisa.</li>
-        <li><b>Regla de diciembre.</b> El v12 declara `diciembre_una_sola_salida: bonafide` y `diciembre_sin_moni`. La app no la controla todavía; el copy del Resumen la va a nombrar, así que conviene que también la marque.</li>
-        <li><b>`_aviso_capacidad` del v12</b> dice "Gaby 4 h al 50 %": quedó viejo con tu respuesta 1.</li>
+      <div><h3>Resuelto</h3><ul>
+        <li><span class="done">✓ Gaby 20 h/sem</span>: 4 h al 100 %, como estaba.</li>
+        <li><span class="done">✓ Margen mínimo 2</span> desde el fin del cierre: seed y código. El planificador ubica el cierre 2 hábiles antes del corte y las pruebas delante.</li>
+        <li><span class="done">✓ Predecesoras</span> como declara el v12 (cruces 2 hábiles después de que arranca la ejecución).</li>
+      </ul></div>
+      <div><h3>Pendiente</h3><ul>
+        <li><b>Regenerar el v12</b> en Cowork con 8 h, Gaby a 4 h, `margen_minimo_habiles: 2` y las 6 a 8 cuentas de Outsourcing que siguen en Meta 4 (necesito la lista, o las cargás vos como tier chica).</li>
+        <li><b>Horas extra</b> de Willy, Moni y Gaby como opción: va a las decisiones del PDF 5, no al modelo de capacidad (la capacidad es la jornada; las extras son una decisión).</li>
+        <li><b>Repasar las decisiones del PDF 5 una por una</b> con vos antes de escribir el generador.</li>
+        <li><b>Regla de diciembre</b> del v12, todavía sin control en la app.</li>
       </ul></div>
     </div>
   </section>
@@ -290,6 +298,7 @@
   const cuentaDe = new Map(D.cuentas.map(c => [c.id, c]));
   const semDe = (pid, lunes) => D.semanas.find(s => s.p === pid && s.semana === lunes);
   const colorPct = p => p > 1.10 ? '#E85518' : p >= 0.85 ? '#F59E0B' : '#22C55E';
+  const MIN_MARGEN = 2; // Willy, 22/09/2026
 
   // ── ventana: enero → mediados de abril de 2027, cinco cuentas
   const W0 = DT('2027-01-04'), W1 = DT('2027-04-16');
@@ -325,7 +334,7 @@
   function rombo(x, y, r, color) { return `<path d="M${x} ${y - r} L${x + r} ${y} L${x} ${y + r} L${x - r} ${y} Z" fill="${color}" stroke="#fff" stroke-width="1.5"/>`; }
   function margen(c, y) {
     if (!c.corte || DT(c.corte) > W1 || !c.finCierre) return '';
-    const n = c.margenCierre, x1 = X(c.finCierre) + PX, x2 = X(c.corte) + PX / 2, col = n >= 5 ? '#177A50' : '#C0420F';
+    const n = c.margenCierre, x1 = X(c.finCierre) + PX, x2 = X(c.corte) + PX / 2, col = n >= MIN_MARGEN ? '#177A50' : '#C0420F';
     if (x2 - x1 < 14) return `<text x="${x2 + 4}" y="${y + 12}" font-size="8.5" font-weight="800" fill="${col}">${n} hábil${n === 1 ? '' : 'es'} al corte</text>`;
     return `<path d="M${x1} ${y - 5} v5 h${x2 - x1} v-5" fill="none" stroke="${col}" stroke-width="1.2"/><text x="${(x1 + x2) / 2}" y="${y + 11}" font-size="8.5" font-weight="800" fill="${col}" text-anchor="middle">${n} hábiles al corte</text>`;
   }
@@ -345,8 +354,9 @@
     ['<span class="ok">✓</span> Once semanas… con el aviso al 115 %', 'El v12 trae `aviso_semanal_tolerancia: 1.15`: con eso la app marca 11 semanas. Por encima del 110 % son 13 (10 de Willy, 3 de Gaby). Con jornada de 8 h bajan a 10 y la peor a 139 % (Gaby, 22/02, Sportline repaso + Carrier ejecución).'],
     ['<span class="ko">✗</span> Recalcular NO devuelve las mismas duraciones', 'El v12 midió a Gaby con 7 h × dedicación, no con sus 4 h: sus 23 barras (repaso, ejecución, delta) se estiran (4 → 7 días en las estándar, 9 → 16 en Sportline). Con 8 h para el resto cambian 50 de 99. El plan hay que regenerarlo con la fórmula nueva en Cowork.'],
     ['<span class="ok">✓</span> Las predecesoras del v12 son como dice `_modelo_barras`', 'Las 9 cruces de Willy arrancan exactamente 2 hábiles después de la ejecución de Gaby; todo lo demás arranca después de que termina su predecesora. La regla nueva da cero violaciones sobre el v12.'],
-    ['<span class="ko">✗</span> Margen desde el cierre: cuatro cuentas cortas', 'Piano 2, Copetro 3, DLA 3, Carrier 4 hábiles entre la aplicación del delta y el corte. Con `margen_minimo_habiles: 5` son rojas; con 2 pasan todas. El mínimo es tuyo.'],
-    ['Otras cosas del JSON', 'Jornada 7 h (revisás). Carga mensual: Willy en rojo en febrero (112 %) y marzo (124 %). Reglas de diciembre declaradas y sin control en la app. `horas_por_fase` ahora trae grande y XL, que la app todavía no usa como fallback (no hace falta: todas las barras traen `_horas`).'],
+    ['<span class="ok">✓</span> Margen desde el cierre, mínimo 2', 'Piano 2, Copetro 3, DLA 3, Carrier 4 hábiles entre la aplicación del delta y el corte: con el mínimo de 2 pasan todas, Piano justo. El seed y el código ya dicen 2; el v12 todavía trae 5 y se corrige al regenerarlo.'],
+    ['<span class="ok">✓</span> Gaby: 4 h al 100 %, 20 h por semana', 'Se mantiene como estaba en el código. La tabla `disponibilidad` dice 0,5 para ella pero no le aplica porque tiene `horas_dia` propio.'],
+    ['Otras cosas del JSON', 'Jornada 7 h (se regenera con 8). Carga mensual: Willy en rojo en febrero (112 %) y marzo (124 %). Reglas de diciembre declaradas y sin control en la app. `horas_por_fase` ahora trae grande y XL, que la app todavía no usa como fallback (no hace falta: todas las barras traen `_horas`).'],
   ].map(([t, x]) => `<div class="c"><b>${t}</b>${x}</div>`).join('');
 
   // ── AS IS
@@ -478,29 +488,35 @@
     s += '</tbody></table>'; document.getElementById('barrasE').innerHTML = s;
   })();
 
-  // ── CARGA A
-  (function cargaA() {
-    const ROWH = 36, ids = ['guille', 'moni', 'gaby_f']; const bandaY = HDR, bandaH = ids.length * ROWH + 6; const filasY = bandaY + bandaH;
+  // ── CARGA A: banda apilada arriba de las filas. modo 'nombres' = un tono por peso, nombre adentro, seleccionada en celeste; 'fase' = color por fase
+  const RAMPA = ['#1E3A5F', '#4A6080', '#8FA3BA', '#C9D1DB'];
+  const cortoCuenta = n => n.length <= 8 ? n : n.slice(0, 6) + '.';
+  function cargaA(target, modo) {
+    const ROWH = 38, ids = ['guille', 'moni', 'gaby_f']; const bandaY = HDR, bandaH = ids.length * ROWH + 6; const filasY = bandaY + bandaH;
     const BAR = 22, ROW = 46; let y = filasY; const filas = [];
     for (const c of cuentasV) { const { carril, n } = carriles(c.barras.filter(enVentana)); const h = ROW + (n - 1) * (BAR + 6); filas.push({ c, carril, y, h }); y += h; }
     const hTot = y; let s = svgOpen(hTot) + header(0, false, hTot);
     s += `<rect x="0" y="${bandaY}" width="${W}" height="${bandaH}" fill="#FCFCFB"/><line x1="0" y1="${filasY}" x2="${W}" y2="${filasY}" stroke="#E7E6E6" stroke-width="2"/>`;
     let tooltip = '';
-    ids.forEach((pid, i) => { const ry = bandaY + 3 + i * ROWH, base = ry + ROWH - 6, hMax = ROWH - 13;
+    ids.forEach((pid, i) => { const ry = bandaY + 3 + i * ROWH, base = ry + ROWH - 6, hMax = ROWH - 14;
       const cap = semDe(pid, '2027-02-15')?.cap;
       s += `<text x="12" y="${ry + 13}" font-size="11" font-weight="700" fill="#1E3A5F">${P[pid].alias}</text><text x="12" y="${ry + 25}" font-size="8.5" fill="#4A6080">cap. ${cap} h/sem</text>`;
       s += `<line x1="${NAME_W}" y1="${base - hMax}" x2="${W}" y2="${base - hMax}" stroke="#8FA3BA" stroke-dasharray="2 3"/><rect x="${NAME_W}" y="${base - hMax * 1.1}" width="${W - NAME_W}" height="${hMax * .1}" fill="#F59E0B" opacity=".08"/>`;
       for (const wk of semanasVentana(pid)) { if (!wk.horas || X(wk.semana) < NAME_W) continue; const x = X(wk.semana) + 2, w = 7 * PX - 4; let acc = 0; const pct = wk.horas / wk.cap;
-        const porCuenta = []; for (const [bid, h] of Object.entries(wk.porBarra)) { const b = byId.get(bid); if (!b) continue; const e = porCuenta.find(q => q.c === b.cuenta); if (e) e.h += h; else porCuenta.push({ c: b.cuenta, h }); }
-        porCuenta.sort((a, b) => b.h - a.h);
-        for (const q of porCuenta) { const hh = Math.min(hMax * 1.6, hMax * q.h / wk.cap); s += `<rect x="${x}" y="${base - acc - hh}" width="${w}" height="${hh}" fill="${CUENTA_COLOR[q.c] ?? '#8FA3BA'}" opacity="${pct > 1.1 ? 1 : .8}"/>`; acc += hh; }
-        if (pct > 1.10) s += `<rect x="${x}" y="${base - acc - 1}" width="${w}" height="${acc + 1}" fill="none" stroke="#E85518" stroke-width="1.5"/><text x="${x + w / 2}" y="${base - acc - 4}" font-size="8.5" font-weight="800" fill="#C0420F" text-anchor="middle">${Math.round(pct * 100)} %</text>`;
+        let tramos;
+        if (modo === 'fase') tramos = Object.entries(wk.porBarra).map(([bid, h]) => { const b = byId.get(bid); return { nombre: cuentaDe.get(b.cuenta).nombre, h, fill: F[b.tipo], sel: b.cuenta === 'copetro', txt: '#fff' }; }).sort((a, b) => b.h - a.h);
+        else { const porCuenta = []; for (const [bid, h] of Object.entries(wk.porBarra)) { const b = byId.get(bid); if (!b) continue; const e = porCuenta.find(q => q.c === b.cuenta); if (e) e.h += h; else porCuenta.push({ c: b.cuenta, h }); } porCuenta.sort((a, b) => b.h - a.h);
+          tramos = porCuenta.map((q, k) => ({ nombre: cuentaDe.get(q.c).nombre, h: q.h, fill: q.c === 'copetro' ? '#00ACD4' : RAMPA[Math.min(k, 3)], sel: q.c === 'copetro', txt: (k >= 2 && q.c !== 'copetro') ? '#1E3A5F' : '#fff' })); }
+        for (const t of tramos) { const hh = Math.min(hMax * 1.7, hMax * t.h / wk.cap); s += `<rect x="${x}" y="${base - acc - hh}" width="${w}" height="${hh}" fill="${t.fill}" stroke="#fff" stroke-width=".8"/>${modo === 'fase' && t.sel ? `<rect x="${x + 1}" y="${base - acc - hh + 1}" width="${w - 2}" height="${Math.max(0, hh - 2)}" fill="none" stroke="#00ACD4" stroke-width="1.5"/>` : ''}${hh >= 8.5 ? `<text x="${x + w / 2}" y="${base - acc - hh / 2 + 2.8}" font-size="7.5" font-weight="700" fill="${t.txt}" text-anchor="middle">${esc(cortoCuenta(t.nombre))}</text>` : ''}`; acc += hh; }
+        if (pct > 1.10) s += `<text x="${x + w / 2}" y="${base - acc - 4}" font-size="8.5" font-weight="800" fill="#C0420F" text-anchor="middle">${Math.round(pct * 100)} %</text>`;
         if (pid === 'guille' && wk.semana === '2027-03-15') { const tx = x + w + 6, ty = ry - 2; const filasT = Object.entries(wk.porBarra).sort((a, b) => b[1] - a[1]); tooltip = `<g><rect x="${tx}" y="${ty}" width="230" height="${20 + filasT.length * 12}" rx="6" fill="#15263D" opacity=".94"/><text x="${tx + 8}" y="${ty + 13}" font-size="8.5" font-weight="800" fill="#fff">Willy · semana del 15/03 · ${wk.horas} h de ${wk.cap} (${Math.round(pct * 100)} %)</text>${filasT.map(([bid, h], k) => { const b = byId.get(bid); return `<text x="${tx + 8}" y="${ty + 25 + k * 12}" font-size="8" fill="#DCE6F0">${esc(cuentaDe.get(b.cuenta).nombre)} · ${esc(b.tarea)} <tspan font-weight="800" fill="#fff">${h.toFixed(1)} h</tspan></text>`; }).join('')}</g>`; } }
       s += `<line x1="${NAME_W}" y1="${base}" x2="${W}" y2="${base}" stroke="#E7E6E6"/>`; });
-    for (const { c, carril, y, h } of filas) { s += `<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/><text x="12" y="${y + 22}" font-size="13" font-weight="700" fill="#1E3A5F">${esc(c.nombre)}</text><rect x="${NAME_W - 14}" y="${y + 8}" width="6" height="${h - 16}" rx="3" fill="${c.color}"/>`;
+    for (const { c, carril, y, h } of filas) { const sel = c.id === 'copetro'; s += `${sel ? `<rect x="0" y="${y}" width="${W}" height="${h}" fill="#F3FAFC"/>` : ''}<line x1="0" y1="${y + h}" x2="${W}" y2="${y + h}" stroke="#EFEEEC"/><text x="12" y="${y + 22}" font-size="13" font-weight="700" fill="${sel ? '#0090B4' : '#1E3A5F'}">${esc(c.nombre)}</text>${sel ? `<text x="12" y="${y + 35}" font-size="9" fill="#0090B4">seleccionada</text>` : ''}`;
       for (const b of c.barras.filter(enVentana)) { const x = Math.max(NAME_W, X(b.inicio)), w = X(b.fin) + PX - x, by = y + 12 + carril.get(b.id) * (BAR + 6); s += `<rect x="${x}" y="${by}" width="${w}" height="${BAR}" rx="5" fill="${F[b.tipo]}"/>`; } }
-    s += tooltip + '</svg>'; document.getElementById('cargaA').innerHTML = s;
-  })();
+    s += tooltip + '</svg>'; document.getElementById(target).innerHTML = s;
+  }
+  cargaA('cargaA', 'nombres');
+  cargaA('cargaA2', 'fase');
 
   // ── CARGA B: mapa de calor programa completo + ranking
   (function cargaB() {
@@ -554,6 +570,8 @@
     });
     s += `<text x="${L}" y="${T - 14}" font-size="10" font-weight="700" fill="#1E3A5F">Línea llena: horas planificadas que faltan · punteada: capacidad que queda hasta el fin del programa (jornada de 7 h del v12)</text></svg>`;
     document.getElementById('cargaE').innerHTML = s;
+    const tot = ids.map(pid => { const ser = serie(pid); return `${P[pid].alias} ${Math.round(ser[0].h)} h por hacer contra ${Math.round(ser[0].c)} h de capacidad hasta el fin (holgura ${Math.round(100 * (1 - ser[0].h / ser[0].c))} %)`; });
+    document.getElementById('e-lectura').textContent = `Es la explicación de fondo para el CEO, con la jornada de 7 h del v12: ${tot.join('; ')}. El programa entra en horas; los picos son de orden, no de gente.`;
   })();
 
   // ── PDF: cinco maquetas con los números del v12
@@ -603,10 +621,11 @@
     <h2 class="s">Lectura</h2><p>Cuatro cuentas quedan con poco margen al corte (Piano, Copetro, DLA, Carrier) y casi todas las de enero a abril tocan semanas en que Willy está por encima de su capacidad. La cuenta que no depende de nadie más que de su propio calendario es Bonafide en diciembre.</p>
   </div>` + pf(), rs: [['El CEO conoce a los clientes por nombre: esta es la lente que ya tiene.', 'Cada fila dice qué condiciona a esa cuenta, sin Gantt.', 'Imprime perfecto en blanco y negro: el semáforo es relleno, rayado o vacío.'], ['Repite la misma causa (Willy en marzo) en cinco filas.', 'No muestra el orden temporal de un vistazo como el calendario.']] });
   pags.push({ n: 5, t: 'Una página por decisión', sub: 'Qué hay que decidir, opciones, recomendación y fecha límite', reco: false, nuevo: true, html: ph('Decisiones pendientes') + `<div class="body">
-    <h1 class="t">Tres decisiones antes de octubre</h1><p class="t-sub">Estado: ${R.yaEnAxton} de ${R.total} cuentas en Axton · ${R.porMigrar} por migrar · fin en ${R.fin.label}. Lo demás está en las páginas 2 y 3.</p>
-    <div class="dec"><div class="dn">Decisión 1 · capacidad</div><div class="dt">Marzo de 2027 no entra con el equipo actual</div><div class="row"><b>Qué pasa</b><span>Willy tiene 109 h planificadas contra 88 de capacidad (Sportline, DLA y Carrier configurándose y probándose a la vez); en febrero, 85 contra 76.</span></div><div class="row"><b>Opciones</b><span>(a) Correr Sportline a junio y aceptar que el programa termina un mes después. (b) Que Mati tome conceptos e imputación de DLA en marzo. (c) Subir la dedicación de Willy a migraciones del 60 al 75 % en febrero y marzo.</span></div><div class="row"><b>Recomendación</b><span>(b), porque no mueve ninguna salida y Mati ya está previsto al 50 %.</span></div><div class="row"><b>Para cuándo</b><span>Antes del 15/11, que es cuando arranca la configuración de Marval y se fija el orden del primer trimestre.</span></div></div>
+    <h1 class="t">Cuatro decisiones antes de octubre</h1><p class="t-sub">Estado: ${R.yaEnAxton} de ${R.total} cuentas en Axton · ${R.porMigrar} por migrar · fin en ${R.fin.label}. Lo demás está en las páginas 2 y 3.</p>
+    <div class="dec"><div class="dn">Decisión 1 · capacidad</div><div class="dt">Marzo de 2027 no entra con el equipo actual</div><div class="row"><b>Qué pasa</b><span>Willy tiene 109 h planificadas contra 88 de capacidad (Sportline, DLA y Carrier configurándose y probándose a la vez); en febrero, 85 contra 76.</span></div><div class="row"><b>Opciones</b><span>(a) Correr Sportline a junio y aceptar que el programa termina un mes después. (b) Que Mati tome conceptos e imputación de DLA en marzo. (c) Subir la dedicación de Willy a migraciones del 60 al 75 % en febrero y marzo. (d) Horas extra de Willy, Moni y Gaby en febrero y marzo, pagadas como tales.</span></div><div class="row"><b>Recomendación</b><span>(b), porque no mueve ninguna salida y Mati ya está previsto al 50 %.</span></div><div class="row"><b>Para cuándo</b><span>Antes del 15/11, que es cuando arranca la configuración de Marval y se fija el orden del primer trimestre.</span></div></div>
     <div class="dec"><div class="dn">Decisión 2 · calendario</div><div class="dt">Cuatro cuentas cierran demasiado cerca del corte</div><div class="row"><b>Qué pasa</b><span>Piano (2 hábiles), Copetro (3), DLA (3) y Carrier (4) cierran a menos de cinco días hábiles del corte de novedades. Un día de atraso corre la salida un mes.</span></div><div class="row"><b>Opciones</b><span>(a) Adelantar una semana el arranque de esas cuatro. (b) Aceptar el riesgo y tener listo el plan de salida al mes siguiente. (c) Bajar el mínimo a dos días hábiles como regla del programa.</span></div><div class="row"><b>Recomendación</b><span>(a) para Piano, que sale en octubre y no admite atraso; (b) para las otras tres.</span></div><div class="row"><b>Para cuándo</b><span>Piano: esta semana. El resto: con la revisión de noviembre.</span></div></div>
-    <div class="dec"><div class="dn">Decisión 3 · alcance</div><div class="dt">Toyota y TPA se quedan en Meta 4</div><div class="row"><b>Qué pasa</b><span>No están en el programa. Mientras sigan en Meta 4, Susana conserva doce tickets por mes de soporte y su tiempo para migración tiene techo en el 83 %.</span></div><div class="row"><b>Opciones</b><span>(a) Dejarlo así y dar por cerrado el programa en ${R.fin.label}. (b) Abrir un segundo programa para las dos en el segundo semestre de 2027.</span></div><div class="row"><b>Recomendación</b><span>(a) ahora; (b) se decide en abril con el programa terminando.</span></div></div>
+    <div class="dec"><div class="dn">Decisión 3 · alcance</div><div class="dt">Las cuentas de Outsourcing que siguen en Meta 4</div><div class="row"><b>Qué pasa</b><span>[FALTA: entre 6 y 8 cuentas chicas de Outsourcing liquidan en Meta 4 y no están en el programa. Sin ellas, Meta 4 no se apaga aunque terminen las 11.]</span></div><div class="row"><b>Opciones</b><span>(a) Sumarlas al plan como tier chica, de a dos por mes desde que termine el primer trimestre. (b) Migrarlas en bloque en un mes propio. (c) Dejarlas fuera y tratarlas con Toyota y TPA.</span></div><div class="row"><b>Recomendación</b><span>[FALTA: definir con la lista y sus cortes.]</span></div></div>
+    <div class="dec"><div class="dn">Decisión 4 · alcance</div><div class="dt">Toyota y TPA se quedan en Meta 4</div><div class="row"><b>Qué pasa</b><span>No están en el programa. Mientras sigan en Meta 4, Susana conserva doce tickets por mes de soporte y su tiempo para migración tiene techo en el 83 %.</span></div><div class="row"><b>Opciones</b><span>(a) Dejarlo así y dar por cerrado el programa en ${R.fin.label}. (b) Abrir un segundo programa para las dos en el segundo semestre de 2027.</span></div><div class="row"><b>Recomendación</b><span>(a) ahora; (b) se decide en abril con el programa terminando.</span></div></div>
   </div>` + pf(), rs: [['Es exactamente lo que pide el destinatario: qué decisiones tiene por delante, con opciones y recomendación.', 'Cada decisión cita el número del plan que la justifica.'], ['Las opciones y recomendaciones no salen del plan: las escribe Willy cada vez. La app puede armar el "qué pasa", no el resto.', 'Sin calendario en la primera página; queda para la 2.']] });
   document.getElementById('pdfwrap').innerHTML = pags.map(p => `<div class="a4-box"${p.reco ? ' style="border-color: var(--celeste)"' : ''}>
     <div class="a4-scroll"><div class="a4-fit"><div class="a4">${p.html}</div></div></div>
