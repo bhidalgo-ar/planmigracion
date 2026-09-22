@@ -47,7 +47,7 @@ titulo('horasDiaDe — jornada disponible real')
 eq('Willy: 7 h (default del config)', horasDiaDe(de('guille'), config), 7)
 eq('Moni: 7 h', horasDiaDe(de('moni'), config), 7)
 eq('Gaby: 4 h (jornada fija)', horasDiaDe(de('gaby_f'), config), 4)
-eq('sin config.capacidad cae al default 7', horasDiaDe(de('moni'), { ...config, capacidad: undefined }), 7)
+eq('sin config.capacidad cae al default 8 (jornada de H&A)', horasDiaDe(de('moni'), { ...config, capacidad: undefined }), 8)
 
 // ── cuentas en Axton y disponibilidad de Moni ─────────────────────────────────
 titulo('cuentasEnAxton — 9 legacy + Coty + salidas hasta el mes inclusive')

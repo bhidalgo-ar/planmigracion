@@ -11,8 +11,8 @@ export interface Persona {
   capacidad_horas_semana: number
   buffer_pct: number
   /**
-   * Horas disponibles por día hábil. Default `config.capacidad.horas_dia_default` (7).
-   * Gaby tiene 4: su jornada es fija, no una fracción de la jornada estándar.
+   * Horas disponibles por día hábil. Default `config.capacidad.horas_dia_default` (8, la
+   * jornada de H&A). Gaby tiene 4: su jornada es fija, no una fracción de la estándar.
    */
   horas_dia?: number
   custom?: boolean   // true si se agregó desde la UI (no viene del seed)
@@ -44,6 +44,13 @@ export interface Asignacion {
   predecesoras: string[]
   es_bloqueo: boolean
   _nombre?: string // nombre libre para bloques especiales
+  /**
+   * Horas reales de ESTA barra (plantilla EMPRESA_MMAAAA v2; plan v12, 22/09/2026). Si está,
+   * la carga y "Recalcular duraciones" la usan; si falta, se derivan de `horas_por_fase`.
+   * Una fase puede tener varias barras, así que las horas van por barra, no por fase.
+   */
+  _horas?: number
+  _nota?: string
 }
 
 /** Horas de esfuerzo por fase, por tipo de cuenta. Tabla de datos (`config.horas_por_fase`). */

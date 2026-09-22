@@ -52,11 +52,24 @@ gates. Una cuenta la trabajan varias personas a la vez (Willy y Moni configuran 
 Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
 
 **Capacidad, todo en horas** (`src/capacidad.ts`, el único lugar con esta matemática):
-- Jornada disponible: **7 h por día hábil** (`config.capacidad.horas_dia_default`). Gaby
-  tiene `horas_dia: 4` en su persona.
-- `dedicacion_pct` es la fracción de esa jornada que una fase consume.
-- Horas de una fase en un mes = días hábiles de la fase en ese mes × horas_dia × dedicación.
-- Capacidad de una persona en un mes = días hábiles del mes × horas_dia × disponibilidad.
+- Jornada: **8 h por día hábil** (`config.capacidad.horas_dia_default`; era 7 hasta el
+  22/09/2026 y subestimaba a todos). Gaby tiene `horas_dia: 4` en su persona y ese valor gana.
+  El JSON manda: un plan que todavía diga 7 sigue calculando a 7 hasta que se corrija en el plan.
+- **Horas de una barra**: `_horas` si la barra lo trae (plan v12: son las horas reales de la
+  plantilla EMPRESA_MMAAAA v2, repartidas parejo entre sus días hábiles; `horasPorDiaHabil`).
+  Si falta, la lectura vieja: horas_dia × `dedicacion_pct`. Una fase tiene varias barras
+  (Configuración son cuatro, Pruebas dos), así que las horas van por barra, nunca por fase.
+- Horas de una barra en un mes o semana = Σ de sus horas por día hábil que cae adentro.
+  `cargaSemanal` devuelve además `porBarra` (qué barras causan la carga de esa semana).
+- Capacidad de una persona en un mes o semana = días hábiles (sin feriados ni vacaciones) ×
+  horas_dia × disponibilidad.
+- **Recalcular duraciones**: días = horas / (horas_dia × dedicación), al entero más cercano,
+  mínimo 1 (`duracionPorHoras`). No pisa `dedicacion_pct` ni mueve inicios. Sobre el v12
+  devuelve las mismas duraciones que ya tiene. Tests en `test/horas.test.ts`.
+- **Pendiente (decisión de Willy, 1.5 del pedido del 22/09)**: Gaby tiene `horas_dia: 4`,
+  `capacidad_horas_semana: 20` y `disponibilidad: 0.5`. Hoy el código toma 4 h × 1,0
+  (20 h/sem para migraciones). Si las 20 h fueran su jornada y solo la mitad fuera a migración
+  serían 10 h/sem. No está cerrado; no cambiar sin su palabra.
 - Disponibilidad por mes: bloque confidencial si lo hay; **Susi por tickets** desde
   `capacidad.susi_soporte_meta4.desde` (`1 − tickets Meta 4 que quedan / base_tickets_mes`:
   desde la transición toma todo el soporte Meta 4 y los tickets de hoy son su día completo;
@@ -108,7 +121,7 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | tipo | severidad | qué controla |
 |---|---|---|
 | `carga_mes` | rojo | horas de una persona en el mes > su capacidad |
-| `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso) |
+| `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026) |
 | `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo) |
 | `margen` | rojo | menos de `margen_minimo_habiles` días hábiles entre el fin de Pruebas y el corte de novedades (el día del corte cuenta) |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config` |
