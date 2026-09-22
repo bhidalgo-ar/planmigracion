@@ -18,8 +18,13 @@ exporta; el seed de `data/` es solo un punto de partida.
 Cuatro pestañas más una:
 - **Timeline**: por default **una fila por cuenta** (ordenadas por mes de salida, con tier y
   conflictos), sus fases como barras arrastrables con las iniciales de quién las hace, y debajo,
-  pegada al borde inferior y en el mismo eje, la **banda de carga semanal** de cada persona con
-  fases (verde / ámbar / rojo por % de su capacidad; `cargaSemanal`). El switch "Por persona"
+  pegada debajo del encabezado y en el mismo eje, la **banda de carga semanal** de cada persona
+  con fases: una barra por persona y semana, **color por % de su capacidad** (verde por debajo
+  de `UMBRAL_AMBAR`, ámbar hasta el 100 %, rojo si se pasa), la línea punteada del 100 %
+  dibujada, el % escrito solo en ámbar y rojo, y el exceso marcado con un tope saliente en vez
+  de desbordando sobre la fila de al lado. Qué cuenta causa el pico se contesta al pasar el
+  mouse (el tooltip lista las horas por cuenta) o al seleccionar una cuenta, que marca su parte
+  en celeste. Datos de `cargaSemanal`, geometría en `src/vistaTimeline.ts`. El switch "Por persona"
   vuelve a la vista original de una fila por persona con el tinte de carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
   (La ola por cuenta se sacó el 11/09/2026: era lo mismo que el Timeline por cuenta.)
@@ -31,9 +36,25 @@ Cuatro pestañas más una:
   carga del equipo de payroll). Después, horas por
   persona y mes contra capacidad, una fila por persona a todo el ancho, con la prosa del mes al
   clic. Cierra con la tabla de tickets Meta 4.
-- **La barra** va en tres grupos por uso: *Vista* (zoom como desplegable, Por cuenta / Por
-  persona, Hoy, Personas; solo en Timeline), *Plan* (Deshacer, Replanificar desde el corte) y
-  *Archivo* (Importar, Exportar, Resumen PDF). Lo demás en "···".
+- **La barra** (22/09/2026, spec `specs/2026-09-22-espacio-y-legibilidad-SPEC.md`) muestra
+  solo los controles de **vista**, los que se tocan en una reunión mirando el tablero: zoom,
+  Por cuenta / Por persona, Hoy, alto de fila y Expandir. Todo lo demás vive en "···"
+  (Personas, Equipo, Agregar cuenta, Deshacer, Replanificar, Planificar pendientes, Vaciar,
+  Reset, Importar, Exportar, Resumen PDF, las capas y la columna de cuentas). Nada se borró y
+  Ctrl+Z sigue andando. Al lado del "···" queda "Cómo se armó →", que abre el modal.
+  La franja de copy de cada pestaña (IntroBar) se sacó: su texto es ahora la cabeza de ese
+  modal, que lo muestra según la pestaña activa.
+- **La columna de cuentas** (AccountRail, 218 px) arranca **apagada**: mostraba lo mismo que
+  la columna de nombres del timeline. Se enciende en "··· → Columna de cuentas".
+- **El panel de la cuenta** (DetailPanel, 336 px) es **on-demand**: aparece al hacer clic en
+  una cuenta y se cierra con su ×. Adentro, la tira "Sale en vivo" queda a la vista (mover una
+  cuenta es cambiar su mes de salida: es el mecanismo principal) y las asignaciones por tarea
+  arrancan colapsadas.
+- **El eje de tiempo** no dibuja el horizonte del JSON sino el rango del plan: arranca en el
+  mes de la primera barra (nunca antes de `config.horizonte.desde`) y termina un mes después
+  de la última, con hoy siempre adentro (`rangoDelEje` en `src/vistaTimeline.ts`). Los meses
+  vacíos **del medio no se comprimen**: en un Gantt la distancia entre dos barras es el tiempo
+  que pasa entre ellas.
 - **Resumen**: el mismo relato para gerencia, como video de 45 s (1920×1080). Todo lo que
   dice y dibuja sale del plan cargado (`src/resumen/`), nada está escrito en el componente.
 - **Disponibilidad del equipo** (confidencial): solo aparece si el plan importado trae

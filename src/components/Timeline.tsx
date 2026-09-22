@@ -6,10 +6,11 @@ import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '..
 import type { Asignacion, Persona, TipoFase } from '../types'
 import { TIPO_COLOR, TIPO_LABEL } from '../theme/fases'
 import { cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
+import { altoDeBarra, estadoDeCarga, rangoDelEje, BANDA_ROW, BANDA_ETQ, BANDA_BAR_H } from '../vistaTimeline'
 import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { margenesPorCuenta, predecesoraViolada } from '../rules'
 import { nombreTarea } from '../tareas'
-import { getMondayOfWeek, parseDate, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
+import { getMondayOfWeek, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -189,11 +190,16 @@ function getPeriodLabel(
 interface Fila { id: string; titulo: string }
 /** Fila del modo cuenta para las barras sin cuenta: corridas iniciales, vacaciones. */
 const SIN_CUENTA = '__sin_cuenta__'
-/** Alto de la banda de carga semanal (modo cuenta): encabezado + una fila por persona con fases. */
+/** Alto del encabezado de la banda de carga semanal (modo cuenta). El alto de cada fila
+ *  y de sus piezas vive en `vistaTimeline.ts`, junto a la aritmética que las dibuja. */
 const BANDA_HDR = 22
-const BANDA_ROW = 34
 /** 'oct 26' */
 const mesCorto = (mes: string) => format(parseISO(`${mes}-01`), 'MMM yy', { locale: es })
+
+/** Color de relleno de una semana de la banda, por estado de carga. */
+const COLOR_CARGA = {
+  ok: 'var(--ok)', ambar: 'var(--warn)', rojo: 'var(--error)', sin_capacidad: 'var(--line)',
+} as const
 
 /** Fila sintética para las fases cuya `persona_id` no existe en el plan. */
 const SIN_ASIGNAR = '__sin_asignar__'
@@ -282,8 +288,12 @@ export function Timeline() {
   const { row: ROW_H, bar: BAR_H } = DENSIDAD_PX[densidad]
   const feriados = useMemo(() => feriadosDeConfig(config), [config])
 
-  const horizonStart = useMemo(() => parseDate(config.horizonte.desde), [config.horizonte.desde])
-  const horizonEnd   = useMemo(() => parseDate(config.horizonte.hasta), [config.horizonte.hasta])
+  // El eje se recalcula con las asignaciones: si una barra se arrastra más allá del mes de
+  // aire, el rango se estira solo en vez de dejarla fuera de pantalla.
+  const { desde: horizonStart, hasta: horizonEnd } = useMemo(
+    () => rangoDelEje(asignaciones, config.horizonte, new Date()),
+    [asignaciones, config.horizonte],
+  )
   const pxPerDay  = PX_PER_DAY[zoom]
   const snapDays  = SNAP_DAYS[zoom]
   const totalDays = useMemo(() => differenceInDays(horizonEnd, horizonStart) + 1, [horizonStart, horizonEnd])
@@ -842,13 +852,20 @@ export function Timeline() {
         </div>
 
         {/* BANDA DE CARGA (modo cuenta): pegada debajo del encabezado, siempre visible mientras
-            se scrollea — antes vivía al pie de la pantalla y el scroll se la comía. Apilada por
-            cuenta (sin leyenda de colores: el nombre va escrito adentro de cada tramo) en vez
-            de por severidad, así se ve de un vistazo qué cuenta causa el pico. */}
+            se scrollea. Una barra por persona y semana, con el ESTADO primero: color por % de
+            capacidad, techo dibujado, y el exceso marcado con un tope en vez de desbordando
+            sobre la fila de al lado (spec 2026-09-22, §5).
+
+            El trade-off, explícito: la versión vieja apilaba las horas por cuenta con el nombre
+            escrito adentro a 7,5 px, y por eso usaba el color para el orden de la pila. Las dos
+            cosas no caben en el mismo canal. Ahora la pregunta "¿alguien está pasado esta
+            semana?" se contesta de un vistazo, y "¿qué cuenta causa el pico?" se contesta al
+            pasar el mouse o al seleccionar la cuenta (su parte se marca en celeste). */}
         {bandaH > 0 && (
           <div style={{ position: 'sticky', top: HEADER_H, height: bandaH, zIndex: 25, background: 'var(--white)', borderBottom: '2px solid var(--line)', boxShadow: '0 4px 12px rgba(30,58,95,0.06)', display: 'flex' }}>
             <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, flexShrink: 0, zIndex: 20 }}>
-              <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}>
+              <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}
+                title="Horas planificadas contra la capacidad de cada persona, semana a semana. Verde: por debajo del 85 % de su capacidad. Ámbar: entre el 85 % y el 100 %. Rojo: se pasa (la barra llega al techo y lo marca con un tope). La línea punteada es el 100 %.">
                 Carga por semana
               </div>
               {bandaFilas.map((f, i) => (
@@ -867,34 +884,40 @@ export function Timeline() {
                 <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p) - NAME_W, height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
               ))}
               {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX - NAME_W, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
+              {/* Línea de capacidad al 100 %, una por persona, cruzando toda la fila. Antes el
+                  techo no se dibujaba: había que leer alturas relativas contra un número que
+                  no estaba en pantalla. */}
+              {bandaFilas.map((f, i) => f.capSemana > 0 && (
+                <div key={`cap-${f.persona.id}`} title={`Capacidad de ${f.persona.alias}: ${Math.round(f.capSemana)} h por semana`}
+                  style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW + BANDA_ETQ, left: 0, width: bodyW - NAME_W, borderTop: '1px dashed var(--t3)', opacity: 0.5, zIndex: 2, pointerEvents: 'none' }} />
+              ))}
+
               {bandaFilas.map((f, i) => f.semanas.map(c => {
                 const x1 = dateToX(c.semana) - NAME_W
                 if (x1 < -1 || x1 > bodyW) return null
                 const w = Math.max(3, 7 * pxPerDay - 2)
-                const pct = c.capacidad > 0 ? c.horas / c.capacidad : 9
-                const hMax = BANDA_ROW - 8
-                let acc = 0
+                const pct = c.capacidad > 0 ? c.horas / c.capacidad : null
+                const estado = estadoDeCarga(c.horas, c.capacidad)
+                const { alto, excedida } = altoDeBarra(c.horas, c.capacidad)
+                // Atribución por cuenta, a demanda (spec §5.6): el detalle completo vive en el
+                // title, y la cuenta seleccionada en el timeline se marca dentro de la barra.
+                const horasSel = clienteSeleccionado ? (c.porCuenta.find(([pid]) => pid === clienteSeleccionado)?.[1] ?? 0) : 0
+                const altoSel = horasSel > 0 && c.horas > 0 ? alto * (horasSel / c.horas) : 0
+                const topCaja = BANDA_HDR + i * BANDA_ROW + BANDA_ETQ
                 return (
-                  <div key={c.semana} style={{ position: 'absolute', left: x1 + 1, top: BANDA_HDR + i * BANDA_ROW + 4, width: w, height: hMax }}
-                    title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${c.capacidad > 0 ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}>
-                    {c.porCuenta.map(([pid, h], k) => {
-                      const alto = Math.min(hMax * 1.6, hMax * (h / c.capacidad))
-                      const y = hMax - acc - alto
-                      acc += alto
-                      const nombre = proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)
-                      const esSeleccionada = pid === clienteSeleccionado
-                      const fondo = esSeleccionada ? 'var(--celeste)' : k === 0 ? 'var(--t1)' : k === 1 ? 'var(--t2)' : k === 2 ? 'var(--t3)' : 'var(--line)'
-                      const oscuro = esSeleccionada || k < 2
-                      // Ellipsis por CSS, no por cantidad de letras: con el texto centrado, cortar
-                      // por longitud recortaba los dos lados y dejaba una tira ilegible del medio.
-                      return (
-                        <div key={pid} style={{ position: 'absolute', left: 0, top: y, width: '100%', height: Math.max(0, alto), background: fondo, borderRadius: 2, border: '1px solid var(--white)', boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                          {alto >= 9 && w >= 26 && <span className="num" style={{ fontSize: 7.5, fontWeight: 700, color: oscuro ? '#fff' : 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 3px', display: 'block', width: '100%' }}>{nombre}</span>}
-                        </div>
-                      )
-                    })}
-                    {pct > 1.10 && (
-                      <span className="num" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -13, fontSize: 8.5, fontWeight: 800, color: 'var(--error-tx)', whiteSpace: 'nowrap' }}>{Math.round(pct * 100)}%</span>
+                  <div key={c.semana} style={{ position: 'absolute', left: x1 + 1, top: topCaja, width: w, height: BANDA_BAR_H, zIndex: 3 }}
+                    title={`${f.persona.alias} · semana del ${formatFechaCorta(c.semana)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${pct !== null ? Math.round(pct * 100) + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}>
+                    <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: alto, background: COLOR_CARGA[estado], borderRadius: '2px 2px 0 0' }} />
+                    {altoSel > 0 && (
+                      <div style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: altoSel, background: 'var(--celeste)', borderRadius: altoSel >= alto ? '2px 2px 0 0' : 0 }} />
+                    )}
+                    {/* El exceso no desborda hacia la fila de al lado: lo dice un tope saliente. */}
+                    {excedida && (
+                      <div style={{ position: 'absolute', left: 0, top: -3, width: '100%', height: 3, background: 'var(--error)', borderRadius: 1 }} />
+                    )}
+                    {/* El % solo cuando hay algo que avisar: en verde el color ya lo dijo. */}
+                    {pct !== null && estado !== 'ok' && w >= 22 && (
+                      <span className="num" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -BANDA_ETQ, fontSize: 8, lineHeight: '9px', fontWeight: 800, color: estado === 'rojo' ? 'var(--error-tx)' : 'var(--warn-tx)', whiteSpace: 'nowrap' }}>{Math.round(pct * 100)}%</span>
                     )}
                   </div>
                 )

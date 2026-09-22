@@ -11,7 +11,7 @@ import { PanelInsights } from './components/PanelInsights'
 import { ModalEquipo } from './components/ModalEquipo'
 import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
-import { ComoSeArmoModal, IntroBar } from './components/ComoSeArmo'
+import { ComoSeArmoModal } from './components/ComoSeArmo'
 import { ResumenAnimado } from './resumen/ResumenAnimado'
 import { segundoDelHash } from './resumen/guion'
 import { useSimuladorStore } from './store'
@@ -28,9 +28,12 @@ const TABS: { v: Vista; label: string }[] = [
 ]
 
 export default function App() {
-  const { vista, setVista, modal, resumenAbierto, timelineFull, comoSeArmoAbierto } = useUIStore()
+  const { vista, setVista, modal, resumenAbierto, timelineFull, comoSeArmoAbierto, mostrarRail } = useUIStore()
   // La pestaña confidencial existe solo si el plan cargado trae el bloque (nunca viene del seed).
   const hayConfidencial = useSimuladorStore(s => tieneBloqueConfidencial(s.config))
+  // El panel de la cuenta es on-demand (spec 2026-09-22, §6.2): sin cuenta seleccionada no
+  // ocupa los 336 px. Se abre al hacer clic en una cuenta del timeline y se cierra con su ×.
+  const hayCuentaSeleccionada = useSimuladorStore(s => s.clienteSeleccionado !== null)
   const tabs = hayConfidencial ? [...TABS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad del equipo' }] : TABS
   useEffect(() => { if (vista === 'confidencial' && !hayConfidencial) setVista('timeline') }, [vista, hayConfidencial, setVista])
   // Un link con `#t=31` abre directo el video del resumen en ese segundo: si no
@@ -109,16 +112,14 @@ export default function App() {
       {/* Barra de configuración (siempre visible) */}
       <ConfigPanel />
 
-      <IntroBar />
-
       {/* Contenido */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--lienzo)' }}>
         {vista === 'timeline' ? (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-              {!timelineFull && <AccountRail />}
-              <div style={{ flex: 1, overflow: 'hidden' }}><Timeline /></div>
-              {!timelineFull && <DetailPanel />}
+              {mostrarRail && !timelineFull && <AccountRail />}
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}><Timeline /></div>
+              {hayCuentaSeleccionada && !timelineFull && <DetailPanel />}
             </div>
             <PanelInsights />
           </div>

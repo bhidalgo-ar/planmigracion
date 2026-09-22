@@ -3,30 +3,16 @@ import { useSimuladorStore } from '../store'
 import { useUIStore, type Vista } from '../uiStore'
 
 /**
- * Copy explicativo de cada pestaña (Tarea 4, pedido 22/09/2026): dos o tres líneas arriba
- * del contenido, en castellano llano, para alguien que no estuvo en el armado. Vive en un
- * solo lugar para no repetir el texto en cada componente de vista.
+ * Copy explicativo de cada pestaña, en castellano llano, para alguien que no estuvo en el
+ * armado. Hasta el 22/09/2026 vivía en una franja fija arriba del contenido (la IntroBar);
+ * como nadie la leía y costaba 40 px de alto en todas las pantallas, el texto pasó a la
+ * cabeza de este modal, que se abre desde "Cómo se armó →" en la barra (spec §1).
  */
 const INTRO: Partial<Record<Vista, string>> = {
-  timeline: 'Cada cuenta pasa por relevamiento, configuración, pruebas y cierre. Las barras que se superponen son tareas de personas distintas que sí pueden avanzar en paralelo: no es un choque. El cierre (la actualización final) queda pegado al corte de novedades del cliente, así que es lo que de verdad define si la cuenta sale ese mes.',
+  timeline: 'Cada cuenta pasa por relevamiento, configuración, pruebas y cierre. Las barras que se superponen son tareas de personas distintas que sí pueden avanzar en paralelo: no es un choque. El cierre (la actualización final) queda pegado al corte de novedades del cliente, así que es lo que de verdad define si la cuenta sale ese mes. Para mover una cuenta de mes, hacé clic en ella y elegí el mes en "Sale en vivo": las fases se rearman hacia atrás desde el corte de novedades. A mano: arrastrá una barra para ajustarla · vertical reasigna persona · el borde derecho la estira. Arrastrá el fondo (o usá el botón del medio del mouse) para desplazarte.',
   insights: 'Estas tarjetas cuentan cuándo termina la migración y cómo se ve trimestre a trimestre: son fechas y conteos, no alertas de agenda. Los choques de carga, margen o dependencia se marcan en el Timeline (barra roja) y en el chip de arriba; acá no hay umbral que ponga nada en rojo.',
   equipo: 'La capacidad de cada persona sale de su jornada (horas por día) multiplicada por su dedicación a migraciones ese mes. Esa dedicación es una perilla del plan (config.disponibilidad), no algo medido: cambiarla cambia cuánto entra, no lo que hizo cada uno.',
   resumen: 'Video de 45 segundos para gerencia: cuándo termina el programa, la foto trimestre a trimestre y el mes más apretado del equipo. Todo lo que dice y dibuja sale del plan cargado ahora mismo; nada está escrito de antemano en el video.',
-}
-
-export function IntroBar() {
-  const vista = useUIStore(s => s.vista)
-  const abrirComoSeArmo = useUIStore(s => s.abrirComoSeArmo)
-  const texto = INTRO[vista]
-  if (!texto) return null
-  return (
-    <div style={{ padding: '10px 24px', background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'flex-start', gap: 14, flexShrink: 0 }}>
-      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--t2)', maxWidth: 980 }}>{texto}</p>
-      <button onClick={abrirComoSeArmo} style={{ marginLeft: 'auto', flexShrink: 0, border: 'none', background: 'none', color: 'var(--celeste-dark)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', padding: '2px 0' }}>
-        Cómo se armó este plan →
-      </button>
-    </div>
-  )
 }
 
 const FILA: CSSProperties = { display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 13, lineHeight: 1.5, color: 'var(--t1)' }
@@ -40,6 +26,8 @@ const ETQ: CSSProperties = { flexShrink: 0, minWidth: 108, fontSize: 10.5, fontW
 export function ComoSeArmoModal() {
   const { config } = useSimuladorStore()
   const cerrar = useUIStore(s => s.cerrarComoSeArmo)
+  const vista = useUIStore(s => s.vista)
+  const intro = INTRO[vista]
 
   const horas = config.horas_por_fase
   const totalEstandar = horas ? Object.values(horas.estandar).reduce((s, n) => s + n, 0) : null
@@ -54,7 +42,12 @@ export function ComoSeArmoModal() {
           <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: 'var(--ink)' }}>Cómo se armó este plan</h2>
           <button onClick={() => cerrar?.()} style={{ marginLeft: 'auto', border: 'none', background: 'none', color: 'var(--t3)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
-        <p style={{ margin: '0 0 18px', fontSize: 12.5, color: 'var(--t3)' }}>Sale del plan cargado ahora. Si algo no está, dice [FALTA] en vez de inventarlo.</p>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--t3)' }}>Sale del plan cargado ahora. Si algo no está, dice [FALTA] en vez de inventarlo.</p>
+
+        {/* Lo que antes decía la IntroBar de esta pestaña. */}
+        {intro && (
+          <p style={{ margin: '0 0 18px', padding: '10px 12px', background: 'var(--paper)', borderRadius: 10, fontSize: 12.5, lineHeight: 1.55, color: 'var(--t2)' }}>{intro}</p>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={FILA}>
