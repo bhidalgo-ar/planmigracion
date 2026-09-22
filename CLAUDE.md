@@ -18,14 +18,19 @@ exporta; el seed de `data/` es solo un punto de partida.
 Cuatro pestañas más una:
 - **Timeline**: por default **una fila por cuenta** (ordenadas por mes de salida, con tier y
   conflictos), sus fases como barras arrastrables con las iniciales de quién las hace, y debajo,
-  pegada debajo del encabezado y en el mismo eje, la **banda de carga semanal** de cada persona
-  con fases: una barra por persona y semana, **color por % de su capacidad** (verde por debajo
-  de `UMBRAL_AMBAR`, ámbar hasta el 100 %, rojo si se pasa), la línea punteada del 100 %
-  dibujada, el % escrito solo en ámbar y rojo, y el exceso marcado con un tope saliente en vez
-  de desbordando sobre la fila de al lado. Qué cuenta causa el pico se contesta al pasar el
-  mouse (el tooltip lista las horas por cuenta) o al seleccionar una cuenta, que marca su parte
-  en celeste. Datos de `cargaSemanal`, geometría en `src/vistaTimeline.ts`. El switch "Por persona"
-  vuelve a la vista original de una fila por persona con el tinte de carga en la fila.
+  pegada debajo del encabezado y en el mismo eje, la **banda de carga** de cada persona con
+  fases: **un círculo por persona y celda** (22/09/2026, mockup aprobado por Willy; hasta esa
+  mañana eran barras apiladas), **color por % de su capacidad** (`estadoDeCarga`: verde por
+  debajo de `UMBRAL_AMBAR`, ámbar hasta el 100 %, rojo si se pasa) y el % adentro del círculo.
+  **La celda sigue el mismo selector de zoom que el Gantt**, sin control propio: Día → un
+  círculo por día hábil (`cargaDiaria`), Semana → uno por semana (`cargaSemanal`), Mes y
+  Trimestre → uno por mes (`celdasMes`), donde el número es el **promedio** del mes y un ⚠
+  avisa si alguna semana adentro llegó a rojo aunque el promedio no lo diga. Qué cuenta causa
+  el pico se contesta al pasar el mouse (el tooltip lista las horas por cuenta), al hacer
+  **clic** (abre el detalle con esas horas) o al seleccionar una cuenta, que le pone un anillo
+  celeste a los círculos donde participa. Geometría y agrupado en `src/vistaTimeline.ts`. El
+  switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
+  carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
   (La ola por cuenta se sacó el 11/09/2026: era lo mismo que el Timeline por cuenta.)
 - **Equipo**: para el equipo de payroll. Primero **cómo liquida cada analista mes a mes**
@@ -68,10 +73,15 @@ Cuatro pestañas más una:
 - **Resumen**: el mismo relato para gerencia, como video de 45 s (1920×1080). Todo lo que
   dice y dibuja sale del plan cargado (`src/resumen/`), nada está escrito en el componente.
 - **Disponibilidad del equipo** (confidencial): solo aparece si el plan importado trae
-  `config.equipo_confidencial`. Ver §5. Muestra cómo se reparte el día de cada persona mes a
-  mes (`filasReparto`: Susi y Moni calculadas, el resto lo que dice el bloque), qué libera
-  Meta 4 y qué carga Axton en tickets y cuentas (`soporteMesAMes`), y la lectura de la
-  transición de Susana.
+  `config.equipo_confidencial`. Ver §5. Abre con **cuánto pesa en tickets cada cuenta que
+  falta migrar** (`rankingTicketsPorCuenta`, sale de `soporte_tickets`; las de
+  `meta4_no_migra` van al final, son el piso) y **quién atiende esos tickets hoy**
+  (`repartoHistoricoMeta4`, del bloque confidencial; si no está, ese panel no se muestra).
+  Después, cómo se reparte el día de cada persona mes a mes (`filasReparto`: Susi y Moni
+  calculadas, el resto lo que dice el bloque), qué libera Meta 4 y qué carga Axton en tickets
+  y cuentas (`soporteMesAMes`), y la lectura de la transición de Susana. Los dos paneles
+  nuevos son del 22/09/2026: la curva salía sin decir de dónde, y el reparto real por persona
+  es lo que muestra si la transición es continuidad o un salto.
 
 Qué NO es: no reemplaza a Monday (Monday sigue siendo la ejecución), no se conecta a su API,
 no maneja datos personales. TASA/Toyota y TPA están fuera del plan.
@@ -116,8 +126,14 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
   `ticketsMeta4Restantes(mes)` y `ticketsAxton(mes)` en `capacidad.ts` dividen por
   `meses_medidos`; una cuenta que sale se lleva sus tickets a Axton, y las de `meta4_no_migra`
   suman a todos los meses: son el piso del soporte (`ticketsMeta4Piso`), así que **Susi tiene
-  techo y nunca llega al 100 %** (con el v8, 83 % desde abril de 2027). Sin el bloque, devuelven
-  null y la pantalla dice [FALTA]: nunca se estima.
+  techo y nunca llega al 100 %** (con el v8 al 22/09/2026, 77 % desde abril de 2027, con la
+  transición en diciembre). Sin el bloque, devuelven null y la pantalla dice [FALTA]: nunca se
+  estima.
+  **La cuenta es por CLIENTE, no por persona** (Willy, 22/09/2026): `base_tickets_mes` es todo
+  lo que queda en Meta 4 cuando arranca la transición, y no le descuenta lo que otra persona
+  siga atendiendo en paralelo. Si alguien más sigue con soporte Meta 4 después de la
+  transición, eso se ve en el bloque confidencial pero **no afecta** la disponibilidad que
+  calcula esta fórmula. Está decidido así, no es un olvido.
 
 **Mes de salida en vivo es dato** (`config.salidas_en_vivo_propuestas`), no se deduce del
 fin de las fases. POF y Finadiet salen sin fases (`salidas_en_vivo_fuera_del_plan`).
@@ -209,7 +225,14 @@ proporción a su capacidad (`horas`/`capacidad` viajan en la violación). Con el
   frenan el import con un cartel legible; una fase con persona inexistente entra y se ve en
   la fila "Sin asignar" del timeline.
 - Leo y Lucas no son personas del plan: no tienen fases de migración. Solo aparecen en el
-  bloque confidencial como AS IS / TO BE del equipo.
+  bloque confidencial como AS IS / TO BE del equipo. Una entrada de ese bloque puede traer una
+  **fracción real** (media jornada en un frente), no solo el 1 = "está en este frente" de la
+  convención original; el bloque dice cuál es cuál en sus notas.
+- `equipo_confidencial` acepta además `reparto_historico_meta4` (opcional, 22/09/2026): quién
+  atiende hoy los tickets Meta 4 según la Ticketera de monday agrupada por Asignado, con
+  `meses_medidos` y totales por persona. Es **informativo**: no entra en ningún cálculo de
+  capacidad, solo alimenta el panel "Quién atiende esos tickets hoy". Sin él, el panel no se
+  dibuja. La forma está en `src/types.ts`; los valores, solo en el JSON local.
 
 ## 5. Confidencialidad (regla dura)
 
