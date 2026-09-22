@@ -1,6 +1,6 @@
 import { addMonths, endOfMonth, startOfMonth } from 'date-fns'
 import { parseDate } from './utils/dates'
-import { UMBRAL_AMBAR } from './capacidad'
+import { UMBRAL_AMBAR, type CargaDiaria, type CargaSemanal } from './capacidad'
 
 /**
  * Geometría de la vista del timeline: el rango del eje de tiempo y la banda de carga semanal.
@@ -75,24 +75,66 @@ export function estadoDeCarga(horas: number, capacidad: number): EstadoCarga {
   return 'ok'
 }
 
-/** Alto de una fila de la banda y de sus piezas. La etiqueta del % tiene lugar propio arriba. */
-export const BANDA_ROW = 28
-/** Franja reservada arriba de cada fila para el % de las semanas ámbar y rojas. */
-export const BANDA_ETQ = 9
-/** Alto de la caja de una barra: el 100 % de capacidad. Nada dibuja más alto que esto. */
-export const BANDA_BAR_H = BANDA_ROW - BANDA_ETQ - 2
+/** Alto de una fila de la banda. El círculo de carga vive centrado adentro. */
+export const BANDA_ROW = 30
+/** Diámetro del círculo de carga (22/09/2026, reemplaza la barra apilada — ver `celdasSemana`). */
+export const BANDA_DOT = 22
+
+/** % de uso para mostrar en el círculo, redondeado. `null` si no hay capacidad contra qué medir. */
+export function pctDeCarga(horas: number, capacidad: number): number | null {
+  if (capacidad <= 0) return null
+  return Math.round((horas / capacidad) * 100)
+}
+
+// ── Celdas de la banda de carga, una forma por nivel de zoom ────────────────────────────────
+//
+// La banda sigue el mismo selector de escala que el Gantt (Días / Semanas / Meses /
+// Trimestres): a nivel Día, un círculo por día hábil; a nivel Semana (el de siempre), uno
+// por semana; a Mes y Trimestre, uno por mes — Willy no pidió un cuarto nivel para
+// trimestre, así que cae en el mismo agrupado que Mes.
+
+export interface CeldaBandaCarga {
+  /** Fecha ISO que ancla la celda: el día, el lunes de la semana, o el 1° del mes. */
+  fecha: string
+  horas: number
+  capacidad: number
+  /** Horas por barra (id de asignación), para el detalle al hacer clic. */
+  porBarra: Record<string, number>
+  /**
+   * Solo en celdas de mes: alguna semana adentro llegó a rojo aunque el promedio del mes no
+   * lo diga (Willy, 22/09/2026: "mes = promedio, con warning si alguna semana se pasa").
+   */
+  alerta?: boolean
+}
+
+export function celdasSemana(semanal: CargaSemanal[]): CeldaBandaCarga[] {
+  return semanal.map(c => ({ fecha: c.semana, horas: c.horas, capacidad: c.capacidad, porBarra: c.porBarra }))
+}
+
+export function celdasDia(diaria: CargaDiaria[]): CeldaBandaCarga[] {
+  return diaria.map(c => ({ fecha: c.dia, horas: c.horas, capacidad: c.capacidad, porBarra: c.porBarra }))
+}
 
 /**
- * Alto en píxeles de la barra de una semana, y cuánto sobresale del techo.
- *
- * La versión vieja clampeaba a `1.6 × hMax`, con dos problemas: un tramo podía dibujar 15 px
- * FUERA de su fila y pisar la de al lado (el clamp era por tramo y las alturas se acumulaban,
- * así que con varias cuentas en la misma semana el desborde era mayor), y una semana al 160 %
- * se veía igual que una al 300 %. Acá la barra nunca pasa de `BANDA_BAR_H`: el exceso se dice
- * con un tope saliente de 2 px y con el número, no invadiendo la fila del vecino.
+ * Agrupa las semanas en meses: horas y capacidad sumadas del mes (para el % promedio) y
+ * `alerta` si alguna semana individual llegó a rojo, aunque el promedio no llegue.
  */
-export function altoDeBarra(horas: number, capacidad: number): { alto: number; excedida: boolean } {
-  if (capacidad <= 0) return { alto: horas > 0 ? BANDA_BAR_H : 0, excedida: horas > 0 }
-  const uso = horas / capacidad
-  return { alto: Math.min(1, uso) * BANDA_BAR_H, excedida: uso > 1 + 1e-9 }
+export function celdasMes(semanal: CargaSemanal[]): CeldaBandaCarga[] {
+  const porMes = new Map<string, CargaSemanal[]>()
+  for (const c of semanal) {
+    const mes = c.semana.slice(0, 7)
+    const grupo = porMes.get(mes)
+    if (grupo) grupo.push(c); else porMes.set(mes, [c])
+  }
+  return [...porMes.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([mes, grupo]) => {
+    const porBarra: Record<string, number> = {}
+    for (const c of grupo) for (const [id, h] of Object.entries(c.porBarra)) porBarra[id] = (porBarra[id] ?? 0) + h
+    return {
+      fecha: `${mes}-01`,
+      horas: grupo.reduce((s, c) => s + c.horas, 0),
+      capacidad: grupo.reduce((s, c) => s + c.capacidad, 0),
+      porBarra,
+      alerta: grupo.some(c => estadoDeCarga(c.horas, c.capacidad) === 'rojo'),
+    }
+  })
 }

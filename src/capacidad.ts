@@ -414,6 +414,58 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
   return out
 }
 
+export interface CargaDiaria {
+  personaId: string
+  /** Fecha ISO del día hábil. */
+  dia: string
+  horas: number
+  capacidad: number
+  /** Horas desglosadas por barra (id de asignación). */
+  porBarra: Record<string, number>
+}
+
+/**
+ * Horas contra capacidad por persona y día hábil: mismo cálculo día por día que ya hace
+ * `cargaSemanal` por dentro, pero sin agrupar en semanas. La usa el zoom "Día" de la banda
+ * de carga del Timeline (22/09/2026, círculos en vez de barras).
+ */
+export function cargaDiaria(personas: Persona[], asignaciones: Asignacion[], config: Config): CargaDiaria[] {
+  const rango = rangoDeFases(asignaciones)
+  if (!rango) return []
+  const feriados = feriadosDeConfig(config)
+  const out: CargaDiaria[] = []
+  const ultimo = parseISO(rango.hasta)
+
+  for (const p of personas) {
+    const hd = horasDiaDe(p, config)
+    const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
+    const dispCache = new Map<string, number>()
+    const dispDe = (mes: string) => {
+      let v = dispCache.get(mes)
+      if (v === undefined) { v = disponibilidadMes(p.id, mes, config, undefined, p); dispCache.set(mes, v) }
+      return v
+    }
+    const porDiaDe = new Map(propias.map(a => [a.id, horasPorDiaHabil(a, p, config, feriados)]))
+    for (let d = parseISO(rango.desde); d <= ultimo; d = addDays(d, 1)) {
+      if (!esHabil(d, feriados)) continue
+      const iso = toISO(d)
+      const capacidad = vacaciones.has(iso) ? 0 : hd * dispDe(mesDe(iso))
+      let horas = 0
+      const porBarra: Record<string, number> = {}
+      for (const a of propias) {
+        if (a.inicio > iso || a.fin < iso) continue
+        const h = porDiaDe.get(a.id) ?? 0
+        if (h <= 0) continue
+        horas += h
+        porBarra[a.id] = red(h)
+      }
+      out.push({ personaId: p.id, dia: iso, horas: red(horas), capacidad: red(capacidad), porBarra })
+    }
+  }
+  return out
+}
+
 export interface PuntoRestante {
   /** Lunes ISO de la semana. */
   semana: string
