@@ -23,7 +23,9 @@ function mesCorto(mes: string): string {
 }
 
 /**
- * Pestaña "Disponibilidad del equipo". Solo se monta si el plan trae `equipo_confidencial`
+ * Pestaña "Disponibilidad" (se llamaba "Disponibilidad del equipo" hasta el 22/09/2026: en
+ * una barra de una sola fila el nombre largo no entraba). Solo se monta si el plan trae
+ * `equipo_confidencial`
  * (App.tsx). Si la sesión no está desbloqueada muestra el formulario de contraseña; el
  * desbloqueo vive en sessionStorage y se pierde al cerrar la pestaña del navegador.
  */
@@ -57,7 +59,7 @@ export function Confidencial() {
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--lienzo)', padding: 24 }}>
         <form onSubmit={onSubmit} style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 14, padding: 24, boxShadow: 'var(--sh)', width: 360, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 28, textAlign: 'center' }}>🔒</div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--ink)', textAlign: 'center' }}>Disponibilidad del equipo</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--ink)', textAlign: 'center' }}>Disponibilidad</h3>
           <p style={{ margin: 0, fontSize: 12, color: 'var(--t2)', lineHeight: 1.5, textAlign: 'center' }}>
             Datos confidenciales del equipo de payroll. El desbloqueo dura hasta que recargués o cerrés esta pestaña del navegador.
           </p>

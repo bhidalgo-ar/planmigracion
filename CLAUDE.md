@@ -36,14 +36,24 @@ Cuatro pestañas más una:
   carga del equipo de payroll). Después, horas por
   persona y mes contra capacidad, una fila por persona a todo el ancho, con la prosa del mes al
   clic. Cierra con la tabla de tickets Meta 4.
-- **La barra** (22/09/2026, spec `specs/2026-09-22-espacio-y-legibilidad-SPEC.md`) muestra
-  solo los controles de **vista**, los que se tocan en una reunión mirando el tablero: zoom,
-  Por cuenta / Por persona, Hoy, alto de fila y Expandir. Todo lo demás vive en "···"
-  (Personas, Equipo, Agregar cuenta, Deshacer, Replanificar, Planificar pendientes, Vaciar,
-  Reset, Importar, Exportar, Resumen PDF, las capas y la columna de cuentas). Nada se borró y
-  Ctrl+Z sigue andando. Al lado del "···" queda "Cómo se armó →", que abre el modal.
-  La franja de copy de cada pestaña (IntroBar) se sacó: su texto es ahora la cabeza de ese
-  modal, que lo muestra según la pestaña activa.
+- **La barra es UNA SOLA** (22/09/2026, spec `specs/2026-09-22-espacio-y-legibilidad-SPEC.md`
+  y pedido posterior de Willy): marca, pestañas y controles de vista en la misma fila de
+  **46 px**. Antes eran dos franjas apiladas de 56 + 45. Se ven solo los controles de vista,
+  los que se tocan en una reunión mirando el tablero: zoom, Cuenta / Persona, Hoy, alto de
+  fila y ⛶. Todo lo demás vive en "···" (Personas, Equipo, Agregar cuenta, Deshacer,
+  Replanificar, Planificar pendientes, Vaciar, Reset, Importar, Exportar, Resumen PDF, las
+  capas y la columna de cuentas). Nada se borró y Ctrl+Z sigue andando. El "?" al lado del
+  "···" abre el modal explicativo. La franja de copy de cada pestaña (IntroBar) se sacó: su
+  texto es ahora la cabeza de ese modal, que lo muestra según la pestaña activa.
+  **La fila va justa y el caso peor es el plan de Willy**, que trae el bloque confidencial y
+  por eso lleva cinco pestañas: con los rótulos completos desbordaba a 1650 px en una ventana
+  de 1366. Por eso las pestañas no son chips ni llevan emoji (el 🔒 de Disponibilidad se
+  queda: dice que está protegida), los chips de conflicto muestran el número sin la palabra, y
+  "Cuenta / Persona" y "⛶" van sin rótulo largo. Todos conservan su `title`. Si algo nuevo
+  entra en la barra, medir primero ese caso; lo único que puede encogerse es el nombre de la
+  casa al lado del logo.
+- La pestaña confidencial se llama **"Disponibilidad"**, no "Disponibilidad del equipo": el
+  nombre largo no entra en la fila única.
 - **La columna de cuentas** (AccountRail, 218 px) arranca **apagada**: mostraba lo mismo que
   la columna de nombres del timeline. Se enciende en "··· → Columna de cuentas".
 - **El panel de la cuenta** (DetailPanel, 336 px) es **on-demand**: aparece al hacer clic en

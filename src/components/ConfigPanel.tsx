@@ -17,17 +17,16 @@ const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
 ]
 
 /**
- * Barra de la app: SOLO los controles de vista, los que se tocan durante una reunión mirando
- * el tablero (zoom, por cuenta o por persona, Hoy, alto de fila, expandir). Todo lo demás
- * —Personas, Deshacer, Replanificar, Importar, Exportar, Resumen PDF, el planificador,
- * vaciar y reset— vive en "···" (spec 2026-09-22, §1). Nada se borró: un control escondido
- * sigue siendo un control, y los atajos (Ctrl+Z) siguen funcionando igual.
+ * Controles de vista de la app: SOLO los que se tocan durante una reunión mirando el tablero
+ * (zoom, por cuenta o por persona, Hoy, alto de fila, expandir). Todo lo demás —Personas,
+ * Equipo, Agregar cuenta, Deshacer, Replanificar, Importar, Exportar, Resumen PDF, el
+ * planificador, vaciar y reset— vive en "···" (spec 2026-09-22, §1). Nada se borró: un control
+ * escondido sigue siendo un control, y los atajos (Ctrl+Z) siguen funcionando igual.
  *
- * El motivo es espacio: eran dieciocho controles visibles contra un Gantt al que, en una
- * notebook de 1366 px, le quedaba menos de la mitad de la pantalla.
- *
- * Los chips de conflictos quedan a la derecha, siempre, y "Cómo se armó" reemplaza el acceso
- * que antes vivía en la IntroBar.
+ * Desde el 22/09/2026 (pedido de Willy) esto NO es una franja propia: devuelve los controles
+ * sueltos y el header los pone en la misma fila que las pestañas. Eran dos barras apiladas de
+ * 56 + 45 px antes de que empezara el contenido; ahora es una sola. Por eso acá no hay
+ * contenedor, ni fondo, ni borde: los pone quien lo usa.
  */
 export function ConfigPanel() {
   const {
@@ -107,7 +106,7 @@ export function ConfigPanel() {
 
   function handleExport() {
     if (exportOmiteConfidencial()) {
-      alert('El plan se exporta SIN el bloque confidencial (equipo_confidencial): la pestaña "Disponibilidad del equipo" está bloqueada en esta sesión. Desbloqueala antes de exportar si lo necesitás en el archivo.')
+      alert('El plan se exporta SIN el bloque confidencial (equipo_confidencial): la pestaña "Disponibilidad" está bloqueada en esta sesión. Desbloqueala antes de exportar si lo necesitás en el archivo.')
     }
     const blob = new Blob([exportarJSON()], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -119,8 +118,7 @@ export function ConfigPanel() {
   const zoomLabel = ZOOM_OPTS.find(z => z.value === zoom)?.label ?? 'Zoom'
 
   return (
-    <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--line)', position: 'relative', zIndex: 40 }}>
-      <div style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
+    <>
         {enTimeline && (
           <>
             {/* Zoom como desplegable: se toca una vez por reunión, no merece cuatro botones. */}
@@ -142,9 +140,9 @@ export function ConfigPanel() {
             {/* Qué es cada fila: una cuenta con sus fases y la carga del equipo debajo, o una persona (vista original) */}
             <div style={{ display: 'flex', border: '1.5px solid var(--line)', borderRadius: 9999, overflow: 'hidden', flexShrink: 0 }}
               title="Por cuenta: una fila por cuenta con sus fases y la carga semanal del equipo debajo. Por persona: una fila por persona.">
-              {([['cuenta', 'Por cuenta'], ['persona', 'Por persona']] as const).map(([v, l]) => (
+              {([['cuenta', 'Cuenta'], ['persona', 'Persona']] as const).map(([v, l]) => (
                 <button key={v} onClick={() => setModoFilas(v)}
-                  style={{ padding: '4px 11px', border: 'none', background: modoFilas === v ? 'var(--celeste)' : 'var(--white)', color: modoFilas === v ? '#fff' : 'var(--t2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ padding: '4px 10px', border: 'none', background: modoFilas === v ? 'var(--celeste)' : 'var(--white)', color: modoFilas === v ? '#fff' : 'var(--t2)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   {l}
                 </button>
               ))}
@@ -162,9 +160,9 @@ export function ConfigPanel() {
               ))}
             </Segmentos>
 
-            <button onClick={toggleTimelineFull} style={{ ...pillBtn, flexShrink: 0, ...(timelineFull ? activePill : {}) }}
-              title={timelineFull ? 'Volver a mostrar el panel de la cuenta' : 'Usar todo el ancho para el calendario'}>
-              ⛶ Expandir
+            <button onClick={toggleTimelineFull} style={{ ...pillBtn, flexShrink: 0, padding: '4px 8px', ...(timelineFull ? activePill : {}) }}
+              title={timelineFull ? 'Expandir timeline: volver a mostrar el panel de la cuenta' : 'Expandir timeline: usar todo el ancho para el calendario'}>
+              ⛶
             </button>
 
             <Divider />
@@ -224,20 +222,21 @@ export function ConfigPanel() {
           )}
         </div>
 
-        {/* El acceso al modal explicativo: antes vivía al final de la IntroBar, que se sacó. */}
-        <button onClick={abrirComoSeArmo} style={{ border: 'none', background: 'none', color: 'var(--celeste-dark)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', padding: '2px 4px', flexShrink: 0 }}
-          title="De dónde salen las horas, los tiers, los cortes y las reglas de este plan">
-          Cómo se armó →
+        {/* El acceso al modal explicativo (antes vivía al final de la IntroBar, que se sacó).
+            Con todo en una fila el texto no entraba: queda como "?" con su title. */}
+        <button onClick={abrirComoSeArmo} style={{ width: 26, height: 26, borderRadius: 9999, border: '1.5px solid var(--celeste-border)', background: 'var(--white)', color: 'var(--celeste-dark)', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, lineHeight: 1, padding: 0 }}
+          title="Cómo se armó este plan: de dónde salen las horas, los tiers, los cortes y las reglas">
+          ?
         </button>
 
-        {/* Estado del plan */}
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
-          {rojos > 0 && <span style={chip('var(--error-bg)', 'var(--error-tx)', 'var(--error-bd)')}>⚠ {rojos} conflicto{rojos !== 1 ? 's' : ''}</span>}
-          {ambar > 0 && <span style={chip('var(--warn-bg)', 'var(--warn-tx)', 'var(--warn-bd)')}>⚡ {ambar} aviso{ambar !== 1 ? 's' : ''}</span>}
-          {rojos === 0 && ambar === 0 && <span style={chip('var(--ok-bg)', 'var(--ok-tx)', 'var(--ok-bd)')}>✓ Sin conflictos</span>}
+        {/* Estado del plan. Al fondo de la barra, contra el borde derecho: en una sola fila
+            el número es lo último que se lee y lo primero que se busca. */}
+        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+          {rojos > 0 && <span style={chip('var(--error-bg)', 'var(--error-tx)', 'var(--error-bd)')} title={`${rojos} conflicto${rojos !== 1 ? 's' : ''} en el plan`}>⚠ {rojos}</span>}
+          {ambar > 0 && <span style={chip('var(--warn-bg)', 'var(--warn-tx)', 'var(--warn-bd)')} title={`${ambar} aviso${ambar !== 1 ? 's' : ''} en el plan`}>⚡ {ambar}</span>}
+          {rojos === 0 && ambar === 0 && <span style={chip('var(--ok-bg)', 'var(--ok-tx)', 'var(--ok-bd)')} title="Ninguna regla del plan está en rojo ni en ámbar">✓</span>}
         </div>
-      </div>
-    </div>
+    </>
   )
 }
 
@@ -316,14 +315,14 @@ const menuStyle: CSSProperties = {
   padding: 8, display: 'flex', flexDirection: 'column', gap: 4,
 }
 const pillBtn: CSSProperties = {
-  padding: '4px 11px', borderWidth: 1.5, borderStyle: 'solid', borderColor: 'var(--line)', borderRadius: 9999, background: 'var(--white)',
-  cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t2)',
+  padding: '4px 10px', borderWidth: 1.5, borderStyle: 'solid', borderColor: 'var(--line)', borderRadius: 9999, background: 'var(--white)',
+  cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--t2)', whiteSpace: 'nowrap',
 }
 const activePill: CSSProperties = { background: 'var(--celeste)', color: '#fff', borderColor: 'var(--celeste)' }
 const actionBtn: CSSProperties = {
-  padding: '5px 14px', borderWidth: 1.5, borderStyle: 'solid', borderColor: 'var(--line)', borderRadius: 9999, background: 'var(--white)',
-  cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', flexShrink: 0,
+  padding: '5px 12px', borderWidth: 1.5, borderStyle: 'solid', borderColor: 'var(--line)', borderRadius: 9999, background: 'var(--white)',
+  cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', flexShrink: 0,
 }
 function chip(bg: string, tx: string, bd: string): CSSProperties {
-  return { background: bg, color: tx, border: `1px solid ${bd}`, borderRadius: 9999, padding: '4px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }
+  return { background: bg, color: tx, border: `1px solid ${bd}`, borderRadius: 9999, padding: '3px 9px', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }
 }
