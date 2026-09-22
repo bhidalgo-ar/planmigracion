@@ -15,12 +15,26 @@ const COLOR_TIER: Record<Tier, string> = {
   chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
 }
 
+/**
+ * Panel de la cuenta seleccionada. Desde el 22/09/2026 es **on-demand** (spec §6.2): solo se
+ * monta cuando hay una cuenta elegida, así los 336 px vuelven al calendario mientras no se
+ * está moviendo nada.
+ *
+ * Adentro hay dos cosas distintas y no se esconden juntas: la tira "Sale en vivo" —que es EL
+ * mecanismo para mover una cuenta, porque mover una cuenta es cambiar su mes de salida— queda
+ * a la vista, y las asignaciones por tarea arrancan colapsadas.
+ */
 export function DetailPanel() {
   const config = useSimuladorStore(s => s.config)
-  const { proyectos, asignaciones, personas, violaciones, clienteSeleccionado, updateAsignacion, addFase, renameProyecto, removeProyecto } =
+  const { proyectos, asignaciones, personas, violaciones, clienteSeleccionado, seleccionarCliente, updateAsignacion, addFase, renameProyecto, removeProyecto } =
     useSimuladorStore()
 
   const proyecto = proyectos.find(p => p.id === clienteSeleccionado) ?? null
+
+  // Las asignaciones por tarea se editan en Claude, no acá: el panel se abre mostrando lo
+  // que sí se usa en la reunión y estas quedan a un clic.
+  const [fasesAbiertas, setFasesAbiertas] = useState(false)
+  useEffect(() => { setFasesAbiertas(false) }, [clienteSeleccionado])
 
   // edición del nombre de la cuenta
   const [editando, setEditando] = useState(false)
@@ -55,65 +69,67 @@ export function DetailPanel() {
     return ORDEN_FASES.map(tipo => ({ tipo, asignacion: fases.find(f => f.tipo === tipo) ?? null }))
   }, [proyecto, asignaciones])
 
+  // Sin cuenta el panel no ocupa lugar: si la que estaba elegida se borra, los 336 px
+  // vuelven al calendario en vez de quedar como una franja vacía.
+  if (!proyecto) return null
+
   return (
     <div style={{ width: 336, flexShrink: 0, borderLeft: '1px solid var(--line)', background: 'var(--paper)', overflowY: 'auto', height: '100%', padding: 18 }}>
-      {!proyecto ? (
-        <div style={{ color: 'var(--t3)', textAlign: 'center', marginTop: 60, fontSize: 14, lineHeight: 1.6, padding: '0 12px' }}>
-          Seleccioná una cuenta del panel izquierdo para ver y editar sus fases.
-          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--t3)' }}>
-            Para mover una cuenta de mes, elegí el mes en "Sale en vivo": las fases se rearman hacia atrás desde el corte de novedades. En el timeline: arrastrá una barra para ajustarla a mano · vertical reasigna persona · borde derecho estira. Arrastrá el fondo (o usá el botón del medio del mouse) para desplazarte.
-          </div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {editando ? (
+            <input
+              value={nombreDraft}
+              onChange={e => setNombreDraft(e.target.value)}
+              onBlur={confirmarRename}
+              onKeyDown={e => { if (e.key === 'Enter') confirmarRename(); if (e.key === 'Escape') setEditando(false) }}
+              autoFocus
+              maxLength={40}
+              style={{ flex: 1, fontSize: 18, fontWeight: 700, color: 'var(--ink)', padding: '4px 8px', border: '1.5px solid var(--celeste)', borderRadius: 8, background: 'var(--white)' }}
+            />
+          ) : (
+            <>
+              <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: 'var(--ink)', flex: 1 }}>{proyecto.nombre}</h2>
+              <button onClick={empezarRename} title="Renombrar cuenta" style={iconBtn}>✏️</button>
+              <button onClick={handleRemove} title="Eliminar cuenta" style={{ ...iconBtn, color: 'var(--error-tx)' }}>🗑</button>
+              <button onClick={() => seleccionarCliente(null)} title="Cerrar el panel y devolverle el ancho al calendario" style={{ ...iconBtn, fontSize: 20, lineHeight: 1 }}>×</button>
+            </>
+          )}
         </div>
-      ) : (
-        <>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {editando ? (
-                <input
-                  value={nombreDraft}
-                  onChange={e => setNombreDraft(e.target.value)}
-                  onBlur={confirmarRename}
-                  onKeyDown={e => { if (e.key === 'Enter') confirmarRename(); if (e.key === 'Escape') setEditando(false) }}
-                  autoFocus
-                  maxLength={40}
-                  style={{ flex: 1, fontSize: 18, fontWeight: 700, color: 'var(--ink)', padding: '4px 8px', border: '1.5px solid var(--celeste)', borderRadius: 8, background: 'var(--white)' }}
-                />
-              ) : (
-                <>
-                  <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: 'var(--ink)', flex: 1 }}>{proyecto.nombre}</h2>
-                  <button onClick={empezarRename} title="Renombrar cuenta" style={iconBtn}>✏️</button>
-                  <button onClick={handleRemove} title="Eliminar cuenta" style={{ ...iconBtn, color: 'var(--error-tx)' }}>🗑</button>
-                </>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-              {proyecto.especial && <span style={pill('var(--tasa)')}>Especial · Toyota</span>}
-              {proyecto.quick_win && <span style={pill('var(--ok)')}>Quick-win</span>}
-              {proyecto.entidades > 1 && <span style={pill('var(--celeste)')}>{proyecto.entidades} entidades</span>}
-              {(() => { const t = tierDe(proyecto.id, config); return t
-                ? <span style={pill(COLOR_TIER[t])}>Cuenta {TIER_LABEL[t]}</span>
-                : <span style={pill('var(--gris)')}>tier sin definir</span> })()}
-            </div>
-          </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          {proyecto.especial && <span style={pill('var(--tasa)')}>Especial · Toyota</span>}
+          {proyecto.quick_win && <span style={pill('var(--ok)')}>Quick-win</span>}
+          {proyecto.entidades > 1 && <span style={pill('var(--celeste)')}>{proyecto.entidades} entidades</span>}
+          {(() => { const t = tierDe(proyecto.id, config); return t
+            ? <span style={pill(COLOR_TIER[t])}>Cuenta {TIER_LABEL[t]}</span>
+            : <span style={pill('var(--gris)')}>tier sin definir</span> })()}
+        </div>
+      </div>
 
-          {/* La causa: el mes de salida. Las fases de abajo son la consecuencia. */}
-          <BloqueSalida proyecto={proyecto} />
+      {/* La causa: el mes de salida. Las fases de abajo son la consecuencia. */}
+      <BloqueSalida proyecto={proyecto} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {fasesPorTipo.map(({ tipo, asignacion }) => (
-              <FaseCard
-                key={tipo}
-                tipo={tipo}
-                asignacion={asignacion}
-                personas={personas}
-                violaciones={asignacion ? (violsPorAsig.get(asignacion.id) ?? []) : []}
-                onUpdate={patch => asignacion && updateAsignacion(asignacion.id, patch)}
-                onCreate={personaId => proyecto && addFase(proyecto.id, tipo, personaId)}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      <button onClick={() => setFasesAbiertas(v => !v)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--white)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: 'var(--t2)', marginBottom: fasesAbiertas ? 12 : 0 }}
+        title="Quién hace cada fase, cuánto dura y con qué dedicación">
+        <span style={{ fontSize: 10, color: 'var(--t3)' }}>{fasesAbiertas ? '▾' : '▸'}</span>
+        Asignaciones por tarea
+        <span className="num" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--t3)' }}>{fasesPorTipo.filter(f => f.asignacion).length}/{fasesPorTipo.length}</span>
+      </button>
+
+      <div style={{ display: fasesAbiertas ? 'flex' : 'none', flexDirection: 'column', gap: 12 }}>
+        {fasesPorTipo.map(({ tipo, asignacion }) => (
+          <FaseCard
+            key={tipo}
+            tipo={tipo}
+            asignacion={asignacion}
+            personas={personas}
+            violaciones={asignacion ? (violsPorAsig.get(asignacion.id) ?? []) : []}
+            onUpdate={patch => asignacion && updateAsignacion(asignacion.id, patch)}
+            onCreate={personaId => proyecto && addFase(proyecto.id, tipo, personaId)}
+          />
+        ))}
+      </div>
     </div>
   )
 }

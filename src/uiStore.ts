@@ -61,6 +61,12 @@ interface UIState {
   comoSeArmoAbierto: boolean
   resumenAbierto: boolean
   timelineFull: boolean
+  /**
+   * Columna de cuentas de la izquierda (AccountRail). Arranca apagada desde el 22/09/2026
+   * (spec §1): son 218 px fijos que muestran lo mismo que la columna de nombres del timeline,
+   * a 20 px de distancia. Se enciende desde "··· → Columna de cuentas".
+   */
+  mostrarRail: boolean
   zoom: ZoomLevel
   sortCuentas: SortCuentas
   irHoyToken: number
@@ -90,6 +96,7 @@ interface UIState {
   toggleDep: () => void
   toggleConflictos: () => void
   toggleTimelineFull: () => void
+  toggleRail: () => void
   setZoom: (z: ZoomLevel) => void
   toggleSortCuentas: () => void
   irHoy: () => void
@@ -121,6 +128,7 @@ export const useUIStore = create<UIState>((set) => ({
   comoSeArmoAbierto: false,
   resumenAbierto: false,
   timelineFull: false,
+  mostrarRail: false,
   zoom: 'semanas',
   sortCuentas: 'fecha',
   irHoyToken: 0,
@@ -147,6 +155,7 @@ export const useUIStore = create<UIState>((set) => ({
   toggleDep: () => set(s => ({ mostrarDep: !s.mostrarDep })),
   toggleConflictos: () => set(s => ({ mostrarConflictos: !s.mostrarConflictos })),
   toggleTimelineFull: () => set(s => ({ timelineFull: !s.timelineFull })),
+  toggleRail: () => set(s => ({ mostrarRail: !s.mostrarRail })),
   setZoom: (zoom) => set({ zoom }),
   toggleSortCuentas: () => set(s => ({ sortCuentas: s.sortCuentas === 'fecha' ? 'nombre' : 'fecha' })),
   irHoy: () => set(s => ({ irHoyToken: s.irHoyToken + 1 })),
