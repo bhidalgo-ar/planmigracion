@@ -236,6 +236,15 @@ export function diasDeVacaciones(personaId: string, asignaciones: Asignacion[], 
   return out
 }
 
+/**
+ * ¿La barra suma horas de trabajo? Las fases sí y los bloqueos no (vacaciones, corridas
+ * reservadas), salvo la liquidación en vivo: la de POF viene como bloqueo porque no tiene
+ * cuenta en el plan (v18), pero son horas reales de Willy, Moni y Gaby.
+ */
+export function esCarga(a: Asignacion): boolean {
+  return !a.es_bloqueo || a.tipo === 'Liquidacion en vivo'
+}
+
 /** `_horas` de una barra si es un número válido; null si no lo trae (se deriva de la dedicación). */
 export function horasDeBarra(asig: Asignacion): number | null {
   const h = asig._horas
@@ -251,7 +260,7 @@ export function horasDeBarra(asig: Asignacion): number | null {
 export function horasPorDiaHabil(
   asig: Asignacion, persona: Persona | undefined, config: Config, feriados: ReadonlySet<string>,
 ): number {
-  if (asig.es_bloqueo) return 0
+  if (!esCarga(asig)) return 0
   const horas = horasDeBarra(asig)
   if (horas !== null) {
     const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).length
@@ -276,7 +285,7 @@ export function duracionPorHoras(horas: number, horasDia: number, dedicacion: nu
 export function horasFaseEnMes(
   asig: Asignacion, mesISO: string, persona: Persona | undefined, feriados: ReadonlySet<string>, config: Config,
 ): number {
-  if (asig.es_bloqueo) return 0
+  if (!esCarga(asig)) return 0
   const porDia = horasPorDiaHabil(asig, persona, config, feriados)
   const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).filter(d => mesDe(toISO(d)) === mesISO).length
   return red(dias * porDia)
@@ -323,7 +332,7 @@ export function mesesEntre(desdeISO: string, hastaISO: string): string[] {
 function rangoDeFases(asignaciones: Asignacion[]): { desde: string; hasta: string } | null {
   let desde: string | null = null, hasta: string | null = null
   for (const a of asignaciones) {
-    if (a.es_bloqueo) continue
+    if (!esCarga(a)) continue
     if (!desde || a.inicio < desde) desde = a.inicio
     if (!hasta || a.fin > hasta) hasta = a.fin
   }
@@ -343,7 +352,7 @@ export function cargaMensual(personas: Persona[], asignaciones: Asignacion[], co
 
   for (const p of personas) {
     const hd = horasDiaDe(p, config)
-    const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const propias = asignaciones.filter(a => a.persona_id === p.id && esCarga(a))
     const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
     for (const mes of meses) {
       const disp = disponibilidadMes(p.id, mes, config, undefined, p)
@@ -381,7 +390,7 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
 
   for (const p of personas) {
     const hd = horasDiaDe(p, config)
-    const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const propias = asignaciones.filter(a => a.persona_id === p.id && esCarga(a))
     const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
     const dispCache = new Map<string, number>()
     const dispDe = (mes: string) => {
@@ -438,7 +447,7 @@ export function cargaDiaria(personas: Persona[], asignaciones: Asignacion[], con
 
   for (const p of personas) {
     const hd = horasDiaDe(p, config)
-    const propias = asignaciones.filter(a => a.persona_id === p.id && !a.es_bloqueo)
+    const propias = asignaciones.filter(a => a.persona_id === p.id && esCarga(a))
     const vacaciones = diasDeVacaciones(p.id, asignaciones, feriados)
     const dispCache = new Map<string, number>()
     const dispDe = (mes: string) => {

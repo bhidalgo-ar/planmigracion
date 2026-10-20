@@ -4,7 +4,7 @@ import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
 import { diasHabiles, feriadosDeConfig, toISO } from './utils/dates'
 import { nombreTarea } from './tareas'
 import {
-  cargaMensual, cargaSemanal, mesSalidaDe, salidasFueraDelPlan, ultimoDiaDelMes,
+  cargaMensual, cargaSemanal, esCarga, mesSalidaDe, salidasFueraDelPlan, ultimoDiaDelMes,
 } from './capacidad'
 
 /**
@@ -70,7 +70,7 @@ export function checkCargaMensual(
       .sort((a, b) => b[1] - a[1])
       .map(([id]) => nombreCuenta(id, proyectos, id))
     const asigRef = asignaciones
-      .filter(a => a.persona_id === c.personaId && !a.es_bloqueo && a.inicio.slice(0, 7) <= c.mes && a.fin.slice(0, 7) >= c.mes)
+      .filter(a => a.persona_id === c.personaId && esCarga(a) && a.inicio.slice(0, 7) <= c.mes && a.fin.slice(0, 7) >= c.mes)
       .sort((a, b) => b.dedicacion_pct - a.dedicacion_pct)[0]
     out.push({
       tipo: 'carga_mes',
@@ -100,7 +100,7 @@ export function checkCargaSemanal(
     const alias = personas.find(p => p.id === c.personaId)?.alias ?? c.personaId
     const viernes = toISO(addDays(parseISO(c.semana), 4))
     const asigRef = asignaciones
-      .filter(a => a.persona_id === c.personaId && !a.es_bloqueo && a.inicio <= viernes && a.fin >= c.semana)
+      .filter(a => a.persona_id === c.personaId && esCarga(a) && a.inicio <= viernes && a.fin >= c.semana)
       .sort((a, b) => b.dedicacion_pct - a.dedicacion_pct)[0]
     out.push({
       tipo: 'carga_semana',
@@ -432,6 +432,7 @@ export function checkPredecesoras(asignaciones: Asignacion[], proyectos: Proyect
 
 const FASE_CON_ARTICULO: Record<string, string> = {
   Relevamiento: 'el relevamiento', Configuracion: 'la configuración', Pruebas: 'las pruebas', Cierre: 'el cierre', Vacaciones: 'las vacaciones',
+  'Liquidacion en vivo': 'la liquidación en vivo',
 }
 
 /**

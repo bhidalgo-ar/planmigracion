@@ -1,6 +1,7 @@
 import { addMonths, endOfMonth, startOfMonth } from 'date-fns'
 import { parseDate } from './utils/dates'
 import { UMBRAL_AMBAR, type CargaDiaria, type CargaSemanal } from './capacidad'
+import type { Asignacion, TipoFase } from './types'
 
 /**
  * Geometría de la vista del timeline: el rango del eje de tiempo y la banda de carga semanal.
@@ -75,10 +76,110 @@ export function estadoDeCarga(horas: number, capacidad: number): EstadoCarga {
   return 'ok'
 }
 
-/** Alto de una fila de la banda. El círculo de carga vive centrado adentro. */
-export const BANDA_ROW = 30
-/** Diámetro del círculo de carga (22/09/2026, reemplaza la barra apilada — ver `celdasSemana`). */
-export const BANDA_DOT = 22
+/**
+ * Alto de una fila de la banda de carga. Desde el 20/10/2026 (opción C del mockup) cada celda
+ * es una columna apilada por tipo de trabajo con el % arriba, así que la fila creció de 30 a
+ * 64 px. Willy puso el techo en 76: no se usó entero para que la banda no se coma la pantalla
+ * con cuatro personas.
+ */
+export const BANDA_ROW = 64
+/** Lugar arriba de la columna para el % (o las "N h" sin dueño de una semana de vacaciones). */
+export const BANDA_PCT_H = 12
+/** Aire debajo de la columna. */
+export const BANDA_PIE = 3
+/**
+ * Alto del área de la columna y altura de la línea del 100 %: la línea va al 72 % del área,
+ * así una semana hasta ~139 % de su capacidad se ve entera antes de recortarse.
+ */
+export const BANDA_AREA = BANDA_ROW - BANDA_PCT_H - BANDA_PIE
+export const BANDA_Y100 = Math.round(BANDA_AREA * 0.72)
+
+/** Alto máximo de una fila de cuenta (opción A, 20/10/2026): una sola línea, nunca crece. */
+export const FILA_CUENTA_MAX = 52
+
+/** Tipos de trabajo que apila la columna de carga, de abajo hacia arriba. Vacaciones no es carga. */
+export const TIPOS_CARGA: TipoFase[] = ['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre', 'Liquidacion en vivo']
+
+/**
+ * Horas de una celda por tipo de trabajo, en el orden de `TIPOS_CARGA` y sin los ceros. `tipoDe`
+ * dice el tipo de cada barra; una barra que no está en el mapa (no debería pasar) se ignora.
+ */
+export function horasPorTipo(porBarra: Record<string, number>, tipoDe: ReadonlyMap<string, TipoFase>): Array<[TipoFase, number]> {
+  const suma = new Map<TipoFase, number>()
+  for (const [id, h] of Object.entries(porBarra)) {
+    const t = tipoDe.get(id)
+    if (!t || !(h > 0)) continue
+    suma.set(t, (suma.get(t) ?? 0) + h)
+  }
+  return TIPOS_CARGA.filter(t => suma.has(t)).map(t => [t, suma.get(t)!])
+}
+
+/**
+ * Alto en px de cada tramo de la columna. La escala es la capacidad de la celda (100 % =
+ * `BANDA_Y100`); si la celda no tiene capacidad (vacaciones), se usa `capRef`, la capacidad
+ * típica de esa persona en una celda de ese tamaño, para que las horas sin dueño se vean igual.
+ * La suma se recorta al área: lo que se pasa lo dice el % de arriba.
+ */
+export function tramosDeColumna(
+  porTipo: Array<[TipoFase, number]>, capacidad: number, capRef: number,
+): Array<{ tipo: TipoFase; alto: number }> {
+  const base = capacidad > 0 ? capacidad : capRef
+  if (!(base > 0)) return []
+  const escala = BANDA_Y100 / base
+  const out: Array<{ tipo: TipoFase; alto: number }> = []
+  let usado = 0
+  for (const [tipo, h] of porTipo) {
+    const alto = Math.min(h * escala, BANDA_AREA - usado)
+    if (alto <= 0) break
+    out.push({ tipo, alto })
+    usado += alto
+  }
+  return out
+}
+
+// ── Filas de cuenta (opción A, 20/10/2026) ──────────────────────────────────────────────────
+
+/** Id de fila del Timeline por cuenta para una cuenta fuera del plan ('POF' → 'fuera:POF'). */
+export const filaFueraDelPlan = (cuenta: string) => `fuera:${cuenta}`
+
+/**
+ * La liquidación en vivo de una cuenta como UNA barra: del primer inicio al último fin de sus
+ * asignaciones (una por persona). Clave: el id de la cuenta, o `fuera:<alias>` para las de
+ * `cuenta_fuera_plan`. Las que no tienen ni cuenta ni alias no se agrupan.
+ */
+export function liquidacionesEnVivo(asignaciones: Asignacion[]): Map<string, { inicio: string; fin: string; asigs: Asignacion[] }> {
+  const out = new Map<string, { inicio: string; fin: string; asigs: Asignacion[] }>()
+  for (const a of asignaciones) {
+    if (a.tipo !== 'Liquidacion en vivo') continue
+    const clave = a.proyecto_id ?? (a.cuenta_fuera_plan ? filaFueraDelPlan(a.cuenta_fuera_plan) : null)
+    if (!clave) continue
+    const g = out.get(clave)
+    if (!g) out.set(clave, { inicio: a.inicio, fin: a.fin, asigs: [a] })
+    else {
+      if (a.inicio < g.inicio) g.inicio = a.inicio
+      if (a.fin > g.fin) g.fin = a.fin
+      g.asigs.push(a)
+    }
+  }
+  return out
+}
+
+/**
+ * El Cierre de la cuenta (delta + aplica, o la Actualización Final de planes viejos) como un
+ * solo hito: la fecha es la del último, que es el aplica. null si la cuenta no tiene Cierre.
+ */
+export function hitoDeCierre(asigs: Asignacion[]): { fecha: string; asigs: Asignacion[] } | null {
+  const cierres = asigs.filter(a => a.tipo === 'Cierre' && !a.es_bloqueo)
+  if (!cierres.length) return null
+  const fecha = cierres.reduce((m, a) => (a.fin > m ? a.fin : m), cierres[0].fin)
+  return { fecha, asigs: cierres }
+}
+
+/** 'h/día' legible: 2 → '2', 1.5 → '1,5'. */
+export function horasDiaLegible(h: number): string {
+  const r = Math.round(h * 10) / 10
+  return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',')
+}
 
 /** % de uso para mostrar en el círculo, redondeado. `null` si no hay capacidad contra qué medir. */
 export function pctDeCarga(horas: number, capacidad: number): number | null {

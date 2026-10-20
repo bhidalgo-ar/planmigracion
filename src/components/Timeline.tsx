@@ -4,14 +4,15 @@ import { es } from 'date-fns/locale'
 import { cascadaIds, useSimuladorStore } from '../store'
 import { aplicarOrdenYFiltro, DENSIDAD_PX, useUIStore, type ZoomLevel } from '../uiStore'
 import type { Asignacion, Persona, TipoFase } from '../types'
-import { TIPO_COLOR, TIPO_LABEL } from '../theme/fases'
-import { cargaDiaria, cargaSemanal, mesSalidaDe, UMBRAL_AMBAR } from '../capacidad'
+import { FONDO_VIVO, TIPO_COLOR, TIPO_LABEL } from '../theme/fases'
+import { cargaDiaria, cargaSemanal, esCarga, horasPorDiaHabil, mesSalidaDe, salidasFueraDelPlan, UMBRAL_AMBAR } from '../capacidad'
 import {
-  celdasDia, celdasMes, celdasSemana, estadoDeCarga, pctDeCarga, rangoDelEje,
-  BANDA_DOT, BANDA_ROW, type CeldaBandaCarga,
+  celdasDia, celdasMes, celdasSemana, estadoDeCarga, filaFueraDelPlan, hitoDeCierre, horasDiaLegible, horasPorTipo,
+  liquidacionesEnVivo, pctDeCarga, rangoDelEje, tramosDeColumna,
+  BANDA_AREA, BANDA_PCT_H, BANDA_PIE, BANDA_ROW, BANDA_Y100, FILA_CUENTA_MAX, type CeldaBandaCarga,
 } from '../vistaTimeline'
 import { tierDe, TIER_LABEL } from '../insightsEquipo'
-import { margenesPorCuenta, predecesoraViolada } from '../rules'
+import { ddmm, margenesPorCuenta, predecesoraViolada } from '../rules'
 import { nombreTarea } from '../tareas'
 import { getMondayOfWeek, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 
@@ -199,11 +200,6 @@ const BANDA_HDR = 22
 /** 'oct 26' */
 const mesCorto = (mes: string) => format(parseISO(`${mes}-01`), 'MMM yy', { locale: es })
 
-/** Color de relleno de una semana de la banda, por estado de carga. */
-const COLOR_CARGA = {
-  ok: 'var(--ok)', ambar: 'var(--warn)', rojo: 'var(--error)', sin_capacidad: 'var(--line)',
-} as const
-
 /** Fila sintética para las fases cuya `persona_id` no existe en el plan. */
 const SIN_ASIGNAR = '__sin_asignar__'
 const FILA_SIN_ASIGNAR: Persona = {
@@ -216,12 +212,15 @@ const FILA_SIN_ASIGNAR: Persona = {
  * ("colapsada"), Relevamiento, Configuración y Pruebas entran como un solo item por fase
  * (`kind: 'fase'`), y solo al seleccionarla (`kind: 'barra'`, una por tarea) se ve el detalle.
  * El Cierre es siempre un hito (`kind: 'cierre'`), colapsada o no: un rombo de un día no
- * necesita esconderse. `asig` viaja en los items de una sola barra real (barra/cierre); los
- * de fase agrupan varias (`asigIds`) y no son arrastrables.
+ * necesita esconderse. En modo cuenta (opción A, 20/10/2026) el delta y el aplica son UN solo
+ * rombo en la fecha del aplica, la liquidación en vivo es una sola barra rayada (`'vivo'`,
+ * una por cuenta aunque sean tres personas) y su arranque, el corte del mes de salida, lleva
+ * el rombo naranja de la salida (`'salida'`). `asig` viaja en los items de una sola barra real
+ * (barra/cierre); los que agrupan varias (`asigIds`) no son arrastrables.
  */
 interface ItemBarra {
   id: string
-  kind: 'barra' | 'fase' | 'cierre'
+  kind: 'barra' | 'fase' | 'cierre' | 'vivo' | 'salida'
   tipo: TipoFase
   inicio: string
   fin: string
@@ -256,39 +255,56 @@ export function Timeline() {
     return hayHuerfanas ? [...visibles, FILA_SIN_ASIGNAR] : visibles
   }, [personasTodas, ordenPersonas, personasOcultas, hayHuerfanas])
   // Modo cuenta: una fila por cuenta, ordenadas por mes de salida y después por su primera
-  // fase. Las barras sin cuenta (corridas iniciales, vacaciones) van a una fila propia al final.
-  const hayBloqueosSueltos = useMemo(() => asignaciones.some(a => !a.proyecto_id), [asignaciones])
+  // fase. Las cuentas fuera del plan con liquidación en vivo (POF en el v18) tienen su propia
+  // fila, ordenada con las demás. Las barras sin cuenta (corridas iniciales, vacaciones) van a
+  // una fila propia al final.
+  const hayBloqueosSueltos = useMemo(() => asignaciones.some(a => !a.proyecto_id && !a.cuenta_fuera_plan), [asignaciones])
   const filasCuenta = useMemo((): Fila[] => {
     const primera = new Map<string, string>()
+    const mesFuera = new Map(salidasFueraDelPlan(config).map(c => [c.nombre, c.mes]))
+    const fuera = new Set<string>()
     for (const a of asignaciones) {
-      if (!a.proyecto_id || a.es_bloqueo) continue
-      const m = primera.get(a.proyecto_id)
-      if (!m || a.inicio < m) primera.set(a.proyecto_id, a.inicio)
+      const clave = a.proyecto_id ?? (a.cuenta_fuera_plan ? filaFueraDelPlan(a.cuenta_fuera_plan) : null)
+      if (!clave || !esCarga(a)) continue
+      if (!a.proyecto_id) fuera.add(a.cuenta_fuera_plan!)
+      const m = primera.get(clave)
+      if (!m || a.inicio < m) primera.set(clave, a.inicio)
     }
-    const orden = [...proyectos].sort((a, b) => {
-      const ma = mesSalidaDe(a.id, config) ?? '9999', mb = mesSalidaDe(b.id, config) ?? '9999'
+    const candidatas = [
+      ...proyectos.map(p => ({ id: p.id, titulo: p.nombre, mes: mesSalidaDe(p.id, config) })),
+      ...[...fuera].map(c => ({ id: filaFueraDelPlan(c), titulo: c, mes: mesFuera.get(c) ?? primera.get(filaFueraDelPlan(c))?.slice(0, 7) ?? null })),
+    ]
+    const orden = candidatas.sort((a, b) => {
+      const ma = a.mes ?? '9999', mb = b.mes ?? '9999'
       if (ma !== mb) return ma < mb ? -1 : 1
       const pa = primera.get(a.id) ?? '9999', pb = primera.get(b.id) ?? '9999'
-      return pa < pb ? -1 : pa > pb ? 1 : a.nombre.localeCompare(b.nombre, 'es')
+      return pa < pb ? -1 : pa > pb ? 1 : a.titulo.localeCompare(b.titulo, 'es')
     })
-    const out: Fila[] = orden.map(p => ({ id: p.id, titulo: p.nombre }))
+    const out: Fila[] = orden.map(p => ({ id: p.id, titulo: p.titulo }))
     if (hayBloqueosSueltos) out.push({ id: SIN_CUENTA, titulo: 'Sin cuenta' })
     return out
   }, [proyectos, asignaciones, config, hayBloqueosSueltos])
+  /** Mes de salida de las cuentas fuera del plan, para el subtítulo de su fila. */
+  const mesFueraDelPlan = useMemo(() => new Map(salidasFueraDelPlan(config).map(c => [filaFueraDelPlan(c.nombre), c.mes])), [config])
   const filas: Fila[] = useMemo(
     () => (porCuenta ? filasCuenta : personas.map(p => ({ id: p.id, titulo: p.alias }))),
     [porCuenta, filasCuenta, personas],
   )
   /** Id de la fila donde se dibuja una fase: su cuenta (modo cuenta) o su persona (modo persona, "Sin asignar" si no existe). */
   const filaIdDe = (a: Asignacion) => porCuenta
-    ? (a.proyecto_id ?? SIN_CUENTA)
+    ? (a.proyecto_id ?? (a.cuenta_fuera_plan ? filaFueraDelPlan(a.cuenta_fuera_plan) : SIN_CUENTA))
     : (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
   const aliasPorId = useMemo(() => new Map(personasTodas.map(p => [p.id, p.alias])), [personasTodas])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowsRef   = useRef<HTMLDivElement>(null)
 
-  const { row: ROW_H, bar: BAR_H } = DENSIDAD_PX[densidad]
+  // Por cuenta, una fila mide como mucho FILA_CUENTA_MAX (52 px) y nunca crece: lo que antes se
+  // apilaba en carriles ahora comparte la línea (opción A, 20/10/2026).
+  const dens = DENSIDAD_PX[densidad]
+  const ROW_H = porCuenta ? Math.min(dens.row, FILA_CUENTA_MAX) : dens.row
+  // La barra deja aire abajo para el corchete de "N h. al corte", que vive en la misma línea.
+  const BAR_H = porCuenta ? Math.min(dens.bar, ROW_H - 20) : dens.bar
   const feriados = useMemo(() => feriadosDeConfig(config), [config])
 
   // El eje se recalcula con las asignaciones: si una barra se arrastra más allá del mes de
@@ -342,16 +358,17 @@ export function Timeline() {
     }
 
     if (porCuenta) {
+      const vivos = liquidacionesEnVivo(asignaciones)
       for (const f of filasCuenta) {
         if (f.id === SIN_CUENTA) continue
         const propias = asignaciones.filter(a => a.proyecto_id === f.id && !a.es_bloqueo)
-        const cierres = propias.filter(a => a.tipo === 'Cierre')
         const expandida = clienteSeleccionado === f.id
         const items: ItemBarra[] = []
+        const empacables: ItemBarra[] = []
         if (expandida) {
           for (const a of propias) {
-            if (a.tipo === 'Cierre') continue
-            items.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a })
+            if (!FASES_COMPACTABLES.includes(a.tipo)) continue
+            empacables.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a })
           }
         } else {
           for (const tipo of FASES_COMPACTABLES) {
@@ -365,16 +382,34 @@ export function Timeline() {
             })
           }
         }
-        for (const c of cierres) {
-          items.push({ id: c.id, kind: 'cierre', tipo: 'Cierre', inicio: c.inicio, fin: c.fin, personaIds: [c.persona_id], asigIds: [c.id], filaId: f.id, asig: c })
+        // Delta + aplica: un solo rombo en la fecha del aplica.
+        const hito = hitoDeCierre(propias)
+        if (hito) {
+          items.push({
+            id: `${f.id}::cierre`, kind: 'cierre', tipo: 'Cierre', inicio: hito.fecha, fin: hito.fecha,
+            personaIds: [...new Set(hito.asigs.map(a => a.persona_id))], asigIds: hito.asigs.map(a => a.id), filaId: f.id,
+          })
         }
+        // Liquidación en vivo: una barra por cuenta (las tres personas juntas) y el rombo de la
+        // salida en su arranque, que es el corte del mes de salida.
+        const vivo = vivos.get(f.id)
+        if (vivo) {
+          const base = { inicio: vivo.inicio, fin: vivo.fin, personaIds: [...new Set(vivo.asigs.map(a => a.persona_id))], asigIds: vivo.asigs.map(a => a.id), filaId: f.id }
+          items.push({ id: `${f.id}::vivo`, kind: 'vivo', tipo: 'Liquidacion en vivo', ...base })
+          items.push({ id: `${f.id}::salida`, kind: 'salida', tipo: 'Liquidacion en vivo', ...base, fin: vivo.inicio })
+        }
+        // Solo las barras por tarea de la cuenta abierta se reparten en carriles, y los
+        // carriles comparten el alto de la fila: la fila no crece.
+        items.push(...empacables)
         itemsPorFila.set(f.id, items)
-        carrilesDeFila.set(f.id, empacar(items))
+        carrilesDeFila.set(f.id, empacables.length ? empacar(empacables) : 1)
       }
     }
     // Filas de persona y la fila "Sin cuenta": siempre una barra por asignación.
     for (const a of asignaciones) {
-      const filaId = porCuenta ? (a.proyecto_id ? null : SIN_CUENTA) : (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
+      const filaId = porCuenta
+        ? (a.proyecto_id || a.cuenta_fuera_plan ? null : SIN_CUENTA)
+        : (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
       if (filaId === null) continue
       const item: ItemBarra = {
         id: a.id, kind: a.tipo === 'Cierre' && !a.es_bloqueo ? 'cierre' : 'barra', tipo: a.tipo,
@@ -391,26 +426,44 @@ export function Timeline() {
   }, [porCuenta, filasCuenta, asignaciones, clienteSeleccionado, idsPersonas])
 
   /**
-   * Dónde empieza y cuánto mide cada fila. Con un solo carril el alto es ROW_H y todo queda
-   * igual que antes; cada carril extra suma una barra más su separación.
+   * Dónde empieza y cuánto mide cada fila, y dónde va cada item (`posItem`; `posAsig` lo mismo
+   * por asignación, para las flechas y el fantasma de la previsualización). Por persona, cada
+   * carril extra suma una barra más su separación. Por cuenta la fila mide siempre ROW_H: si
+   * la cuenta abierta necesita varios carriles, se reparten ese alto con barras más finas.
    */
-  const { topDeFila, altoDeFila, bodyH } = useMemo(() => {
+  const { topDeFila, altoDeFila, bodyH, posItem, posAsig } = useMemo(() => {
     const topDeFila = new Map<string, number>()
     const altoDeFila = new Map<string, number>()
+    const posItem = new Map<string, { top: number; h: number }>()
+    const posAsig = new Map<string, { top: number; h: number }>()
     let acc = 0
     for (const f of filas) {
       const n = carrilesDeFila.get(f.id) ?? 1
-      const h = ROW_H + (n - 1) * (BAR_H + GAP_CARRIL)
+      const h = porCuenta ? ROW_H : ROW_H + (n - 1) * (BAR_H + GAP_CARRIL)
+      const hCarril = Math.min(BAR_H, Math.floor((ROW_H - 6 - (n - 1) * 2) / n))
+      for (const it of itemsPorFila.get(f.id) ?? []) {
+        const c = carrilDe.get(it.id)
+        const pos = porCuenta
+          ? (c !== undefined && n > 1
+            ? { top: acc + 3 + c * (hCarril + 2), h: hCarril }
+            : { top: acc + (ROW_H - BAR_H) / 2, h: BAR_H })
+          : { top: acc + (ROW_H - BAR_H) / 2 + (c ?? 0) * (BAR_H + GAP_CARRIL), h: BAR_H }
+        posItem.set(it.id, pos)
+        for (const id of it.asigIds) if (!posAsig.has(id) || it.kind !== 'salida') posAsig.set(id, pos)
+      }
       topDeFila.set(f.id, acc)
       altoDeFila.set(f.id, h)
       acc += h
     }
-    return { topDeFila, altoDeFila, bodyH: acc }
-  }, [filas, carrilesDeFila, ROW_H, BAR_H])
+    return { topDeFila, altoDeFila, bodyH: acc, posItem, posAsig }
+  }, [filas, carrilesDeFila, carrilDe, itemsPorFila, porCuenta, ROW_H, BAR_H])
 
-  /** Y de una barra: el arranque de su fila, centrada en su carril. */
+  /** Y de una barra por persona: el arranque de su fila, centrada en su carril (la usa el arrastre). */
   const topBarra = (filaId: string, carril: number) =>
     (topDeFila.get(filaId) ?? 0) + (ROW_H - BAR_H) / 2 + carril * (BAR_H + GAP_CARRIL)
+  /** Posición de una asignación ya dibujada; si no está (fantasma de otra cuenta), centrada en su fila. */
+  const posDe = (a: Asignacion, filaId: string) =>
+    posAsig.get(a.id) ?? { top: (topDeFila.get(filaId) ?? 0) + (ROW_H - BAR_H) / 2, h: BAR_H }
 
   // Conflictos en rojo por cuenta, para el badge de la fila en modo cuenta.
   const statsCuenta = useMemo(() => {
@@ -434,12 +487,15 @@ export function Timeline() {
   const minimoMargen = config.capacidad?.margen_minimo_habiles ?? 2
   const blackout = config.tiers_v3?.blackout_config
 
-  const asigProyecto = useMemo(() => new Map(asignaciones.map(a => [a.id, a.proyecto_id])), [asignaciones])
+  /** Fila (cuenta, cuenta fuera del plan o "Sin cuenta") de cada asignación: la banda atribuye la carga por acá. */
+  const asigProyecto = useMemo(() => new Map(asignaciones.map(a => [a.id, a.proyecto_id ?? (a.cuenta_fuera_plan ? filaFueraDelPlan(a.cuenta_fuera_plan) : SIN_CUENTA)])), [asignaciones])
+  const tipoDeAsig = useMemo(() => new Map(asignaciones.map(a => [a.id, a.tipo])), [asignaciones])
+  const nombreDeFila = (id: string) => proyectoPorId.get(id)?.nombre ?? filasCuenta.find(f => f.id === id)?.titulo ?? (id === SIN_CUENTA ? 'Sin cuenta' : id)
 
   // Carga semanal de todas las personas con fases: la usan la banda (modo cuenta) y la curva
   // de ocupación de fondo (modo persona). Un solo cálculo para las dos vistas.
   const cargaSemanalTodas = useMemo(() => {
-    const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
+    const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && esCarga(a)))
     return { personas: conFases, semanas: cargaSemanal(conFases, asignaciones, config) }
   }, [personasTodas, asignaciones, config])
 
@@ -476,11 +532,13 @@ export function Timeline() {
           const pid = asigProyecto.get(barraId) ?? SIN_CUENTA
           porCuentaHoras.set(pid, (porCuentaHoras.get(pid) ?? 0) + h)
         }
-        return { ...c, porCuenta: [...porCuentaHoras.entries()].sort((a, b) => b[1] - a[1]) }
+        return { ...c, porCuenta: [...porCuentaHoras.entries()].sort((a, b) => b[1] - a[1]), porTipo: horasPorTipo(c.porBarra, tipoDeAsig) }
       })
-      return { persona: p, celdas, capSemana: actual?.capacidad ?? 0 }
+      // Vacaciones de la persona, para el fondo gris rayado de su fila.
+      const vacaciones = asignaciones.filter(a => a.persona_id === p.id && a.tipo === 'Vacaciones')
+      return { persona: p, celdas, capSemana: actual?.capacidad ?? 0, vacaciones }
     })
-  }, [porCuenta, zoom, cargaSemanalTodas, cargaDiariaTodas, asigProyecto])
+  }, [porCuenta, zoom, cargaSemanalTodas, cargaDiariaTodas, asigProyecto, tipoDeAsig, asignaciones])
   const bandaH = porCuenta && bandaFilas.length ? BANDA_HDR + bandaFilas.length * BANDA_ROW : 0
 
   // barras que se pintan enteras de rojo: la fase en sí rompe una regla del calendario
@@ -748,8 +806,12 @@ export function Timeline() {
     const left  = dateToX(inicioISO)
     const right = dateToX(finISO) + pxPerDay   // fin es inclusivo
     const width = Math.max(MIN_BAR_W, right - left)
+    if (porCuenta) {
+      const { top, h } = posDe(a, filaId)
+      return { left, width, top, h }
+    }
     const top   = topBarra(filaId, carrilDe.get(a.id) ?? 0)
-    return { left, width, top }
+    return { left, width, top, h: BAR_H }
   }
 
   // ── dependencias ────────────────────────────────────────────────────────────
@@ -768,18 +830,20 @@ export function Timeline() {
         const filaP = filaIdDe(pred)
         if (!filaDe.has(filaP)) continue
         // La flecha apunta al centro de cada barra, que con carriles ya no es el de la fila.
+        const pp = porCuenta ? posDe(pred, filaP) : { top: topBarra(filaP, carrilDe.get(pred.id) ?? 0), h: BAR_H }
+        const pa = porCuenta ? posDe(a, filaA) : { top: topBarra(filaA, carrilDe.get(a.id) ?? 0), h: BAR_H }
         segs.push({
           x1: dateToX(pred.fin) + pxPerDay,
-          y1: topBarra(filaP, carrilDe.get(pred.id) ?? 0) + BAR_H / 2,
+          y1: pp.top + pp.h / 2,
           x2: dateToX(a.inicio),
-          y2: topBarra(filaA, carrilDe.get(a.id) ?? 0) + BAR_H / 2,
+          y2: pa.top + pa.h / 2,
           viola: predecesoraViolada(a, pred, config, feriados) === true,
         })
       }
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
+  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, posAsig, config, feriados])
 
   // ── períodos para header ─────────────────────────────────────────────────
 
@@ -889,7 +953,7 @@ export function Timeline() {
             <div style={{ position: 'sticky', top: HEADER_H, height: bandaH, zIndex: 25, background: 'var(--white)', borderBottom: '2px solid var(--line)', boxShadow: '0 4px 12px rgba(30,58,95,0.06)', display: 'flex' }}>
               <div style={{ position: 'sticky', left: 0, top: 0, width: NAME_W, flexShrink: 0, zIndex: 20 }}>
                 <div style={{ height: BANDA_HDR, background: 'var(--paper)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--celeste-dark)' }}
-                  title="Horas planificadas contra la capacidad de cada persona. Verde: por debajo del 85 % de su capacidad. Ámbar: entre el 85 % y el 100 %. Rojo: se pasa. A nivel Mes, el número es el promedio de las semanas y el ⚠ avisa si alguna se pasó aunque el promedio no lo diga.">
+                  title="Horas planificadas contra la capacidad de cada persona, apiladas por tipo de trabajo con el color de su barra. La línea punteada es el 100 % de la capacidad. El % de arriba: verde por debajo del 85 %, ámbar entre el 85 % y el 100 %, rojo si se pasa. Gris rayado con VAC: vacaciones; las horas planificadas ahí van en rojo, sin dueño. A nivel Mes, el número es el promedio de las semanas y el ⚠ avisa si alguna se pasó aunque el promedio no lo diga.">
                   Carga por {etiquetaZoom}
                 </div>
                 {bandaFilas.map((f, i) => (
@@ -909,38 +973,69 @@ export function Timeline() {
                 ))}
                 {hoyX !== null && <div style={{ position: 'absolute', top: 0, left: hoyX - NAME_W, height: bandaH, borderLeft: '2px solid var(--celeste)', zIndex: 5, pointerEvents: 'none' }} />}
 
+                {/* Vacaciones: fondo gris rayado con "VAC". A nivel semana cubre la semana entera,
+                    que es la celda que se ve; en día y mes, los días exactos. */}
+                {bandaFilas.map((f, i) => f.vacaciones.map(v => {
+                  const desde = zoom === 'semanas' ? toISO(getMondayOfWeek(parseISO(v.inicio))) : v.inicio
+                  const hasta = zoom === 'semanas' ? toISO(addDays(getMondayOfWeek(parseISO(v.fin)), 7)) : toISO(addDays(parseISO(v.fin), 1))
+                  const x0 = dateToX(desde) - NAME_W, x1 = dateToX(hasta) - NAME_W
+                  return (
+                    <div key={`vac-${v.id}`} title={`${f.persona.alias} de vacaciones del ${formatFechaCorta(v.inicio)} al ${formatFechaCorta(v.fin)}`}
+                      style={{ position: 'absolute', left: x0, width: Math.max(2, x1 - x0), top: BANDA_HDR + i * BANDA_ROW, height: BANDA_ROW, background: 'var(--vac-bg)', zIndex: 1 }}>
+                      <span style={{ position: 'absolute', left: 3, bottom: 2, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--t2)' }}>VAC</span>
+                    </div>
+                  )
+                }))}
+
+                {/* Línea del 100 % de la capacidad: las columnas se miden contra la capacidad de su
+                    propia celda, así que el 100 % queda a la misma altura en toda la fila. */}
+                {bandaFilas.map((f, i) => (
+                  <div key={`cien-${f.persona.id}`} style={{ position: 'absolute', left: 0, width: bodyW - NAME_W, top: BANDA_HDR + i * BANDA_ROW + BANDA_ROW - BANDA_PIE - BANDA_Y100, height: 0, borderTop: '1px dashed var(--t3)', zIndex: 2, pointerEvents: 'none' }} />
+                ))}
+
                 {bandaFilas.map((f, i) => f.celdas.map(c => {
                   const x1 = dateToX(c.fecha) - NAME_W
                   const w = anchoCelda(c.fecha)
                   if (x1 + w < -1 || x1 > bodyW) return null
                   const pct = pctDeCarga(c.horas, c.capacidad)
                   const estado = estadoDeCarga(c.horas, c.capacidad)
-                  const top = BANDA_HDR + i * BANDA_ROW + (BANDA_ROW - BANDA_DOT) / 2
-                  const left = x1 + w / 2 - BANDA_DOT / 2
-                  // Atribución por cuenta, a demanda: antes vivía solo en el title; ahora
-                  // además un clic abre el detalle completo (Opción B del mockup, 22/09/2026).
+                  const sinDuenio = c.capacidad <= 0
+                  // Capacidad típica de la persona en una celda de este tamaño: escala de las
+                  // columnas de una semana sin capacidad (vacaciones).
+                  const capRef = zoom === 'dias' ? f.capSemana / 5 : zoom === 'semanas' ? f.capSemana : f.capSemana * 4.33
+                  const tramos = tramosDeColumna(c.porTipo, c.capacidad, capRef)
+                  const altoCol = tramos.reduce((s2, t) => s2 + t.alto, 0)
+                  const colW = zoom === 'dias' ? Math.max(4, Math.min(14, w - 4)) : zoom === 'semanas' ? Math.max(6, Math.min(22, w - 6)) : Math.max(8, Math.min(44, w * 0.5))
+                  const base = BANDA_HDR + i * BANDA_ROW + BANDA_ROW - BANDA_PIE
+                  const left = x1 + w / 2 - colW / 2
+                  // Atribución por cuenta, a demanda: el title la resume y un clic abre el detalle.
                   const horasSel = clienteSeleccionado ? (c.porCuenta.find(([pid]) => pid === clienteSeleccionado)?.[1] ?? 0) : 0
                   const key = `${f.persona.id}|${c.fecha}`
                   const abierto = popoverCarga?.personaId === f.persona.id && popoverCarga?.fecha === c.fecha
+                  const colorPct = estado === 'rojo' || sinDuenio ? 'var(--error-tx)' : estado === 'ambar' ? 'var(--warn-tx)' : 'var(--ok-tx)'
                   return (
                     <div key={key} role="button" tabIndex={0}
-                      onClick={() => setPopoverCarga(abierto ? null : { personaId: f.persona.id, fecha: c.fecha, x: left, top: top + BANDA_DOT })}
-                      title={`${f.persona.alias} · ${etiquetaCelda(c.fecha)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${pct !== null ? pct + ' %' : 'sin capacidad: vacaciones'})\n${c.porCuenta.map(([pid, h]) => `${proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}: ${Math.round(h)} h`).join('\n')}`}
-                      style={{
-                        position: 'absolute', left, top, width: BANDA_DOT, height: BANDA_DOT, borderRadius: '50%', zIndex: 3, cursor: 'pointer',
-                        background: COLOR_CARGA[estado],
-                        boxShadow: horasSel > 0 ? '0 0 0 2px var(--white), 0 0 0 4px var(--celeste)' : abierto ? '0 0 0 2px var(--ink)' : undefined,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      onClick={() => setPopoverCarga(abierto ? null : { personaId: f.persona.id, fecha: c.fecha, x: left, top: base })}
+                      title={`${f.persona.alias} · ${etiquetaCelda(c.fecha)}: ${Math.round(c.horas)} h de ${Math.round(c.capacidad)} (${pct !== null ? pct + ' %' : 'de vacaciones: horas sin dueño'})\n${c.porTipo.map(([t, h]) => `${TIPO_LABEL[t]}: ${Math.round(h)} h`).join('\n')}\n—\n${c.porCuenta.map(([pid, h]) => `${nombreDeFila(pid)}: ${Math.round(h)} h`).join('\n')}`}
+                      style={{ position: 'absolute', left, width: colW, top: base - BANDA_AREA - BANDA_PCT_H, height: BANDA_AREA + BANDA_PCT_H, zIndex: 3, cursor: 'pointer' }}>
+                      <span className="num" style={{ position: 'absolute', bottom: altoCol + 1, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, lineHeight: 1, fontWeight: 800, color: colorPct, whiteSpace: 'nowrap', background: sinDuenio ? 'var(--white)' : undefined, padding: sinDuenio ? '0 2px' : undefined, borderRadius: 3 }}>
+                        {sinDuenio ? `${Math.round(c.horas)} h` : pct}
+                        {c.alerta && <span title="Alguna semana de este mes llegó a rojo, aunque el promedio no lo diga" style={{ color: 'var(--error-tx)' }}> ⚠</span>}
+                      </span>
+                      <div style={{
+                        position: 'absolute', left: 0, right: 0, bottom: 0, height: altoCol,
+                        display: 'flex', flexDirection: 'column-reverse', opacity: sinDuenio ? 0.45 : 1,
+                        borderRadius: '2px 2px 0 0', overflow: 'hidden',
+                        boxShadow: horasSel > 0 ? '0 0 0 1.5px var(--white), 0 0 0 3px var(--celeste)' : abierto ? '0 0 0 2px var(--ink)' : undefined,
                       }}>
-                      {pct !== null ? (
-                        <span className="num" style={{ fontSize: 8, lineHeight: 1, fontWeight: 800, color: '#fff' }}>{pct}</span>
-                      ) : c.horas > 0 ? (
-                        <span style={{ fontSize: 9, lineHeight: 1, fontWeight: 800, color: '#fff' }}>!</span>
-                      ) : null}
-                      {c.alerta && (
-                        <span title="Alguna semana de este mes llegó a rojo, aunque el promedio no lo diga"
-                          style={{ position: 'absolute', top: -5, right: -5, width: 10, height: 10, borderRadius: '50%', background: 'var(--error)', color: '#fff', fontSize: 7, lineHeight: '10px', textAlign: 'center', boxShadow: '0 0 0 1.5px var(--white)' }}>!</span>
-                      )}
+                        {tramos.map(t => (
+                          <div key={t.tipo} style={{
+                            height: t.alto, flexShrink: 0,
+                            background: t.tipo === 'Liquidacion en vivo' ? FONDO_VIVO : TIPO_COLOR[t.tipo],
+                            boxShadow: t.tipo === 'Liquidacion en vivo' ? 'inset 0 0 0 1px var(--fase-vivo)' : undefined,
+                          }} />
+                        ))}
+                      </div>
                     </div>
                   )
                 }))}
@@ -953,7 +1048,7 @@ export function Timeline() {
                   const pct = pctDeCarga(celda.horas, celda.capacidad)
                   return (
                     <div style={{
-                      position: 'absolute', left: Math.min(Math.max(popoverCarga.x - 90, 0), bodyW - NAME_W - 220), top: popoverCarga.top + 6, width: 220, zIndex: 30,
+                      position: 'absolute', left: Math.min(Math.max(popoverCarga.x - 90, 0), bodyW - NAME_W - 220), top: popoverCarga.top + 4, width: 220, zIndex: 30,
                       background: 'var(--white)', border: '1px solid var(--celeste-border)', borderRadius: 10, boxShadow: 'var(--sh)', padding: '10px 12px',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -962,11 +1057,19 @@ export function Timeline() {
                         </span>
                         <button onClick={() => setPopoverCarga(null)} style={{ border: 'none', background: 'transparent', color: 'var(--t3)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 2 }}>✕</button>
                       </div>
+                      {celda.porTipo.map(([t, h]) => (
+                        <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, padding: '1px 0' }}>
+                          <span style={{ width: 9, height: 9, borderRadius: 2, flexShrink: 0, background: t === 'Liquidacion en vivo' ? FONDO_VIVO : TIPO_COLOR[t], boxShadow: t === 'Liquidacion en vivo' ? 'inset 0 0 0 1px var(--fase-vivo)' : undefined }} />
+                          <span style={{ color: 'var(--t2)', flex: 1 }}>{TIPO_LABEL[t]}</span>
+                          <span className="num" style={{ fontWeight: 700, color: 'var(--t2)' }}>{Math.round(h)} h</span>
+                        </div>
+                      ))}
+                      {celda.porTipo.length > 0 && <div style={{ borderTop: '1px solid var(--line-soft)', margin: '5px 0' }} />}
                       {celda.porCuenta.length === 0 ? (
                         <div style={{ fontSize: 11.5, color: 'var(--t3)' }}>Sin cuenta asociada.</div>
                       ) : celda.porCuenta.map(([pid, h]) => (
                         <div key={pid} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, padding: '2px 0' }}>
-                          <span style={{ color: 'var(--t1)' }}>{proyectoPorId.get(pid)?.nombre ?? (pid === SIN_CUENTA ? 'Sin cuenta' : pid)}</span>
+                          <span style={{ color: 'var(--t1)' }}>{nombreDeFila(pid)}</span>
                           <span className="num" style={{ fontWeight: 700, color: 'var(--ink)' }}>{Math.round(h)} h</span>
                         </div>
                       ))}
@@ -1057,14 +1160,16 @@ export function Timeline() {
             const xFin = dateToX(mg.finBarra) + pxPerDay
             const cumple = mg.habiles !== null && mg.habiles >= minimoMargen
             const color = cumple ? 'var(--ok-tx)' : 'var(--error-tx)'
-            const yBracket = top + alto - 13
+            // Relativo al contenedor de la fila, que ya está en `top` (antes sumaba `top` dos
+            // veces y el corchete caía varias filas más abajo, en otra cuenta).
+            const yBracket = alto - 5
             return (
               <div key={`margen-${f.id}`} style={{ position: 'absolute', top, left: 0, width: bodyW, height: alto, pointerEvents: 'none', zIndex: 3 }}>
                 <div style={{ position: 'absolute', top: 0, left: xCorte, height: alto, borderLeft: '1.5px dashed var(--t1)' }} />
                 {mg.habiles !== null && xCorte - xFin > 10 && (
                   <>
                     <div style={{ position: 'absolute', top: yBracket, left: xFin, width: Math.max(0, xCorte - xFin), height: 0, borderTop: `1.2px solid ${color}` }} />
-                    <span className="num" style={{ position: 'absolute', top: yBracket - 12, left: (xFin + xCorte) / 2, transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color, whiteSpace: 'nowrap', background: 'var(--white)', padding: '0 3px' }}>
+                    <span className="num" style={{ position: 'absolute', top: yBracket - 11, left: (xFin + xCorte) / 2, transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color, whiteSpace: 'nowrap', background: 'var(--white)', padding: '0 3px' }}>
                       {mg.habiles} h. al corte
                     </span>
                   </>
@@ -1121,7 +1226,9 @@ export function Timeline() {
                   </div>
                   {!compacta && (
                     <span className="num" style={{ fontSize: 10, color: 'var(--t2)', whiteSpace: 'nowrap' }}>
-                      {mes ? `sale ${mesCorto(mes)}` : p ? 'sin mes de salida' : 'corridas y vacaciones'}
+                      {mes ? `sale ${mesCorto(mes)}` : p ? 'sin mes de salida'
+                        : f.id !== SIN_CUENTA ? `fuera del plan${mesFueraDelPlan.get(f.id) ? ` · sale ${mesCorto(mesFueraDelPlan.get(f.id)!)}` : ''}`
+                          : 'corridas y vacaciones'}
                     </span>
                   )}
                 </div>
@@ -1173,25 +1280,69 @@ export function Timeline() {
             const atenuada    = !!clienteSeleccionado && item.filaId !== clienteSeleccionado && (porCuenta || (item.asig ? item.asig.proyecto_id !== clienteSeleccionado : false))
             const fontSize   = BAR_H > 34 ? 11.5 : 10
 
+            const pos = posItem.get(item.id) ?? { top: topBarra(item.filaId, carrilDe.get(item.id) ?? 0), h: BAR_H }
+            const esCuentaDelPlan = proyectoPorId.has(item.filaId)
+            const clicCuenta = porCuenta && esCuentaDelPlan ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined
+            const asigsDe = (it: ItemBarra) => it.asigIds.map(id => asignaciones.find(x => x.id === id)).filter((x): x is Asignacion => !!x)
+
             // ── Cierre: hito de un día, siempre rombo, no se arrastra ──────────────
-            if (item.kind === 'cierre') {
-              const a = item.asig!
-              const x = dateToX(a.inicio) + pxPerDay / 2
-              const y = topBarra(item.filaId, carrilDe.get(item.id) ?? 0) + BAR_H / 2
-              const alias = aliasPorId.get(a.persona_id) ?? a.persona_id
-              const esRojo = barRojo.has(a.id)
-              const fill = esRojo ? 'var(--error)' : TIPO_COLOR.Cierre
+            // Por cuenta es UN rombo para el delta y el aplica, en la fecha del aplica.
+            if (item.kind === 'cierre' || item.kind === 'salida') {
+              const esSalida = item.kind === 'salida'
+              const x = dateToX(item.inicio) + pxPerDay / 2
+              const y = pos.top + pos.h / 2
+              const asigs = asigsDe(item)
+              const esRojo = !esSalida && item.asigIds.some(id => barRojo.has(id))
+              const fill = esRojo ? 'var(--error)' : esSalida ? 'var(--hito-salida)' : TIPO_COLOR.Cierre
+              const nombreFila = filas.find(f => f.id === item.filaId)?.titulo ?? item.filaId
+              const title = esSalida
+                ? `Sale en vivo: ${nombreFila} · corte de novedades ${ddmm(item.inicio)}`
+                : asigs.map(a => `${nombreTarea(a)} · ${aliasPorId.get(a.persona_id) ?? a.persona_id} · ${formatFechaCorta(a.inicio)}${a.fin !== a.inicio ? ` → ${formatFechaCorta(a.fin)}` : ''}`).join('\n')
               return (
                 <div key={item.id}
                   onMouseDown={porCuenta ? e => e.stopPropagation() : undefined}
-                  onClick={porCuenta ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
-                  title={`${nombreTarea(a)} · ${alias}\n${a.inicio} → ${a.fin}`}
+                  onClick={clicCuenta}
+                  title={title}
                   style={{
                     position: 'absolute', left: x - HITO_R, top: y - HITO_R, width: HITO_R * 2, height: HITO_R * 2,
                     background: fill, transform: 'rotate(45deg)', borderRadius: 3,
-                    boxShadow: seleccionada ? '0 0 0 2px var(--celeste)' : esRojo && mostrarConflictos ? '0 0 0 2px var(--error)' : 'none',
-                    opacity: atenuada ? 0.35 : 1, cursor: porCuenta ? 'pointer' : 'default', zIndex: 11,
+                    boxShadow: seleccionada ? '0 0 0 2px var(--celeste)' : esRojo && mostrarConflictos ? '0 0 0 2px var(--error)' : esSalida ? '0 0 0 1.5px var(--white)' : 'none',
+                    opacity: atenuada ? 0.35 : 1, cursor: clicCuenta ? 'pointer' : 'default', zIndex: esSalida ? 12 : 11,
                   }} />
+              )
+            }
+
+            // ── Liquidación en vivo de la cuenta: una sola barra rayada, las personas en el tooltip ──
+            if (item.kind === 'vivo') {
+              const left = dateToX(item.inicio)
+              const width = Math.max(MIN_BAR_W, dateToX(item.fin) + pxPerDay - left)
+              const rango = `${ddmm(item.inicio)}–${ddmm(item.fin)}`
+              // El rombo de la salida ocupa el arranque de la barra: el texto empieza después.
+              const reserva = Math.round(pxPerDay / 2 + HITO_R * 1.42 + 3)
+              // Las fechas son lo que importa: si "En vivo dd/mm–dd/mm" no entra, quedan solas.
+              const util = width - reserva - 6
+              const fsVivo = Math.min(fontSize, 10)
+              const texto = [`En vivo ${rango}`, rango, 'En vivo'].find(v => anchoDeTexto(v, fsVivo) <= util) ?? ''
+              const porPersona = asigsDe(item).map(a => {
+                const persona = personasTodas.find(p => p.id === a.persona_id)
+                const hDia = horasPorDiaHabil(a, persona, config, feriados)
+                return `${aliasPorId.get(a.persona_id) ?? a.persona_id} ${horasDiaLegible(hDia)} h/día`
+              })
+              return (
+                <div key={item.id}
+                  onMouseDown={porCuenta ? e => e.stopPropagation() : undefined}
+                  onClick={clicCuenta}
+                  title={`Liquidación en vivo de ${filas.find(f => f.id === item.filaId)?.titulo ?? item.filaId} · ${rango}\n${porPersona.join('\n')}`}
+                  style={{
+                    position: 'absolute', left, top: pos.top, width, height: pos.h, boxSizing: 'border-box',
+                    background: FONDO_VIVO, border: '1.5px solid var(--fase-vivo)', borderRadius: pos.h > 34 ? 8 : 6,
+                    display: 'flex', alignItems: 'center', paddingLeft: reserva, paddingRight: 4, overflow: 'hidden',
+                    fontSize: fsVivo, fontWeight: 700, color: 'var(--celeste-deeper)', whiteSpace: 'nowrap',
+                    opacity: atenuada ? 0.38 : 1, cursor: clicCuenta ? 'pointer' : 'default', zIndex: 10, userSelect: 'none',
+                    boxShadow: seleccionada ? '0 0 0 2px var(--celeste)' : 'none',
+                  }}>
+                  {texto && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{texto}</span>}
+                </div>
               )
             }
 
@@ -1199,10 +1350,11 @@ export function Timeline() {
             const g = item.kind === 'barra' ? geom(item.asig!) : {
               left: dateToX(item.inicio),
               width: Math.max(MIN_BAR_W, dateToX(item.fin) + pxPerDay - dateToX(item.inicio)),
-              top: topBarra(item.filaId, carrilDe.get(item.id) ?? 0),
+              top: pos.top, h: pos.h,
             }
             const esRojoItem = item.asigIds.some(id => barRojo.has(id))
-            const fill = esRojoItem ? 'var(--error)' : TIPO_COLOR[item.tipo]
+            const esVivo = item.tipo === 'Liquidacion en vivo'
+            const fill = esRojoItem ? 'var(--error)' : esVivo ? FONDO_VIVO : TIPO_COLOR[item.tipo]
             const ring = item.kind === 'barra' && !item.esBloqueo && mostrarConflictos ? ringDe(item.asig!) : null
             const boxShadow = ring === 'rojo' ? '0 0 0 2px var(--error)'
               : ring === 'ambar' ? '0 0 0 2px var(--warn)'
@@ -1243,20 +1395,21 @@ export function Timeline() {
                 onClick={item.kind === 'fase' ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
                 title={title}
                 style={{
-                  position: 'absolute', left: g.left, top: g.top, width: g.width, height: BAR_H,
-                  background: fill, borderRadius: BAR_H > 34 ? 8 : 6, display: 'flex',
+                  position: 'absolute', left: g.left, top: g.top, width: g.width, height: g.h,
+                  background: fill, borderRadius: g.h > 34 ? 8 : 6, display: 'flex',
                   alignItems: 'center', justifyContent: angosta && !monograma ? 'center' : 'flex-start', gap: 5,
-                  paddingLeft: padX, paddingRight: padX,
-                  overflow: 'hidden', fontSize, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
+                  paddingLeft: padX, paddingRight: padX, boxSizing: esVivo && !esRojoItem ? 'border-box' : undefined,
+                  border: esVivo && !esRojoItem ? '1.5px solid var(--fase-vivo)' : undefined,
+                  overflow: 'hidden', fontSize, color: esVivo && !esRojoItem ? 'var(--celeste-deeper)' : '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: item.kind === 'barra' && !item.esBloqueo ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
-                  opacity: item.esBloqueo ? (atenuada ? 0.25 : 0.55)
+                  opacity: item.esBloqueo && !esVivo ? (atenuada ? 0.25 : 0.55)
                     : enPrevisualizacion ? 0.22
                     : (atenuada ? 0.38 : 1),
                   zIndex: arrastrando ? 15 : item.kind === 'fase' ? 9 : 10,
                   transition: arrastrando ? 'none' : 'left var(--t-fast) var(--ease), top var(--t-fast) var(--ease), width var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease)',
                   userSelect: 'none',
                 }}>
-                {monograma && (
+                {monograma && g.h >= HITO_R * 2 && (
                   <span style={{
                     flexShrink: 0, width: HITO_R * 2, height: HITO_R * 2, borderRadius: '50%', background: 'rgba(255,255,255,0.92)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8.5, fontWeight: 800, color: TIPO_COLOR[item.tipo],
@@ -1265,7 +1418,7 @@ export function Timeline() {
                 {texto && <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{texto}</span>}
                 {item.kind === 'barra' && !item.esBloqueo && (
                   <div onMouseDown={e => onBarDown(e, item.asig!, 'resize')}
-                    style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
+                    style={{ position: 'absolute', right: 0, top: 0, width: g.h > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
                 )}
               </div>
             )
@@ -1277,11 +1430,11 @@ export function Timeline() {
             if (!filaDe.has(filaId)) return null
             const left = dateToX(a.inicio)
             const width = Math.max(MIN_BAR_W, dateToX(a.fin) + pxPerDay - left)
-            const top = topBarra(filaId, carrilDe.get(a.id) ?? 0)
+            const { top, h } = porCuenta ? posDe(a, filaId) : { top: topBarra(filaId, carrilDe.get(a.id) ?? 0), h: BAR_H }
             return (
               <div key={`prev-${a.id}`} title={`${a.inicio} → ${a.fin}`} style={{
-                position: 'absolute', left, top, width, height: BAR_H, zIndex: 12, pointerEvents: 'none',
-                borderRadius: BAR_H > 34 ? 8 : 6, border: `2px dashed ${TIPO_COLOR[a.tipo]}`,
+                position: 'absolute', left, top, width, height: h, zIndex: 12, pointerEvents: 'none',
+                borderRadius: h > 34 ? 8 : 6, border: `2px dashed ${TIPO_COLOR[a.tipo]}`,
                 background: 'var(--white)', opacity: 0.92, boxSizing: 'border-box',
               }} />
             )

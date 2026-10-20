@@ -1,6 +1,6 @@
 import { addDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from './types'
-import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
+import { diasHabiles, feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
 import { computeViolaciones, fechaCorteDe, habilesHasta, MARGEN_MINIMO_DEFAULT } from './rules'
 import { cargaMensual, mesSalidaDe } from './capacidad'
 
@@ -202,9 +202,25 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
     }
   }
 
+  // 5. Liquidación en vivo (v18): no es fase de la migración, acompaña la primera liquidación.
+  // Va del corte del mes de salida al 5° hábil del mes siguiente, así que se mueve con él.
+  const vivos = porTipo('Liquidacion en vivo')
+  if (vivos.length) {
+    const fin = quintoHabilDelMesSiguiente(mesSalida, feriados)
+    const dur = diasHabiles(corte, fin, feriados)
+    for (const a of vivos) nuevas.set(a.id, { ...a, inicio: corte, fin, duracion_dias: dur })
+  }
+
   const resultado = propias.map(a => nuevas.get(a.id) ?? a)
   if (resultado.some(a => a.inicio < config.horizonte.desde)) return { ok: false, motivo: 'fuera_de_horizonte' }
   return { ok: true, asignaciones: resultado, corte, margen, cierrePisaPruebas }
+}
+
+/** 5° día hábil del mes siguiente a `mesISO` ('YYYY-MM'): cuando termina la liquidación en vivo (F.931, asiento, LSD). */
+export function quintoHabilDelMesSiguiente(mesISO: string, feriados: ReadonlySet<string>): string {
+  const [y, m] = mesISO.split('-').map(Number)
+  const primero = toISO(new Date(y, m, 1))
+  return habilesDesde(primero, 5, feriados)[4]
 }
 
 /** Reemplaza en la lista completa las barras que vienen en `nuevas` (por id). El resto queda igual. */

@@ -49,6 +49,7 @@ const COLOR_FASE: Record<string, { bg: string; fg: string }> = {
   Pruebas: { bg: CELD, fg: '#fff' },
   Cierre: { bg: NAVY, fg: '#fff' },
   Vacaciones: { bg: GRIS, fg: '#fff' },
+  'Liquidacion en vivo': { bg: '#E0F4FA', fg: CELD },
 }
 
 // Medidas fijas del diseño. Lo que depende de cuántos datos hay se calcula en `layoutDe`.

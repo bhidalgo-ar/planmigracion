@@ -1,4 +1,11 @@
-export type TipoFase = 'Relevamiento' | 'Configuracion' | 'Pruebas' | 'Cierre' | 'Vacaciones'
+/**
+ * 'Liquidacion en vivo' (plan v18, 20/10/2026): el acompañamiento de la primera liquidación en
+ * vivo, desde el corte de novedades del mes de salida hasta el 5° hábil del mes siguiente. Es
+ * carga de trabajo, pero NO es una fase de la migración: no mueve el mes de salida, ni el fin
+ * de la cuenta, ni el margen al corte. El v18 la trae como `tipo: 'Cierre'` + `_fase:
+ * 'Liquidacion en vivo'`; al importar se normaliza a este tipo (`normalizarAsignacion`).
+ */
+export type TipoFase = 'Relevamiento' | 'Configuracion' | 'Pruebas' | 'Cierre' | 'Vacaciones' | 'Liquidacion en vivo'
 
 /** Clasificación del recurso. Opcional: null/undefined = "sin clasificar" (se completa a mano). */
 export type RolPersona = 'relevamiento' | 'configuracion' | 'pruebas'
@@ -52,6 +59,13 @@ export interface Asignacion {
   _horas?: number
   /** Nombre de la tarea de la barra ("Alta y carga base"). Si falta se deriva del id (ver `src/tareas.ts`). */
   _tarea?: string
+  /** Fase real cuando `tipo` no la puede decir (v18: 'Liquidacion en vivo' con tipo Cierre). */
+  _fase?: string
+  /**
+   * Cuenta fuera del plan (sin proyecto ni fases) a la que pertenece la barra, ej. 'POF' en la
+   * liquidación en vivo del v18. Con esto el Timeline por cuenta le da su propia fila.
+   */
+  cuenta_fuera_plan?: string
   _nota?: string
 }
 

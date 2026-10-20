@@ -12,7 +12,11 @@ export const TIPO_COLOR: Record<TipoFase, string> = {
   Pruebas: 'var(--fase-pruebas)',
   Cierre: 'var(--fase-cierre)',
   Vacaciones: 'var(--fase-bloqueo)',
+  'Liquidacion en vivo': 'var(--fase-vivo)',
 }
+
+/** Relleno de una barra de liquidación en vivo: rayado celeste sobre fondo claro (el borde va aparte). */
+export const FONDO_VIVO = 'var(--fase-vivo-bg)'
 
 export const TIPO_LABEL: Record<TipoFase, string> = {
   Relevamiento: 'Relevamiento',
@@ -20,6 +24,7 @@ export const TIPO_LABEL: Record<TipoFase, string> = {
   Pruebas: 'Pruebas',
   Cierre: 'Cierre',
   Vacaciones: 'Vacaciones',
+  'Liquidacion en vivo': 'Liquidación en vivo',
 }
 
 /**

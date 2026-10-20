@@ -20,7 +20,7 @@ const mem = new Map<string, string>()
 }
 
 import {
-  celdasDia, celdasMes, celdasSemana, estadoDeCarga, pctDeCarga, rangoDelEje, BANDA_DOT, BANDA_ROW,
+  celdasDia, celdasMes, celdasSemana, estadoDeCarga, pctDeCarga, rangoDelEje, BANDA_AREA, BANDA_PCT_H, BANDA_PIE, BANDA_ROW, BANDA_Y100,
 } from '../src/vistaTimeline'
 import { UMBRAL_AMBAR, type CargaDiaria, type CargaSemanal } from '../src/capacidad'
 import { toISO } from '../src/utils/dates'
@@ -89,9 +89,10 @@ ok('una semana al 40 % y una al 100 % ya no se ven igual',
 eq('capacidad 0 con horas planificadas se dibuja distinto', estadoDeCarga(8, 0), 'sin_capacidad')
 eq('capacidad 0 sin horas no alarma', estadoDeCarga(0, 0), 'ok')
 
-console.log('\n— Banda de carga: el círculo entra en el alto de fila —')
+console.log('\n— Banda de carga: la columna y su % entran en el alto de fila —')
 
-eq('el círculo entra en la fila con margen', BANDA_DOT < BANDA_ROW, true)
+eq('% + área + pie = alto de la fila', BANDA_PCT_H + BANDA_AREA + BANDA_PIE, BANDA_ROW)
+ok('la línea del 100 % deja aire para ver lo que se pasa', BANDA_Y100 < BANDA_AREA)
 
 console.log('\n— pctDeCarga — el número que va adentro del círculo —')
 

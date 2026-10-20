@@ -37,7 +37,7 @@ const ProyectoSchema = z.object({
 const AsignacionSchema = z.object({
   id: z.string().min(1),
   proyecto_id: z.string().nullable(),
-  tipo: z.enum(['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre', 'Vacaciones']),
+  tipo: z.enum(['Relevamiento', 'Configuracion', 'Pruebas', 'Cierre', 'Vacaciones', 'Liquidacion en vivo']),
   persona_id: z.string().min(1),
   inicio: FECHA,
   fin: FECHA,
@@ -47,6 +47,8 @@ const AsignacionSchema = z.object({
   es_bloqueo: z.boolean().default(false),
   /** Horas reales de la barra (plan v12). Opcional: sin ella se deriva de `horas_por_fase`. */
   _horas: z.number().nonnegative().optional(),
+  /** Cuenta fuera del plan dueña de la barra (v18: 'POF'). */
+  cuenta_fuera_plan: z.string().min(1).optional(),
 }).passthrough().refine(a => a.inicio <= a.fin, { message: 'la fase termina antes de empezar (fin < inicio)', path: ['fin'] })
 
 const FeriadoSchema = z.object({ fecha: FECHA, nombre: z.string() }).passthrough()
@@ -65,6 +67,19 @@ const PlanSchema = z.object({
   asignaciones: z.array(AsignacionSchema),
   config: ConfigSchema,
 }).passthrough()
+
+/**
+ * El v18 marca la liquidación en vivo como `tipo: 'Cierre'` + `_fase: 'Liquidacion en vivo'`
+ * porque el esquema anterior no aceptaba otro tipo. Se pasa al tipo propio al entrar, así
+ * ninguna regla la confunde con el Cierre de la migración (el delta y el aplica): si no, el
+ * margen al corte se mediría desde el 5° hábil del mes siguiente y daría rojo en todas.
+ */
+export function normalizarAsignacion<A extends { tipo: string; _fase?: string }>(a: A): A {
+  if (a.tipo === 'Cierre' && typeof a._fase === 'string' && a._fase.trim().toLowerCase() === 'liquidacion en vivo') {
+    return { ...a, tipo: 'Liquidacion en vivo' }
+  }
+  return a
+}
 
 export const CLAVES_RAIZ = ['personas', 'proyectos', 'asignaciones', 'config'] as const
 
@@ -121,6 +136,7 @@ export function validarPlan(json: string): ResultadoValidacion {
   }
 
   const plan = parsed.data as unknown as PlanValidado
+  plan.asignaciones = plan.asignaciones.map(normalizarAsignacion)
   const avisos: string[] = []
 
   // Referencias: persona, cuenta y predecesoras existentes.

@@ -19,16 +19,26 @@ Cuatro pestañas más una:
 - **Timeline**: por default **una fila por cuenta** (ordenadas por mes de salida, con tier y
   conflictos), sus fases como barras arrastrables con las iniciales de quién las hace, y debajo,
   pegada debajo del encabezado y en el mismo eje, la **banda de carga** de cada persona con
-  fases: **un círculo por persona y celda** (22/09/2026, mockup aprobado por Willy; hasta esa
-  mañana eran barras apiladas), **color por % de su capacidad** (`estadoDeCarga`: verde por
-  debajo de `UMBRAL_AMBAR`, ámbar hasta el 100 %, rojo si se pasa) y el % adentro del círculo.
+  fases. **Opción A + C del mockup (20/10/2026)**: la fila de cuenta es **una sola línea de
+  52 px como máximo** (`FILA_CUENTA_MAX`) y nunca crece; si la cuenta abierta necesita
+  carriles, se reparten ese alto. El delta y el aplica son **un rombo azul** en la fecha del
+  aplica (`hitoDeCierre`); la **liquidación en vivo** es **una barra rayada celeste** por cuenta
+  ("En vivo dd/mm–dd/mm", las personas y sus h/día en el tooltip; `liquidacionesEnVivo`) con un
+  **rombo naranja de salida** en su arranque (el corte del mes de salida). Las cuentas con
+  `cuenta_fuera_plan` (POF) tienen su propia fila. En la banda, **cada celda es una columna
+  apilada por tipo de trabajo** con el color de su barra (`TIPOS_CARGA`, `tramosDeColumna`),
+  una **línea punteada en el 100 %** de la capacidad y el **% arriba**, coloreado como siempre
+  (`estadoDeCarga`: verde por debajo de `UMBRAL_AMBAR`, ámbar hasta el 100 %, rojo si se pasa).
+  Las vacaciones van con fondo gris rayado y "VAC"; una celda sin capacidad muestra en rojo
+  las "N h" sin dueño y las columnas semitransparentes. La fila de carga mide 64 px (`BANDA_ROW`;
+  el techo que puso Willy es 76). Hasta el 20/10/2026 eran círculos de color con el % adentro.
   **La celda sigue el mismo selector de zoom que el Gantt**, sin control propio: Día → un
   círculo por día hábil (`cargaDiaria`), Semana → uno por semana (`cargaSemanal`), Mes y
   Trimestre → uno por mes (`celdasMes`), donde el número es el **promedio** del mes y un ⚠
   avisa si alguna semana adentro llegó a rojo aunque el promedio no lo diga. Qué cuenta causa
   el pico se contesta al pasar el mouse (el tooltip lista las horas por cuenta), al hacer
   **clic** (abre el detalle con esas horas) o al seleccionar una cuenta, que le pone un anillo
-  celeste a los círculos donde participa. Geometría y agrupado en `src/vistaTimeline.ts`. El
+  celeste a las columnas donde participa. Geometría y agrupado en `src/vistaTimeline.ts`. El
   switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
   carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
@@ -135,6 +145,15 @@ Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
   transición, eso se ve en el bloque confidencial pero **no afecta** la disponibilidad que
   calcula esta fórmula. Está decidido así, no es un olvido.
 
+**Liquidación en vivo** (plan v18, 20/10/2026): `tipo: 'Liquidacion en vivo'`, una barra por
+persona (Willy 2 h/día, Moni 2 h/día, Gaby 1 h/día) desde el corte del mes de salida hasta el
+5° hábil del mes siguiente. El v18 la trae como `tipo: 'Cierre'` + `_fase: 'Liquidacion en
+vivo'`; `normalizarAsignacion` (`validacionPlan.ts`) la pasa al tipo propio al importar y al
+rehidratar, porque si quedara como Cierre la regla de margen la mediría como la Actualización
+Final. **Es carga pero no es fase de la migración**: no mueve el mes de salida, ni el fin del
+programa (`resumenPlan`), ni el margen al corte. La de POF viene como bloqueo y suma horas igual
+(`esCarga` en `capacidad.ts`). El planificador la mueve con la cuenta (corte → 5° hábil).
+
 **Mes de salida en vivo es dato** (`config.salidas_en_vivo_propuestas`), no se deduce del
 fin de las fases. POF y Finadiet salen sin fases (`salidas_en_vivo_fuera_del_plan`).
 
@@ -221,6 +240,8 @@ proporción a su capacidad (`horas`/`capacidad` viajan en la violación). Con el
 - El JSON exportado es contrato: las claves existentes de `Asignacion`, `Persona`,
   `Proyecto` y `Config` no se renombran ni se quitan; solo se agregan opcionales, siempre al
   tipo (`src/types.ts`) y al JSON a la vez.
+- `Asignacion.cuenta_fuera_plan` (opcional, v18): alias de la cuenta fuera del plan dueña de
+  una barra sin `proyecto_id` (la liquidación en vivo de POF). Le da su fila en el Timeline.
 - Al importar, `src/validacionPlan.ts` (Zod) valida forma y referencias. Errores de forma
   frenan el import con un cartel legible; una fase con persona inexistente entra y se ve en
   la fila "Sin asignar" del timeline.

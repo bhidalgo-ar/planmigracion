@@ -8,7 +8,7 @@ import {
 } from './utils/dates'
 import { computeViolaciones as _computeViolaciones } from './rules'
 import { estaDesbloqueado } from './confidencial'
-import { validarPlan, type ResultadoValidacion } from './validacionPlan'
+import { normalizarAsignacion, validarPlan, type ResultadoValidacion } from './validacionPlan'
 import { ORDEN_FASES } from './theme/fases'
 import {
   aplicarPlan, aplicarTraspaso, configConSalida, describirMovimiento, describirTraspaso, MOTIVO_TEXTO, planificarCuenta,
@@ -133,7 +133,7 @@ function inicioDeFase(
 
 /** Orden canónico de fases dentro de una cuenta (para el respaldo de la cascada). */
 const ORDEN_TIPO: Record<string, number> = {
-  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Cierre: 3, Vacaciones: 4,
+  Relevamiento: 0, Configuracion: 1, Pruebas: 2, Cierre: 3, 'Liquidacion en vivo': 4, Vacaciones: 5,
 }
 
 /**
@@ -1013,6 +1013,9 @@ export const useSimuladorStore = create<SimuladorState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          // Un v18 importado con la versión anterior quedó guardado con la liquidación en vivo
+          // como Cierre: se normaliza igual que al importar.
+          state.asignaciones = state.asignaciones.map(normalizarAsignacion)
           state.violaciones = recompute(state.asignaciones, state.personas, state.config, state.proyectos)
         }
       },

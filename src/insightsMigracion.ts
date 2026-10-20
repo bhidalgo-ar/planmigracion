@@ -65,7 +65,9 @@ export function cuentasMigracion(proyectos: Proyecto[], asignaciones: Asignacion
       .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
 
     const mesSalida = config ? mesSalidaDe(p.id, config) : null
-    const finFases = propias.length ? propias.reduce((m, f) => (f.fin > m ? f.fin : m), propias[0].fin) : null
+    // La liquidación en vivo arranca en el corte del mes de salida: no es fin de la cuenta.
+    const deMigracion = propias.filter(f => f.tipo !== 'Liquidacion en vivo')
+    const finFases = deMigracion.length ? deMigracion.reduce((m, f) => (f.fin > m ? f.fin : m), deMigracion[0].fin) : null
     return {
       id: p.id,
       nombre: p.nombre,
@@ -196,6 +198,7 @@ export function cargaPorPersona(personas: Persona[], cuentas: CuentaMigracion[])
       const porTipo = {} as Record<TipoFase, number>
       for (const t of ORDEN_FASES) porTipo[t] = e?.porTipo[t] ?? 0
       porTipo.Vacaciones = e?.porTipo.Vacaciones ?? 0
+      porTipo['Liquidacion en vivo'] = e?.porTipo['Liquidacion en vivo'] ?? 0
       return {
         id: p.id,
         alias: p.alias,

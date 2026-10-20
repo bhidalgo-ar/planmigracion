@@ -71,7 +71,7 @@ export function cargaEquipo(personas: Persona[], asignaciones: Asignacion[], con
 
 const VERBO: Record<TipoFase, string> = {
   Relevamiento: 'releva', Configuracion: 'configura', Pruebas: 'prueba', Cierre: 'actualiza',
-  Vacaciones: 'está de vacaciones por',
+  Vacaciones: 'está de vacaciones por', 'Liquidacion en vivo': 'acompaña la liquidación en vivo de',
 }
 
 function listar(nombres: string[]): string {

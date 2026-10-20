@@ -54,6 +54,8 @@ export function resumenPlan(
 
   for (const a of fases) {
     if (!inicioPlan || a.inicio < inicioPlan) inicioPlan = a.inicio
+    // La liquidación en vivo es acompañamiento después de salir: no estira el fin del programa.
+    if (a.tipo === 'Liquidacion en vivo') continue
     if (!finPlan || a.fin > finPlan) {
       finPlan = a.fin
       const p = proyectos.find(x => x.id === a.proyecto_id)
