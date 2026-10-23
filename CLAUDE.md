@@ -154,6 +154,29 @@ pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar,
 mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
 carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.test.ts`.
 
+**Planificador que respeta capacidad** (`src/planificadorNivelado.ts`, 23/10/2026, Willy: "que
+tenga la inteligencia de la Mesa de salidas"). Es un segundo modo, **encendido por default**
+con el check "Respetar capacidad" del panel de la cuenta (`uiStore.respetarCapacidad`). Para el
+mes elegido busca dónde entra cada tarea: nadie de implementación por encima del 100 % de su
+disponibilidad en ningún día hábil (vacaciones = 0), el tope de cuentas en paralelo del equipo,
+el blackout de configuración y una cuenta abierta como máximo
+`reglas_calendario.max_meses_cuenta_abierta` meses (default 4). Las tareas de armado van hacia
+adelante por `predecesoras` y, si la persona no tiene lugar, se estiran con menos horas por día
+(nunca se suman horas); el cierre va pegado al límite antes del corte; la primera liquidación
+(`_fase: 'Liquidacion en vivo'`) arranca en el corte y dura hasta el 5° hábil del mes siguiente
+(se recorta si hay vacaciones en la cola, nunca encima de la semana de la liquidación). Los
+analistas de payroll no tienen control de carga. Prueba el arranque más tarde que funcione y,
+si no hay ninguno, dice por qué ("Guille no tiene lugar para pruebas · cruces antes del corte").
+En la tira "Sale en vivo" ese mes queda en rojo con el motivo; si se elige igual, la cuenta se
+arma con el clásico y el panel avisa que no entra. "··· → 🧠 Replanificar respetando capacidad"
+rearma todas las cuentas que no arrancaron, por mes de salida (las que todavía no se rearmaron
+no cuentan como carga). **Una cuenta que ya arrancó** (alguna barra de armado empezó antes de
+hoy) no se mueve sola. Con este cambio se corrigieron dos cosas del clásico y de las reglas: la
+primera liquidación ya no se trata como Actualización final (el planificador clásico la deja en
+el corte y el margen no la mide), y `fechaCorteDe` extrapola el corte con la mediana del día del
+mes cuando el plan no trae la fecha de ese mes ni día fijo (se muestra como "estimado"). Tests en
+`test/nivelado.test.ts`.
+
 **El corte de novedades es una fecha por mes, no un día fijo.** `config.cortes_novedades_fechas`
 trae el corte de cada cuenta y período (leído de los cronogramas de monday, ítem "Recepción de
 Novedades"; ver `specs/2026-09-10-vacaciones-reasignacion-cortes-SPEC.md`). El ancla es la

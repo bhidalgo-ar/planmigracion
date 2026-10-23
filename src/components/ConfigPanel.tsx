@@ -31,7 +31,7 @@ const ZOOM_OPTS: { value: ZoomLevel; label: string }[] = [
 export function ConfigPanel() {
   const {
     violaciones, resetToSeed, exportarJSON, exportOmiteConfidencial, importarJSON,
-    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes, replanificarDesdeElCorte,
+    clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes, replanificarDesdeElCorte, replanificarRespetandoCapacidad,
   } = useSimuladorStore()
   const {
     vista, mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
@@ -70,6 +70,14 @@ export function ConfigPanel() {
     if (r.sinCorte.length) partes.push(`Sin corte de novedades (no se tocaron): ${r.sinCorte.join(', ')}.`)
     if (r.sinLugar.length) partes.push(`Sin lugar antes del corte (no se tocaron): ${r.sinLugar.join(', ')}.`)
     alert(partes.join('\n'))
+  }
+
+  function handleReplanificarCapacidad() {
+    const r = replanificarRespetandoCapacidad()
+    const partes = [`${r.replanificadas.length} cuenta${r.replanificadas.length !== 1 ? 's' : ''} rearmada${r.replanificadas.length !== 1 ? 's' : ''} respetando capacidad.`]
+    if (r.noEntran.length) partes.push(`No entran en su mes (quedaron como estaban):\n${r.noEntran.map(n => `· ${n.nombre}: ${n.motivo}`).join('\n')}`)
+    if (r.enCurso.length) partes.push(`Ya arrancaron, no se tocaron: ${r.enCurso.join(', ')}.`)
+    alert(partes.join('\n\n'))
   }
 
   function handleImport() {
@@ -200,6 +208,10 @@ export function ConfigPanel() {
               <MenuItem onClick={() => { setMasAbierto(false); handleReplanificar() }}
                 title="Rearma las fechas de cada cuenta hacia atrás desde el corte de novedades de su mes de salida: margen mínimo, blackout, lunes y feriados. No cambia quién hace qué ni cuánto dura cada fase.">
                 🧭 Replanificar desde el corte
+              </MenuItem>
+              <MenuItem onClick={() => { setMasAbierto(false); handleReplanificarCapacidad() }}
+                title="Rearma cada cuenta que todavía no arrancó con el mes que tiene, buscando dónde entra cada tarea: nadie por encima del 100 % en ningún día, vacaciones, blackout, tope de cuentas en paralelo y máximo de meses abierta. Las que salen antes eligen primero. Avisa cuáles no entran.">
+                🧠 Replanificar respetando capacidad
               </MenuItem>
               <MenuItem onClick={handleAutoPlanificar} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin fases, buscando hueco libre.">🪄 Planificar pendientes</MenuItem>
               <MenuItem
