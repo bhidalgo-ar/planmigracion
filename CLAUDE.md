@@ -15,7 +15,36 @@ stakeholders**. Un sitio estático (React + Vite + TypeScript + Zustand + date-f
 backend, desplegado a GitHub Pages desde `main`. El plan vive en un JSON que se importa y
 exporta; el seed de `data/` es solo un punto de partida.
 
-Cuatro pestañas más una:
+**Rediseño del 23/10/2026** (Willy: "hoy mirando la app no se entiende qué pasa"; diseño
+aprobado en el lienzo "Rediseño del tablero", opciones A a F). Manda la reunión con los
+stakeholders y, después, Willy solo preparándola. **Cinco vistas en la barra**, cada una contesta
+una pregunta, todas leen el mismo plan y se rearman solas cuando se mueve una cuenta:
+- **Salidas** (A, `MesaSalidas.tsx`, la vista con que arranca la app): una columna por mes, de
+  hoy a un mes después de la última salida, y una tarjeta por cuenta en su mes de salida con la
+  tira de sus cuatro etapas (llena = hecha, media = en curso). **Mover una cuenta es arrastrar su
+  tarjeta**: mientras se arrastra, cada mes se pinta con `simularDestinosNivelado` (o el clásico
+  si "Respetar capacidad" está apagado) y dice por qué no entra. Debajo, en las mismas columnas,
+  el % de cada persona ese mes, sus vacaciones y las cuentas en paralelo contra el tope.
+- **Hoy** (B, `HoyProximo.tsx`): lo que se está haciendo y lo que arranca en dos semanas, los
+  hábiles que faltan para cada corte de las próximas tres salidas, lo que viene después, el
+  equipo semana a semana (8 semanas: una semana puede pasar del 85 % con el mes en 73 %) y "Para
+  decidir hoy".
+- **Timeline** (D, donde se trabaja moviendo cuentas): lo de abajo, más la **tira "Mover a"**
+  (`TiraMoverA.tsx`): al elegir una cuenta en modo cuenta, debajo de su fila aparece un botón por
+  mes alineado con el eje, verde si entra y rojo con el motivo si no; al pasar el mouse se ven las
+  fases fantasma y al hacer clic se mueve. El panel lateral (DetailPanel) ya **no se abre solo**
+  en modo cuenta: se abre con "Detalle" en la tira (`uiStore.detalleCuenta`). Arranca con alto de
+  fila **S** (entran todas las cuentas) y el panel de insights de abajo **cerrado**.
+- **Reunión** (C, `ModoReunion.tsx`): cuatro capítulos para proyectar (dónde estamos, qué sale y
+  cuándo como línea de estaciones, si da el equipo, qué decidimos: la lista de rojos y avisos,
+  que antes no tenía pantalla). Flechas del teclado para pasar.
+- **Comparar** (E, `Comparar.tsx`): el escenario contra el plan del que partió (ver §2,
+  Escenarios). Sin escenario, explica cómo empezar uno.
+- **Más ▾**: Insights, Equipo, Resumen (video) y 🔒 Disponibilidad, sin cambios.
+Las derivaciones de Salidas, Hoy y Reunión están en `src/vistasPrograma.ts` (`test/vistas.test.ts`);
+las de Comparar y el escenario, en `src/escenario.ts` (`test/escenario.test.ts`).
+
+Las vistas de antes del rediseño, que siguen igual salvo lo dicho arriba:
 - **Timeline**: por default **una fila por cuenta** (ordenadas por mes de salida, con tier y
   conflictos), sus fases como barras arrastrables con las iniciales de quién las hace, y debajo,
   pegada debajo del encabezado y en el mismo eje, la **banda de carga** de cada persona con
@@ -74,6 +103,8 @@ Cuatro pestañas más una:
   "Cuenta / Persona" y "⛶" van sin rótulo largo. Todos conservan su `title`. Si algo nuevo
   entra en la barra, medir primero ese caso; lo único que puede encogerse es el nombre de la
   casa al lado del logo.
+- **Desde el rediseño (23/10/2026)** la fila lleva cinco pestañas cortas más "Más ▾", y en el
+  Timeline suma el botón **Escenario**: medido a 1366 px con el v20, entra.
 - La pestaña confidencial se llama **"Disponibilidad"**, no "Disponibilidad del equipo": el
   nombre largo no entra en la fila única.
 - **La columna de cuentas** (AccountRail, 218 px) arranca **apagada**: mostraba lo mismo que
@@ -166,6 +197,39 @@ pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar,
 mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
 carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.test.ts`.
 
+**Escenarios de capacidad** (`src/escenario.ts`, 23/10/2026, Willy: "si subo el tope a 5, ¿cómo
+quedaría?"). Un escenario es una copia del plan (`store.escenarioBase`, se persiste) tomada al
+abrirlo desde "Escenario" en el Timeline o "··· → Probar un escenario". Mientras está abierto, una
+franja en todas las vistas dice qué se cambió; **Descartar** vuelve a la base y **Aplicar** la
+suelta. Las **palancas** (panel arriba del Timeline, `PanelEscenario.tsx`) se aplican en el
+momento y nunca mueven fechas: tope de cuentas abiertas, jornada de quien tiene `horas_dia` propio
+(a quien no lo tiene no se le ofrece: ponérselo le pasaría la disponibilidad a 1,0) y
+**`Persona.carga_maxima_pct`** (opcional; 1,2 = puede llegar al 120 %): el planificador nivelado
+lo usa como tope por día, así ninguna semana pasa de ese número, y el aviso `carga_semana` no salta
+hasta pasarlo; el control mensual no cambia (un mes por encima del 100 % sigue en rojo).
+**"Rearmar el calendario"** (`adelantarTodoNivelado`) parte siempre de la base, aplica las
+palancas y adelanta cada cuenta que no arrancó al primer mes donde entra, en el orden de salida:
+acepta un mes si el planificador nivelado la ubica y no aparece ningún rojo nuevo que no sea de
+carga (se comparan con `claveViolacion`, no por el mensaje, que cambia con los números). Nunca
+atrasa una cuenta. Es un acomodo posible, no el óptimo. **"Qué aporta cada palanca"**
+(`pasosEscalera`) rearma con el tope solo, después la jornada, después cada persona al 120 % por
+separado y al final todas juntas. Con el v20: solo tope 5, igual (nov 27); + Gaby 5 h, oct 27; +
+los tres al 120 %, sep 27 (fin 07/10/2027, Guille 104 % en abril 2027).
+
+**El error de un día del planificador nivelado** (corregido el 23/10/2026): cuando la duración
+nominal de una cuenta ocupaba toda la ventana de meses abierta, el planificador probaba un único
+arranque, que la dejaba abierta un día de más; la cuenta entraba solo si alguna tarea se demoraba
+por falta de lugar, así que darle más capacidad a alguien hacía que Marval y Sportline dejaran de
+entrar en su propio mes. Ahora siempre prueba al menos un arranque dentro de la ventana
+(`sMax ≥ sMin + 1`). Test en `test/nivelado.test.ts`.
+
+**Reglas de diciembre del plan** (`reglas_calendario.diciembre_una_sola_salida` y
+`diciembre_sin_moni`, del v19/v20; antes estaban solo en el JSON y la app no las controlaba). El
+diciembre en que sale esa cuenta (v20: GSMA, diciembre 2026) queda reservado: ninguna otra sale
+ese mes (rojo de `tope_salidas`) y el planificador nivelado no la ubica ahí; con
+`diciembre_sin_moni`, ese mes Moni no tiene capacidad para las demás cuentas. Si la cuenta
+reservada no sale en diciembre, las dos reglas no corren.
+
 **Planificador que respeta capacidad** (`src/planificadorNivelado.ts`, 23/10/2026, Willy: "que
 tenga la inteligencia de la Mesa de salidas"). Es un segundo modo, **encendido por default**
 con el check "Respetar capacidad" del panel de la cuenta (`uiStore.respetarCapacidad`). Para el
@@ -226,8 +290,8 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | tipo | severidad | qué controla |
 |---|---|---|
 | `carga_mes` | rojo | horas de una persona en el mes > su capacidad |
-| `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026) |
-| `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo) |
+| `carga_semana` | ámbar | horas en la semana > capacidad × `aviso_semanal_tolerancia` (aviso; 1,10 en el seed desde el 22/09/2026). A quien tiene `carga_maxima_pct` mayor, se le avisa recién al pasarlo |
+| `tope_salidas` | rojo / info | más salidas en vivo en un mes que `tope_salidas_en_vivo_por_mes`; 3 se permiten si 2 son tier chico (informativo). Además, rojo si otra cuenta sale en el diciembre reservado por `diciembre_una_sola_salida` |
 | `margen` | rojo | menos de `margen_minimo_habiles` (2 en el seed y en el código desde el 22/09/2026; el v12 todavía trae 5) días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config`. **En el seed es diciembre completo** (01/12 → 31/12) desde el 22/09/2026, por pedido de Willy; antes iba del 21/12 al 08/01 y dejaba hábil la primera quincena. Ojo: el rango sale del **plan importado**, así que un plan viejo sigue con su blackout hasta que se corrija ahí |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |

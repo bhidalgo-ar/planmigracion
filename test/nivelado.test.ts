@@ -106,6 +106,34 @@ if (conLiq.ok) {
   check('el planificador clásico también la deja en el corte', clasico.ok && clasico.asignaciones.find(a => a.id === 'carrier-liq_vivo_guille')!.inicio === corte)
 }
 
+// ── la ventana de meses abierta ───────────────────────────────────────────────
+titulo('planificarCuentaNivelada — una cuenta que ocupa toda la ventana entra (error de un día, 23/10/2026)')
+{
+  // Una persona sola, sin otra carga: Relevamiento → Configuración → Pruebas → Cierre de 5 + 5 + 5
+  // + 1 días con un mes de ventana (21 hábiles). La duración nominal ocupa toda la ventana, así
+  // que el planificador probaba un único arranque, que dejaba la cuenta abierta 22 días.
+  const ana = { id: 'ana', alias: 'Ana', skills: [], capacidad_horas_semana: 40, buffer_pct: 0, horas_dia: 8 } as unknown as Persona
+  const x = { id: 'x', nombre: 'Equis', complejidad: null, depende_retro: null, entidades: 1, quick_win: false, especial: false } as unknown as Proyecto
+  const barra = (id: string, tipo: string, ini: string, fin: string, dur: number, preds: string[]) => ({
+    id, proyecto_id: 'x', tipo, persona_id: 'ana', inicio: ini, fin, duracion_dias: dur, dedicacion_pct: 0.5,
+    predecesoras: preds, es_bloqueo: false, _horas: dur * 4,
+  }) as unknown as Asignacion
+  const asigX = [
+    barra('x-rel', 'Relevamiento', '2027-01-04', '2027-01-08', 5, []),
+    barra('x-conf', 'Configuracion', '2027-01-11', '2027-01-15', 5, ['x-rel']),
+    barra('x-prue', 'Pruebas', '2027-01-18', '2027-01-22', 5, ['x-conf']),
+    barra('x-cierre', 'Cierre', '2027-01-25', '2027-01-25', 1, ['x-prue']),
+  ]
+  const cfgX = { ...config, salidas_en_vivo_propuestas: { x: '2027-03' }, cortes_novedades_fechas: { x: { '2027-03': '2027-03-18' } } } as Config
+  const rx = planificarCuentaNivelada('x', asigX, '2027-03', [ana], cfgX, [x], { hoyISO: '2026-10-23', maxMeses: 1 })
+  check('entra con un mes de ventana', rx.ok, rx.ok ? '' : rx.motivo)
+  if (rx.ok) {
+    const armadas = rx.asignaciones.map(a => a.inicio).concat(rx.asignaciones.map(a => a.fin)).sort()
+    const habiles = (d: string, h: string) => { let n = 0; for (const c = new Date(`${d}T12:00:00`); c <= new Date(`${h}T12:00:00`); c.setDate(c.getDate() + 1)) { const iso = c.toISOString().slice(0, 10); if (c.getDay() % 6 && !feriados.has(iso)) n++ } return n }
+    check('y queda abierta como mucho 21 días hábiles', habiles(armadas[0], armadas[armadas.length - 1]) <= 21, `${armadas[0]} → ${armadas[armadas.length - 1]}`)
+  }
+}
+
 // ── replanificar todo ─────────────────────────────────────────────────────────
 titulo('replanificarTodoNivelado — plan v3 con hoy = 01/06/2026')
 const todo = replanificarTodoNivelado(asignaciones, personas, config, proyectos, { hoyISO: HOY })

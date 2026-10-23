@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "npm run test:duraciones && npm run test:horas && npm run test:migracion && npm run test:reglas && npm run test:equipo && npm run test:confidencial && npm run test:importar && npm run test:resumen && npm run test:planificador && npm run test:vacaciones && npm run test:reasignacion && npm run test:soporte && npm run test:vista && npm run test:paralelo && npm run test:nivelado",
+    "test": "npm run test:duraciones && npm run test:horas && npm run test:migracion && npm run test:reglas && npm run test:equipo && npm run test:confidencial && npm run test:importar && npm run test:resumen && npm run test:planificador && npm run test:vacaciones && npm run test:reasignacion && npm run test:soporte && npm run test:vista && npm run test:paralelo && npm run test:nivelado && npm run test:escenario && npm run test:vistas",
     "test:horas": "esbuild test/horas.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-horas.mjs --log-level=warning && node dist/.test-horas.mjs",
     "test:soporte": "esbuild test/soporte.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-soporte.mjs --log-level=warning && node dist/.test-soporte.mjs",
     "test:reasignacion": "esbuild test/reasignacion.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-reasignacion.mjs --log-level=warning && node dist/.test-reasignacion.mjs",
@@ -22,7 +22,9 @@
     "test:resumen": "esbuild test/resumen.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-resumen.mjs --log-level=warning && node dist/.test-resumen.mjs",
     "test:paralelo": "esbuild test/paralelo.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-paralelo.mjs --log-level=warning && node dist/.test-paralelo.mjs",
     "test:nivelado": "esbuild test/nivelado.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-nivelado.mjs --log-level=warning && node dist/.test-nivelado.mjs",
-    "test:vista": "esbuild test/vista-timeline.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-vista.mjs --log-level=warning && node dist/.test-vista.mjs"
+    "test:vista": "esbuild test/vista-timeline.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-vista.mjs --log-level=warning && node dist/.test-vista.mjs",
+    "test:escenario": "esbuild test/escenario.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-escenario.mjs --log-level=warning && node dist/.test-escenario.mjs",
+    "test:vistas": "esbuild test/vistas.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=dist/.test-vistas.mjs --log-level=warning && node dist/.test-vistas.mjs"
   },
   "dependencies": {
     "date-fns": "^3.6.0",

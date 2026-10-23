@@ -22,6 +22,7 @@ const PersonaSchema = z.object({
   capacidad_horas_semana: z.number().default(40),
   buffer_pct: z.number().default(0),
   horas_dia: z.number().positive().optional(),
+  carga_maxima_pct: z.number().positive().optional(),
 }).passthrough()
 
 const ProyectoSchema = z.object({

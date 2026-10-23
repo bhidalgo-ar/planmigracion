@@ -15,6 +15,8 @@ import {
   type ReporteMovimiento, type ReporteTraspaso, type Traspaso,
 } from './planificador'
 import { planificarCuentaNivelada, replanificarTodoNivelado, type ReporteReplanNivelado } from './planificadorNivelado'
+import type { ReporteAdelantar } from './planificadorNivelado'
+import { conPalancas, rearmarConPalancas, type Palancas } from './escenario'
 import { duracionPorHoras, horasDeBarra, horasDiaDe, mesSalidaDe } from './capacidad'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
@@ -290,6 +292,22 @@ interface SimuladorState {
   clienteSeleccionado: string | null
   /** Snapshots previos para Ctrl+Z. No se persiste (se pierde al recargar la página). */
   historial: HistorySnapshot[]
+  /**
+   * Escenario (23/10/2026): copia del plan tomada al empezar a probar cambios. Mientras existe,
+   * todo lo que se mueve es parte del escenario y la vista Comparar lo mide contra esta base.
+   * Descartar vuelve a ella; aplicar la suelta. Se persiste, así recargar no aplica nada sin querer.
+   */
+  escenarioBase: HistorySnapshot | null
+  iniciarEscenario: () => void
+  descartarEscenario: () => void
+  aplicarEscenario: () => void
+  /** Aplica las palancas al plan de ahora (tope, jornada, hasta cuánto carga cada persona). No mueve fechas. */
+  setPalancas: (p: Palancas) => void
+  /**
+   * Rearma el calendario de la base del escenario con estas palancas, adelantando cada cuenta
+   * al primer mes donde entra. Si no hay escenario, lo empieza.
+   */
+  rearmarConPalancas: (p: Palancas) => ReporteAdelantar
 
   updateAsignacion: (id: string, patch: Partial<Asignacion>) => void
   addFase: (proyectoId: string, tipo: TipoFase, personaId: string) => void
@@ -377,6 +395,54 @@ export const useSimuladorStore = create<SimuladorState>()(
       violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig, seedProyectos),
       clienteSeleccionado: null,
       historial: [],
+      escenarioBase: null,
+
+      iniciarEscenario() {
+        set(state => state.escenarioBase ? {} : {
+          escenarioBase: { personas: state.personas, proyectos: state.proyectos, asignaciones: state.asignaciones, config: state.config },
+        })
+      },
+
+      descartarEscenario() {
+        set(state => {
+          const b = state.escenarioBase
+          if (!b) return {}
+          return {
+            ...conHistorial(state),
+            escenarioBase: null,
+            personas: b.personas, proyectos: b.proyectos, asignaciones: b.asignaciones, config: b.config,
+            violaciones: recompute(b.asignaciones, b.personas, b.config, b.proyectos),
+          }
+        })
+      },
+
+      aplicarEscenario() {
+        set({ escenarioBase: null })
+      },
+
+      setPalancas(palancas) {
+        set(state => {
+          const p = conPalancas({ personas: state.personas, proyectos: state.proyectos, asignaciones: state.asignaciones, config: state.config }, palancas)
+          return {
+            ...conHistorial(state),
+            personas: p.personas, config: p.config,
+            violaciones: recompute(state.asignaciones, p.personas, p.config, state.proyectos),
+          }
+        })
+      },
+
+      rearmarConPalancas(palancas) {
+        const state = get()
+        const base = state.escenarioBase ?? { personas: state.personas, proyectos: state.proyectos, asignaciones: state.asignaciones, config: state.config }
+        const r = rearmarConPalancas(base, palancas, toISO(new Date()))
+        set(s2 => ({
+          ...conHistorial(s2),
+          escenarioBase: s2.escenarioBase ?? base,
+          personas: r.plan.personas, proyectos: r.plan.proyectos, asignaciones: r.plan.asignaciones, config: r.plan.config,
+          violaciones: recompute(r.plan.asignaciones, r.plan.personas, r.plan.config, r.plan.proyectos),
+        }))
+        return r.reporte
+      },
 
       updateAsignacion(id, patch) {
         set(state => {
@@ -1000,6 +1066,7 @@ export const useSimuladorStore = create<SimuladorState>()(
           config: seedConfig,
           violaciones: recompute(seedAsignaciones, seedPersonas, seedConfig, seedProyectos),
           clienteSeleccionado: null,
+          escenarioBase: null,
         }))
       },
 
@@ -1045,6 +1112,7 @@ export const useSimuladorStore = create<SimuladorState>()(
           config,
           violaciones: recompute(asignacionesNorm, personas, config, proyectos),
           clienteSeleccionado: null,
+          escenarioBase: null,
         }))
         return r
       },
@@ -1076,6 +1144,7 @@ export const useSimuladorStore = create<SimuladorState>()(
         proyectos: state.proyectos,
         asignaciones: state.asignaciones,
         config: state.config,
+        escenarioBase: state.escenarioBase,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

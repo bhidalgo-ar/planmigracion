@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AccountRail } from './components/AccountRail'
 import { Timeline } from './components/Timeline'
 import { DetailPanel } from './components/DetailPanel'
@@ -13,6 +13,12 @@ import { ModalAgregarCuenta } from './components/ModalAgregarCuenta'
 import { ResumenEjecutivo } from './components/ResumenEjecutivo'
 import { ComoSeArmoModal } from './components/ComoSeArmo'
 import { ResumenAnimado } from './resumen/ResumenAnimado'
+import { MesaSalidas } from './components/MesaSalidas'
+import { HoyProximo } from './components/HoyProximo'
+import { ModoReunion } from './components/ModoReunion'
+import { Comparar } from './components/Comparar'
+import { BarraEscenario } from './components/BarraEscenario'
+import { PanelEscenario } from './components/PanelEscenario'
 import { segundoDelHash } from './resumen/guion'
 import { useSimuladorStore } from './store'
 import { useUIStore, type Vista } from './uiStore'
@@ -20,24 +26,33 @@ import logoUrl from './assets/logo-ha.png'
 
 const CAMPOS_EDITABLES = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-// Sin emoji: con el plan de Willy, que trae el bloque confidencial, la barra lleva cinco
-// pestañas y el emoji de cada una cuesta ~20 px de una fila que va justa. El 🔒 de
-// Disponibilidad se queda porque no es decoración: dice que esa pestaña está protegida.
+// Rediseño 23/10/2026: cinco vistas en la barra, cada una contesta una pregunta (qué sale cuándo,
+// qué pasa hoy, dónde se trabaja moviendo cuentas, cómo se cuenta en una reunión, qué cambió en
+// el escenario). Las vistas para otro público (gerencia, payroll, el video y la confidencial)
+// pasan a "Más": la fila única va justa y no entran nueve pestañas.
 const TABS: { v: Vista; label: string }[] = [
+  { v: 'salidas',  label: 'Salidas' },
+  { v: 'hoy',      label: 'Hoy' },
   { v: 'timeline', label: 'Timeline' },
+  { v: 'reunion',  label: 'Reunión' },
+  { v: 'comparar', label: 'Comparar' },
+]
+const MAS: { v: Vista; label: string }[] = [
   { v: 'insights', label: 'Insights' },
   { v: 'equipo',   label: 'Equipo' },
-  { v: 'resumen',  label: 'Resumen' },
+  { v: 'resumen',  label: 'Resumen (video)' },
 ]
 
 export default function App() {
-  const { vista, setVista, modal, resumenAbierto, timelineFull, comoSeArmoAbierto, mostrarRail } = useUIStore()
+  const { vista, setVista, modal, resumenAbierto, timelineFull, comoSeArmoAbierto, mostrarRail, modoFilas, detalleCuenta } = useUIStore()
   // La pestaña confidencial existe solo si el plan cargado trae el bloque (nunca viene del seed).
   const hayConfidencial = useSimuladorStore(s => tieneBloqueConfidencial(s.config))
   // El panel de la cuenta es on-demand (spec 2026-09-22, §6.2): sin cuenta seleccionada no
   // ocupa los 336 px. Se abre al hacer clic en una cuenta del timeline y se cierra con su ×.
   const hayCuentaSeleccionada = useSimuladorStore(s => s.clienteSeleccionado !== null)
-  const tabs = hayConfidencial ? [...TABS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad' }] : TABS
+  const mas = hayConfidencial ? [...MAS, { v: 'confidencial' as Vista, label: '🔒 Disponibilidad' }] : MAS
+  const hayEscenario = useSimuladorStore(s => s.escenarioBase !== null)
+  const panelEscenario = useUIStore(s => s.panelEscenario)
   useEffect(() => { if (vista === 'confidencial' && !hayConfidencial) setVista('timeline') }, [vista, hayConfidencial, setVista])
   // Un link con `#t=31` abre directo el video del resumen en ese segundo: si no
   // cambiáramos de pestaña, el link caería en el Timeline y no se vería nada.
@@ -100,17 +115,14 @@ export default function App() {
         <div style={{ width: 1, height: 20, background: 'var(--line)', flexShrink: 0 }} />
 
         {/* Pestañas: texto con indicador abajo, no chips. */}
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          {tabs.map(({ v, label }) => (
-            <button key={v} onClick={() => setVista(v)} style={{
-              padding: '4px 9px', border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 12.5, whiteSpace: 'nowrap',
-              color: vista === v ? 'var(--celeste-dark)' : 'var(--t2)',
-              fontWeight: vista === v ? 700 : 500,
-              borderBottom: `2px solid ${vista === v ? 'var(--celeste)' : 'transparent'}`,
-              transition: 'color 0.2s, border-color 0.2s',
-            }}>{label}</button>
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0, alignItems: 'center' }}>
+          {TABS.map(({ v, label }) => (
+            <button key={v} onClick={() => setVista(v)} style={pestana(vista === v)}
+              title={v === 'comparar' ? (hayEscenario ? 'El escenario contra el plan del que partió' : 'Probar un escenario y compararlo con el plan') : undefined}>
+              {label}{v === 'comparar' && hayEscenario && <span aria-label="escenario abierto" style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--warn)', marginLeft: 5, verticalAlign: 'middle' }} />}
+            </button>
           ))}
+          <MenuMas items={mas} vista={vista} onElegir={setVista} />
         </div>
 
         <div style={{ width: 1, height: 20, background: 'var(--line)', flexShrink: 0 }} />
@@ -133,14 +145,27 @@ export default function App() {
         </button>
       </div>
 
+      {hayEscenario && <BarraEscenario />}
+
       {/* Contenido */}
       <div style={{ flex: 1, overflow: 'hidden', background: 'var(--lienzo)' }}>
-        {vista === 'timeline' ? (
+        {vista === 'salidas' ? (
+          <MesaSalidas />
+        ) : vista === 'hoy' ? (
+          <HoyProximo />
+        ) : vista === 'reunion' ? (
+          <ModoReunion />
+        ) : vista === 'comparar' ? (
+          <Comparar />
+        ) : vista === 'timeline' ? (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            {panelEscenario && !timelineFull && <PanelEscenario />}
             <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
               {mostrarRail && !timelineFull && <AccountRail />}
               <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}><Timeline /></div>
-              {hayCuentaSeleccionada && !timelineFull && <DetailPanel />}
+              {/* Vista D: en el Timeline por cuenta, elegir una cuenta abre la tira "Mover a" en su
+                  fila; el panel lateral queda para "Detalle" (renombrar, tareas, qué cambió). */}
+              {hayCuentaSeleccionada && !timelineFull && (modoFilas === 'persona' || detalleCuenta) && <DetailPanel />}
             </div>
             <PanelInsights />
           </div>
@@ -160,6 +185,47 @@ export default function App() {
       {modal === 'cuenta' && <ModalAgregarCuenta />}
       {resumenAbierto && <ResumenEjecutivo />}
       {comoSeArmoAbierto && <ComoSeArmoModal />}
+    </div>
+  )
+}
+
+function pestana(activa: boolean): CSSProperties {
+  return {
+    padding: '4px 9px', border: 'none', background: 'transparent', cursor: 'pointer',
+    fontSize: 12.5, whiteSpace: 'nowrap',
+    color: activa ? 'var(--celeste-dark)' : 'var(--t2)',
+    fontWeight: activa ? 700 : 500,
+    borderBottom: `2px solid ${activa ? 'var(--celeste)' : 'transparent'}`,
+    transition: 'color 0.2s, border-color 0.2s',
+  }
+}
+
+/** "Más ▾": las vistas para otro público. Si la activa es una de ellas, el botón lleva su nombre. */
+function MenuMas({ items, vista, onElegir }: { items: { v: Vista; label: string }[]; vista: Vista; onElegir: (v: Vista) => void }) {
+  const [abierto, setAbierto] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!abierto) return
+    function onClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false) }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [abierto])
+  const activa = items.find(i => i.v === vista)
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setAbierto(a => !a)} style={pestana(!!activa)} aria-expanded={abierto} title="Insights, Equipo, el video del resumen y Disponibilidad">
+        {activa ? activa.label : 'Más'} <span style={{ fontSize: 9 }}>▾</span>
+      </button>
+      {abierto && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 100, minWidth: 190, background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 12, boxShadow: 'var(--sh)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {items.map(i => (
+            <button key={i.v} onClick={() => { onElegir(i.v); setAbierto(false) }}
+              style={{ textAlign: 'left', padding: '8px 10px', border: 'none', borderRadius: 8, background: vista === i.v ? 'var(--celeste-dim)' : 'transparent', color: vista === i.v ? 'var(--celeste-dark)' : 'var(--t1)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              {i.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
