@@ -33,8 +33,20 @@ Cuatro pestañas más una:
   abiertas el EQUIPO el mismo día (en semana y mes, el máximo de un mismo día), con el tope
   de `max_cuentas_en_paralelo` al lado: borde celeste por debajo, ámbar en el tope, rojo si
   se pasa. Los analistas de payroll (`rol: 'payroll'`) no tienen fila en la banda: su
-  disponibilidad no está relevada; sus tareas sí cuentan para "En paralelo". El
-  switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
+  disponibilidad no está relevada; sus tareas sí cuentan para "En paralelo".
+  **Fila de cuenta en una línea (23/10/2026, Willy: "si no te pido aperturarlo, que no lo
+  apertures")**: cerrada, la cuenta es una sola línea con Relevamiento, Configuración y Pruebas
+  armadas **solo con las tareas de implementación** (la previa y la validación del analista de
+  payroll ya no estiran esas fases), **un rombo** para la actualización final (delta + aplica),
+  **una franja gris rayada "En vivo"** para la primera liquidación (`_fase: 'Liquidacion en
+  vivo'`, de implementación y del analista) y un **filete gris** debajo de la línea para la
+  previa y la validación (`_fase: 'Payroll …'`). Hacer clic en la cuenta abre el panel pero
+  **no** la abre en el timeline: el detalle por tarea se abre solo con el ▸ al lado del nombre
+  (`cuentaAbierta`, estado local del Timeline), y las flechas de dependencia solo se dibujan
+  con la cuenta abierta. El **tope de "En paralelo" se cambia con − y +** al lado del número
+  (`setTopeParalelo`: escribe `reglas_calendario.max_cuentas_en_paralelo`, recalcula y entra en
+  el export y en Ctrl+Z).
+  El switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
   carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
   (La ola por cuenta se sacó el 11/09/2026: era lo mismo que el Timeline por cuenta.)

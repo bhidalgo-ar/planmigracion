@@ -37,6 +37,12 @@ const GAP_CARRIL = 6
 /** Radio del rombo de una barra de Cierre (hito de un día) y del monograma de persona. */
 const HITO_R = 8
 
+/** Botones − / + del tope de cuentas en paralelo. */
+const BTN_TOPE: React.CSSProperties = {
+  width: 16, height: 16, padding: 0, lineHeight: '14px', fontSize: 12, fontWeight: 700, borderRadius: 4,
+  border: '1px solid var(--line)', background: 'var(--white)', color: 'var(--t1)', cursor: 'pointer',
+}
+
 /**
  * Iniciales de una persona para el monograma de la barra: 'Gaby F.' → 'GF', 'Moni' → 'Mo'.
  * Siempre dos letras a propósito: con una sola, Moni y Mati (o Guille y Gaby) quedarían
@@ -217,9 +223,9 @@ const FILA_SIN_ASIGNAR: Persona = {
 /**
  * Lo que se dibuja en el timeline. En modo cuenta, mientras la cuenta no está seleccionada
  * ("colapsada"), Relevamiento, Configuración y Pruebas entran como un solo item por fase
- * (`kind: 'fase'`), y solo al seleccionarla (`kind: 'barra'`, una por tarea) se ve el detalle.
- * El Cierre es siempre un hito (`kind: 'cierre'`), colapsada o no: un rombo de un día no
- * necesita esconderse. `asig` viaja en los items de una sola barra real (barra/cierre); los
+ * (`kind: 'fase'`), en UNA sola línea, y solo al abrirla con el ▸ (`kind: 'barra'`, una por
+ * tarea) se ve el detalle; seleccionarla no la abre. La actualización final es un rombo
+ * (`kind: 'cierre'`): cerrada, uno solo para el delta y el aplica. `asig` viaja en los items de una sola barra real (barra/cierre); los
  * de fase agrupan varias (`asigIds`) y no son arrastrables.
  */
 interface ItemBarra {
@@ -233,20 +239,41 @@ interface ItemBarra {
   filaId: string
   asig?: Asignacion
   esBloqueo?: boolean
+  /** Barras que no son de la implementación: la primera liquidación en vivo y las tareas del analista de payroll. Van en gris. */
+  estilo?: 'vivo' | 'payroll'
 }
+
+/** La primera liquidación en vivo (de implementación o del analista): `_fase` del v18 o el tipo propio del PR #39. */
+const esVivo = (a: Asignacion) => a._fase === 'Liquidacion en vivo' || (a.tipo as string) === 'Liquidacion en vivo'
+/** Previa y validación del analista de payroll con el cliente (v19). */
+const esPayroll = (a: Asignacion) => typeof a._fase === 'string' && a._fase.startsWith('Payroll')
+const estiloDe = (a: Asignacion): ItemBarra['estilo'] => (esVivo(a) ? 'vivo' : esPayroll(a) ? 'payroll' : undefined)
+/** Rombo: solo la actualización final (delta y aplica). */
+const esHito = (a: Asignacion) => a.tipo === 'Cierre' && !a.es_bloqueo && !esVivo(a)
+
+/** Rayado gris de la liquidación en vivo. */
+const FONDO_VIVO = 'repeating-linear-gradient(135deg, var(--line) 0 5px, var(--line-soft) 5px 10px)'
+/** Gris de las tareas del analista de payroll. */
+const FONDO_PAYROLL = 'var(--t3)'
 
 // ── Componente ──────────────────────────────────────────────────────────────
 
 export function Timeline() {
   const {
     personas: personasTodas, proyectos, asignaciones, config, violaciones,
-    clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente,
+    clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente, setTopeParalelo,
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad,
     ordenPersonas, personasOcultas, previsualizacion, modoFilas,
   } = useUIStore()
   const porCuenta = modoFilas === 'cuenta'
+  /**
+   * Cuenta abierta en detalle (una barra por tarea). Es aparte de la selección: hacer clic en
+   * una cuenta abre su panel pero NO la abre en el timeline (Willy, 23/10/2026: "si no te pido
+   * aperturarlo, que no lo apertures"). Se abre solo con el ▸ al lado del nombre.
+   */
+  const [cuentaAbierta, setCuentaAbierta] = useState<string | null>(null)
 
   // Filas que se ven, en el orden elegido por el usuario. Todo el render y la
   // matemática de arrastre vertical trabajan sobre esta lista, no sobre el store.
@@ -348,31 +375,57 @@ export function Timeline() {
       for (const f of filasCuenta) {
         if (f.id === SIN_CUENTA) continue
         const propias = asignaciones.filter(a => a.proyecto_id === f.id && !a.es_bloqueo)
-        const cierres = propias.filter(a => a.tipo === 'Cierre')
-        const expandida = clienteSeleccionado === f.id
+        const hitos = propias.filter(esHito)
         const items: ItemBarra[] = []
-        if (expandida) {
+        if (cuentaAbierta === f.id) {
           for (const a of propias) {
-            if (a.tipo === 'Cierre') continue
-            items.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a })
+            if (esHito(a)) continue
+            items.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a, estilo: estiloDe(a) })
           }
-        } else {
-          for (const tipo of FASES_COMPACTABLES) {
-            const bs = propias.filter(a => a.tipo === tipo)
-            if (!bs.length) continue
-            const inicio = bs.reduce((m, a) => (a.inicio < m ? a.inicio : m), bs[0].inicio)
-            const fin = bs.reduce((m, a) => (a.fin > m ? a.fin : m), bs[0].fin)
-            items.push({
-              id: `${f.id}::${tipo}`, kind: 'fase', tipo, inicio, fin,
-              personaIds: [...new Set(bs.map(a => a.persona_id))], asigIds: bs.map(a => a.id), filaId: f.id,
-            })
+          for (const c of hitos) {
+            items.push({ id: c.id, kind: 'cierre', tipo: 'Cierre', inicio: c.inicio, fin: c.fin, personaIds: [c.persona_id], asigIds: [c.id], filaId: f.id, asig: c })
           }
+          itemsPorFila.set(f.id, items)
+          carrilesDeFila.set(f.id, empacar(items))
+          continue
         }
-        for (const c of cierres) {
-          items.push({ id: c.id, kind: 'cierre', tipo: 'Cierre', inicio: c.inicio, fin: c.fin, personaIds: [c.persona_id], asigIds: [c.id], filaId: f.id, asig: c })
+        // Cerrada: una sola línea. Las fases de implementación sin las tareas de payroll (que
+        // si no estiran el relevamiento y las pruebas), un rombo para la actualización final,
+        // una franja gris rayada para la liquidación en vivo y un filete gris debajo para la
+        // previa y la validación del analista.
+        const rango = (bs: Asignacion[]) => ({
+          inicio: bs.reduce((m, a) => (a.inicio < m ? a.inicio : m), bs[0].inicio),
+          fin: bs.reduce((m, a) => (a.fin > m ? a.fin : m), bs[0].fin),
+        })
+        const deImplementacion = propias.filter(a => !esVivo(a) && !esPayroll(a))
+        for (const tipo of FASES_COMPACTABLES) {
+          const bs = deImplementacion.filter(a => a.tipo === tipo)
+          if (!bs.length) continue
+          items.push({
+            id: `${f.id}::${tipo}`, kind: 'fase', tipo, ...rango(bs),
+            personaIds: [...new Set(bs.map(a => a.persona_id))], asigIds: bs.map(a => a.id), filaId: f.id,
+          })
         }
+        if (hitos.length) {
+          const ultimo = hitos.reduce((m, a) => (a.fin > m.fin ? a : m), hitos[0])
+          items.push({
+            id: `${f.id}::hito`, kind: 'cierre', tipo: 'Cierre', inicio: ultimo.fin, fin: ultimo.fin,
+            personaIds: [...new Set(hitos.map(a => a.persona_id))], asigIds: hitos.map(a => a.id), filaId: f.id, asig: ultimo,
+          })
+        }
+        const vivos = propias.filter(esVivo)
+        if (vivos.length) {
+          items.push({
+            id: `${f.id}::vivo`, kind: 'fase', tipo: vivos[0].tipo, ...rango(vivos), estilo: 'vivo',
+            personaIds: [...new Set(vivos.map(a => a.persona_id))], asigIds: vivos.map(a => a.id), filaId: f.id,
+          })
+        }
+        for (const a of propias.filter(esPayroll)) {
+          items.push({ id: `${f.id}::${a.id}`, kind: 'fase', tipo: a.tipo, inicio: a.inicio, fin: a.fin, estilo: 'payroll', personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a })
+        }
+        for (const it of items) carrilDe.set(it.id, 0)
         itemsPorFila.set(f.id, items)
-        carrilesDeFila.set(f.id, empacar(items))
+        carrilesDeFila.set(f.id, 1)
       }
     }
     // Filas de persona y la fila "Sin cuenta": siempre una barra por asignación.
@@ -380,8 +433,9 @@ export function Timeline() {
       const filaId = porCuenta ? (a.proyecto_id ? null : SIN_CUENTA) : (idsPersonas.has(a.persona_id) ? a.persona_id : SIN_ASIGNAR)
       if (filaId === null) continue
       const item: ItemBarra = {
-        id: a.id, kind: a.tipo === 'Cierre' && !a.es_bloqueo ? 'cierre' : 'barra', tipo: a.tipo,
+        id: a.id, kind: esHito(a) ? 'cierre' : 'barra', tipo: a.tipo,
         inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId, asig: a, esBloqueo: a.es_bloqueo,
+        estilo: a.es_bloqueo ? undefined : estiloDe(a),
       }
       const arr = itemsPorFila.get(filaId)
       if (arr) arr.push(item); else itemsPorFila.set(filaId, [item])
@@ -391,7 +445,7 @@ export function Timeline() {
       carrilesDeFila.set(filaId, empacar(items))
     }
     return { itemsPorFila, carrilDe, carrilesDeFila }
-  }, [porCuenta, filasCuenta, asignaciones, clienteSeleccionado, idsPersonas])
+  }, [porCuenta, filasCuenta, asignaciones, cuentaAbierta, idsPersonas])
 
   /**
    * Dónde empieza y cuánto mide cada fila. Con un solo carril el alto es ROW_H y todo queda
@@ -779,9 +833,11 @@ export function Timeline() {
   // ── dependencias ────────────────────────────────────────────────────────────
 
   const depSegs = useMemo(() => {
-    if (!mostrarDep || !clienteSeleccionado) return []
+    // En modo cuenta las flechas solo tienen sentido con la cuenta abierta: cerrada no hay una barra por tarea.
+    const cuentaDep = porCuenta ? cuentaAbierta : clienteSeleccionado
+    if (!mostrarDep || !cuentaDep) return []
     const segs: { x1: number; y1: number; x2: number; y2: number; viola: boolean }[] = []
-    const fases = asignaciones.filter(a => a.proyecto_id === clienteSeleccionado)
+    const fases = asignaciones.filter(a => a.proyecto_id === cuentaDep)
     const byId  = new Map(asignaciones.map(a => [a.id, a]))
     for (const a of fases) {
       const filaA = filaIdDe(a)
@@ -803,7 +859,7 @@ export function Timeline() {
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
+  }, [mostrarDep, clienteSeleccionado, cuentaAbierta, porCuenta, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
 
   // ── períodos para header ─────────────────────────────────────────────────
 
@@ -917,9 +973,18 @@ export function Timeline() {
                   Carga por {etiquetaZoom}
                 </div>
                 <div style={{ height: BANDA_ROW, background: 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}
-                  title={`Cuentas abiertas a la vez para todo el equipo: cuántas cuentas distintas tienen alguna tarea activa el mismo día. En semana y mes, el número es el máximo de un mismo día. Tope del equipo: ${topeEquipo} (se cambia en el JSON, reglas_calendario.max_cuentas_en_paralelo).`}>
+                  title={`Cuentas abiertas a la vez para todo el equipo: cuántas cuentas distintas tienen alguna tarea activa el mismo día. En semana y mes, el número es el máximo de un mismo día. Tope del equipo: ${topeEquipo} (se cambia con − y +; queda guardado en el plan y se exporta).`}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>En paralelo</span>
-                  <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>tope {topeEquipo}</span>
+                  <span className="num" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9.5, color: 'var(--t2)' }}>
+                    tope
+                    <button type="button" aria-label="Bajar el tope" title="Bajar el tope de cuentas en paralelo"
+                      onMouseDown={e => e.stopPropagation()} onClick={() => setTopeParalelo(topeEquipo - 1)} disabled={topeEquipo <= 1}
+                      style={BTN_TOPE}>−</button>
+                    <span style={{ minWidth: 12, textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{topeEquipo}</span>
+                    <button type="button" aria-label="Subir el tope" title="Subir el tope de cuentas en paralelo"
+                      onMouseDown={e => e.stopPropagation()} onClick={() => setTopeParalelo(topeEquipo + 1)} disabled={topeEquipo >= 20}
+                      style={BTN_TOPE}>+</button>
+                  </span>
                 </div>
                 {bandaFilas.map((f, i) => (
                   <div key={f.persona.id} style={{ height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
@@ -1193,6 +1258,15 @@ export function Timeline() {
                   onClick={() => p && seleccionarCliente(sel ? null : p.id)}
                   style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: NAME_W, height: altoDeFila.get(f.id) ?? ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    {p && (
+                      <button type="button"
+                        aria-label={cuentaAbierta === f.id ? 'Cerrar el detalle por tarea' : 'Abrir el detalle por tarea'}
+                        title={cuentaAbierta === f.id ? 'Cerrar el detalle por tarea' : 'Abrir el detalle: una barra por tarea'}
+                        onClick={e => { e.stopPropagation(); setCuentaAbierta(cuentaAbierta === f.id ? null : f.id) }}
+                        style={{ flexShrink: 0, width: 16, height: 16, padding: 0, border: 'none', background: 'transparent', color: 'var(--t2)', fontSize: 10, cursor: 'pointer', lineHeight: '16px' }}>
+                        {cuentaAbierta === f.id ? '▾' : '▸'}
+                      </button>
+                    )}
                     <span style={{ fontSize: compacta ? 13 : 14.5, fontWeight: 700, color: p ? 'var(--t1)' : 'var(--t3)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.titulo}</span>
                     {tier && (
                       <span style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 700, color: 'var(--t2)', background: 'var(--line-soft)', borderRadius: 9999, padding: '1px 6px' }}>{TIER_LABEL[tier]}</span>
@@ -1261,16 +1335,16 @@ export function Timeline() {
             // ── Cierre: hito de un día, siempre rombo, no se arrastra ──────────────
             if (item.kind === 'cierre') {
               const a = item.asig!
-              const x = dateToX(a.inicio) + pxPerDay / 2
+              const x = dateToX(item.inicio) + pxPerDay / 2
               const y = topBarra(item.filaId, carrilDe.get(item.id) ?? 0) + BAR_H / 2
-              const alias = aliasPorId.get(a.persona_id) ?? a.persona_id
-              const esRojo = barRojo.has(a.id)
+              const alias = item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')
+              const esRojo = item.asigIds.some(id => barRojo.has(id))
               const fill = esRojo ? 'var(--error)' : TIPO_COLOR.Cierre
               return (
                 <div key={item.id}
                   onMouseDown={porCuenta ? e => e.stopPropagation() : undefined}
                   onClick={porCuenta ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
-                  title={`${nombreTarea(a)} · ${alias}\n${a.inicio} → ${a.fin}`}
+                  title={item.asigIds.length > 1 ? `Actualización final · ${alias}\nhasta ${item.fin}` : `${nombreTarea(a)} · ${alias}\n${a.inicio} → ${a.fin}`}
                   style={{
                     position: 'absolute', left: x - HITO_R, top: y - HITO_R, width: HITO_R * 2, height: HITO_R * 2,
                     background: fill, transform: 'rotate(45deg)', borderRadius: 3,
@@ -1287,7 +1361,14 @@ export function Timeline() {
               top: topBarra(item.filaId, carrilDe.get(item.id) ?? 0),
             }
             const esRojoItem = item.asigIds.some(id => barRojo.has(id))
-            const fill = esRojoItem ? 'var(--error)' : TIPO_COLOR[item.tipo]
+            const fill = esRojoItem ? 'var(--error)'
+              : item.estilo === 'vivo' ? FONDO_VIVO
+              : item.estilo === 'payroll' ? FONDO_PAYROLL
+              : TIPO_COLOR[item.tipo]
+            // Cerrada, la tarea del analista es un filete gris debajo de la línea: no tapa las pruebas.
+            const filete = item.kind === 'fase' && item.estilo === 'payroll'
+            const altoBarra = filete ? 5 : BAR_H
+            const topItem = filete ? g.top + BAR_H + 2 : g.top
             const ring = item.kind === 'barra' && !item.esBloqueo && mostrarConflictos ? ringDe(item.asig!) : null
             const boxShadow = ring === 'rojo' ? '0 0 0 2px var(--error)'
               : ring === 'ambar' ? '0 0 0 2px var(--warn)'
@@ -1300,7 +1381,11 @@ export function Timeline() {
 
             let texto = ''
             let monograma: string | null = null
-            if (item.kind === 'fase') {
+            if (filete) {
+              texto = ''
+            } else if (item.kind === 'fase' && item.estilo === 'vivo') {
+              texto = textoDeBarra(['En vivo', ''], g.width, fontSize, false)
+            } else if (item.kind === 'fase') {
               const iniciales = item.personaIds.map(pid => inicialesDe(aliasPorId.get(pid) ?? pid))
               texto = textoDeBarra([`${TIPO_LABEL[item.tipo]} · ${iniciales.join(' ')}`, iniciales.join(' ')], g.width, fontSize, false)
             } else if (item.esBloqueo) {
@@ -1308,7 +1393,9 @@ export function Timeline() {
             } else {
               const alias = aliasPorId.get(item.personaIds[0]) ?? item.personaIds[0]
               monograma = inicialesDe(alias)
-              const tarea = nombreTarea(item.asig!)
+              const tarea = item.estilo === 'vivo' ? 'En vivo'
+                : item.estilo === 'payroll' ? (item.asig!._fase === 'Payroll previa' ? 'Previa' : 'Validación')
+                : nombreTarea(item.asig!)
               const proyecto = item.asig!.proyecto_id ? proyectoPorId.get(item.asig!.proyecto_id) : null
               const variantes = porCuenta
                 ? [tarea]
@@ -1316,7 +1403,12 @@ export function Timeline() {
               texto = textoDeBarra([...variantes, ''], g.width, fontSize, g.width >= 22)
             }
 
-            const title = item.kind === 'fase'
+            const quienes = item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')
+            const title = item.estilo === 'vivo' && item.kind === 'fase'
+              ? `Primera liquidación en vivo · ${quienes}\n${item.inicio} → ${item.fin}`
+              : filete
+              ? `${item.asig?._tarea ?? (item.asig?._fase === 'Payroll previa' ? 'Payroll: previa con el cliente' : 'Payroll: validación con el cliente')} · ${quienes}\n${item.inicio} → ${item.fin}`
+              : item.kind === 'fase'
               ? `${TIPO_LABEL[item.tipo]} de ${proyectoPorId.get(item.filaId)?.nombre ?? item.filaId} · ${item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')}\n${item.inicio} → ${item.fin} · clic para ver el detalle`
               : `${item.esBloqueo ? (item.asig!._nombre ?? item.tipo) : nombreTarea(item.asig!)} · ${aliasPorId.get(item.asig!.persona_id) ?? item.asig!.persona_id}\n${item.asig!.inicio} → ${item.asig!.fin} · ${item.asig!.duracion_dias} días hábiles${item.esBloqueo ? (item.tipo === 'Vacaciones' ? '\nArrastrar mueve las vacaciones · borde derecho = estirar o achicar · también se editan en 👥 Equipo' : '') : (modoMovimiento === 'estricto'
                 ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
@@ -1328,11 +1420,12 @@ export function Timeline() {
                 onClick={item.kind === 'fase' ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
                 title={title}
                 style={{
-                  position: 'absolute', left: g.left, top: g.top, width: g.width, height: BAR_H,
-                  background: fill, borderRadius: BAR_H > 34 ? 8 : 6, display: 'flex',
+                  position: 'absolute', left: g.left, top: topItem, width: g.width, height: altoBarra,
+                  background: fill, borderRadius: filete ? 3 : BAR_H > 34 ? 8 : 6, display: 'flex',
+                  border: item.estilo === 'vivo' && !esRojoItem ? '1px solid var(--t3)' : undefined, boxSizing: 'border-box',
                   alignItems: 'center', justifyContent: angosta && !monograma ? 'center' : 'flex-start', gap: 5,
                   paddingLeft: padX, paddingRight: padX,
-                  overflow: 'hidden', fontSize, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
+                  overflow: 'hidden', fontSize, color: item.estilo === 'vivo' && !esRojoItem ? 'var(--t1)' : '#fff', fontWeight: 600, whiteSpace: 'nowrap',
                   boxShadow, cursor: item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
                   opacity: item.tipo === 'Vacaciones' ? (atenuada ? 0.45 : 0.92) : item.esBloqueo ? (atenuada ? 0.25 : 0.55)
                     : enPrevisualizacion ? 0.22

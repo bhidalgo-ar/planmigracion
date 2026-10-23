@@ -327,6 +327,8 @@ interface SimuladorState {
   addProyecto: (nombre: string, inicio: string) => string
   removeProyecto: (id: string) => void
   renameProyecto: (id: string, nombre: string) => void
+  /** Cambia el tope de cuentas abiertas a la vez del equipo (`reglas_calendario.max_cuentas_en_paralelo`) y recalcula. */
+  setTopeParalelo: (n: number) => void
   clearAsignaciones: () => void
   shiftAccountDias: (proyectoId: string, dias: number) => void
   shiftCascadaDias: (asignacionId: string, dias: number, nuevaPersona?: string) => void
@@ -765,6 +767,21 @@ export const useSimuladorStore = create<SimuladorState>()(
       },
 
       // Renombra el nombre comercial de la cuenta. El id se mantiene estable.
+      setTopeParalelo(n) {
+        const tope = Math.max(1, Math.min(20, Math.round(n)))
+        set(state => {
+          const config: Config = {
+            ...state.config,
+            reglas_calendario: { ...state.config.reglas_calendario, max_cuentas_en_paralelo: tope },
+          }
+          return {
+            ...conHistorial(state),
+            config,
+            violaciones: recompute(state.asignaciones, state.personas, config, state.proyectos),
+          }
+        })
+      },
+
       renameProyecto(id, nombre) {
         const nombreLimpio = nombre.trim()
         if (!nombreLimpio) return
