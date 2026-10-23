@@ -11,7 +11,7 @@ export const TIPO_COLOR: Record<TipoFase, string> = {
   Configuracion: 'var(--fase-config)',
   Pruebas: 'var(--fase-pruebas)',
   Cierre: 'var(--fase-cierre)',
-  Vacaciones: 'var(--fase-bloqueo)',
+  Vacaciones: 'var(--vacaciones)',
 }
 
 export const TIPO_LABEL: Record<TipoFase, string> = {

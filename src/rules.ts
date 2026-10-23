@@ -6,6 +6,7 @@ import { nombreTarea } from './tareas'
 import {
   cargaMensual, cargaSemanal, mesSalidaDe, salidasFueraDelPlan, ultimoDiaDelMes,
 } from './capacidad'
+import { cuentasPorDia, mesesPasadosDeTope, topeParalelo } from './paralelo'
 
 /**
  * Motor de reglas del programa (brief 10/09/2026 §4-A4). Seis reglas, todas con mensajes
@@ -19,6 +20,7 @@ import {
  *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta, o una
  *                       barra arranca antes de lo que permite su predecesora declarada
  *  vacaciones    rojo   una fase cae sobre las vacaciones de quien la hace
+ *  paralelo      rojo   más cuentas abiertas a la vez que el tope del equipo (`max_cuentas_en_paralelo`)
  *
  * Lo que NO es conflicto: dos personas configurando la misma cuenta a la vez, o una persona
  * en dos cuentas la misma semana con dedicación parcial. El solapamiento es el modelo; lo que
@@ -461,6 +463,25 @@ export function checkVacaciones(asignaciones: Asignacion[], personas: Persona[],
   return out
 }
 
+// ── cuentas en paralelo ──────────────────────────────────────────────────────────
+
+/**
+ * Regla dura del equipo (Willy, 23/10/2026): no más de `max_cuentas_en_paralelo` cuentas
+ * abiertas el mismo día (default 4). Una violación por mes, con el día pico y las cuentas
+ * de ese día. No se cuelga de una fase: el problema es el conjunto.
+ */
+export function checkParalelo(asignaciones: Asignacion[], config: Config, proyectos: Proyecto[]): Violacion[] {
+  const tope = topeParalelo(config)
+  const porDia = cuentasPorDia(asignaciones, feriadosDeConfig(config))
+  return mesesPasadosDeTope(porDia, tope).map(t => ({
+    tipo: 'paralelo' as const,
+    asignacion_id: '',
+    mes: t.mes,
+    mensaje: `${nombreMes(t.mes)}: ${t.max} cuentas abiertas a la vez el ${ddmm(t.diaPico)} (${t.cuentas.map(id => nombreCuenta(id, proyectos, id)).join(', ')}). El tope del equipo es ${tope}${t.dias > 1 ? `; se pasa ${t.dias} días hábiles del mes` : ''}.`,
+    severidad: 'rojo' as const,
+  }))
+}
+
 export function computeViolaciones(
   asignaciones: Asignacion[],
   personas: Persona[],
@@ -473,6 +494,7 @@ export function computeViolaciones(
     ...checkPredecesoras(asignaciones, proyectos, config),
     ...checkMargenYBlackout(asignaciones, config, proyectos),
     ...checkTopeSalidas(asignaciones, config, proyectos),
+    ...checkParalelo(asignaciones, config, proyectos),
     ...checkCargaMensual(asignaciones, personas, config, proyectos),
     ...checkCargaSemanal(asignaciones, personas, config),
   ]

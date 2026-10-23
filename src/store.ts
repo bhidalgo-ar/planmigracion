@@ -309,6 +309,8 @@ interface SimuladorState {
    * mes y de la semana, y una fase que las pise dispara la regla `vacaciones`.
    */
   addVacaciones: (personaId: string, inicio: string, fin: string) => { ok: boolean; motivo?: string }
+  /** Cambia las fechas de unas vacaciones ya cargadas (23/10/2026: antes solo se podían borrar y volver a cargar). */
+  updateVacaciones: (id: string, inicio: string, fin: string) => { ok: boolean; motivo?: string }
   /** Borra una asignación por id (hoy se usa para las vacaciones). */
   removeAsignacion: (id: string) => void
   /**
@@ -549,6 +551,26 @@ export const useSimuladorStore = create<SimuladorState>()(
             es_bloqueo: true, _nombre: 'Vacaciones',
           }
           const asignaciones = [...state.asignaciones, nueva]
+          return {
+            ...conHistorial(state),
+            asignaciones,
+            violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return salida
+      },
+
+      updateVacaciones(id, inicio, fin) {
+        if (!inicio || !fin) return { ok: false, motivo: 'Faltan las fechas.' }
+        if (fin < inicio) return { ok: false, motivo: 'La fecha de fin es anterior a la de inicio.' }
+        let salida: { ok: boolean; motivo?: string } = { ok: true }
+        set(state => {
+          const actual = state.asignaciones.find(a => a.id === id)
+          if (!actual || actual.tipo !== 'Vacaciones') { salida = { ok: false, motivo: 'Esas vacaciones ya no están en el plan.' }; return {} }
+          const feriados = feriadosDeConfig(state.config)
+          const asignaciones = state.asignaciones.map(a => a.id === id
+            ? { ...a, inicio, fin, duracion_dias: diasHabiles(inicio, fin, feriados) }
+            : a)
           return {
             ...conHistorial(state),
             asignaciones,
