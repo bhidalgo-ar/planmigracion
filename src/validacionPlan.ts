@@ -18,7 +18,7 @@ const PersonaSchema = z.object({
   id: z.string().min(1),
   alias: z.string().min(1),
   skills: z.array(z.string()).default([]),
-  rol: z.enum(['relevamiento', 'configuracion', 'pruebas']).nullable().optional(),
+  rol: z.enum(['relevamiento', 'configuracion', 'pruebas', 'payroll']).nullable().optional(),
   capacidad_horas_semana: z.number().default(40),
   buffer_pct: z.number().default(0),
   horas_dia: z.number().positive().optional(),

@@ -47,6 +47,8 @@ html, body, #root {
                                     navy contra el cyan #00ACD4 de config, distinto en tono y en
                                     luminosidad; no se eligio otro verde para no repetir el
                                     problema de "dos verdes casi iguales" de los trimestres. */
+  --vacaciones:      #C2408A;   /* vacaciones (23/10/2026): color propio, distinto de fases y de estados */
+  --vacaciones-tint: rgba(194,64,138,0.11);
   --fase-bloqueo: var(--gris);   /* #8C837B, unifica los #bbb/#999 inconsistentes */
   --tasa:         #7B2FBE;       /* badge de cuenta especial (Toyota/TASA); token propio */
 
@@ -126,6 +128,8 @@ html, body, #root {
   --sh-celeste: 0 8px 28px rgba(31,190,224,0.22);
 
   /* Pasos de gráfico elegidos para el fondo oscuro (no es un flip del claro). */
+  --vacaciones:      #E36BAE;
+  --vacaciones-tint: rgba(227,107,174,0.16);
   --viz-relev:   #9D5FD8;
   --viz-config:  #19A0C1;
   --viz-vivo:    #2FA35A;

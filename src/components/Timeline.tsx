@@ -14,6 +14,7 @@ import { tierDe, TIER_LABEL } from '../insightsEquipo'
 import { margenesPorCuenta, predecesoraViolada } from '../rules'
 import { nombreTarea } from '../tareas'
 import { getMondayOfWeek, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
+import { celdasParalelo, cuentasPorDia, estadoParalelo, topeParalelo } from '../paralelo'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -106,10 +107,12 @@ interface DragState {
   dd: number        // días desplazados (snapshot; múltiplo de snapDays)
   persona: string
   cascada?: Set<string>   // ids que se mueven en bloque (solo en mode 'cascade')
+  /** Vacaciones: se mueven y se estiran en el tiempo, pero no cambian de persona. */
+  soloTiempo?: boolean
 }
 
 const ROL_LABEL: Record<string, string> = {
-  relevamiento: 'RELEV.', configuracion: 'CONFIG.', pruebas: 'PRUEBAS',
+  relevamiento: 'RELEV.', configuracion: 'CONFIG.', pruebas: 'PRUEBAS', payroll: 'PAYROLL',
 }
 
 /** Las tres fases que se compactan en una sola barra por fase cuando la cuenta no está
@@ -439,7 +442,10 @@ export function Timeline() {
   // Carga semanal de todas las personas con fases: la usan la banda (modo cuenta) y la curva
   // de ocupación de fondo (modo persona). Un solo cálculo para las dos vistas.
   const cargaSemanalTodas = useMemo(() => {
-    const conFases = personasTodas.filter(p => asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
+    // Los analistas de payroll (rol 'payroll') quedan afuera de la banda: su disponibilidad para
+    // migración no está relevada, así que su % no dice nada todavía (23/10/2026). Sus tareas sí
+    // se ven en el Gantt y sus cuentas cuentan en "En paralelo".
+    const conFases = personasTodas.filter(p => p.rol !== 'payroll' && asignaciones.some(a => a.persona_id === p.id && !a.es_bloqueo))
     return { personas: conFases, semanas: cargaSemanal(conFases, asignaciones, config) }
   }, [personasTodas, asignaciones, config])
 
@@ -481,7 +487,21 @@ export function Timeline() {
       return { persona: p, celdas, capSemana: actual?.capacidad ?? 0 }
     })
   }, [porCuenta, zoom, cargaSemanalTodas, cargaDiariaTodas, asigProyecto])
-  const bandaH = porCuenta && bandaFilas.length ? BANDA_HDR + bandaFilas.length * BANDA_ROW : 0
+  // Cuentas abiertas a la vez para TODO el equipo (Willy, 23/10/2026), una celda por día,
+  // semana o mes según el zoom. Va como primera fila de la banda, arriba de las personas.
+  const topeEquipo = topeParalelo(config)
+  const paraleloCeldas = useMemo(() => {
+    if (!porCuenta) return []
+    return celdasParalelo(cuentasPorDia(asignaciones, feriados), zoom === 'dias' ? 'dias' : zoom === 'semanas' ? 'semanas' : 'meses')
+  }, [porCuenta, asignaciones, feriados, zoom])
+  // Vacaciones por persona: se pintan en la banda (en la fila de cada uno) y como franja en el Gantt.
+  const vacaciones = useMemo(
+    () => asignaciones.filter(a => a.tipo === 'Vacaciones').sort((a, b) => a.inicio.localeCompare(b.inicio)),
+    [asignaciones],
+  )
+  /** Filas de la banda antes de las personas: la de cuentas en paralelo. */
+  const FILAS_EQUIPO = 1
+  const bandaH = porCuenta && bandaFilas.length ? BANDA_HDR + (FILAS_EQUIPO + bandaFilas.length) * BANDA_ROW : 0
 
   // barras que se pintan enteras de rojo: la fase en sí rompe una regla del calendario
   // (pruebas antes de cerrar la configuración, poco margen al corte, configuración en blackout)
@@ -552,7 +572,7 @@ export function Timeline() {
       // En modo cuenta las filas son cuentas: arrastrar en vertical no reasigna a nadie.
       // Dividir por ROW_H vale porque acá las filas son de personas y todas miden igual: los
       // carriles de alto variable existen solo en modo cuenta, que esta rama no atiende.
-      if (drag!.mode !== 'resize' && rowsRef.current && !porCuenta) {
+      if (drag!.mode !== 'resize' && !drag!.soloTiempo && rowsRef.current && !porCuenta) {
         const rect = rowsRef.current.getBoundingClientRect()
         const idx = Math.max(0, Math.min(personas.length - 1, Math.floor((e.clientY - rect.top) / ROW_H)))
         persona = personas[idx]?.id ?? persona
@@ -603,14 +623,17 @@ export function Timeline() {
   }
 
   function onBarDown(e: React.MouseEvent, a: Asignacion, mode: DragMode) {
-    if (a.es_bloqueo) return
+    // Los bloqueos no se arrastran, salvo las vacaciones (23/10/2026: pueden no estar
+    // confirmadas y hay que poder correrlas o estirarlas sin borrarlas y volver a cargarlas).
+    const esVacaciones = a.tipo === 'Vacaciones'
+    if (a.es_bloqueo && !esVacaciones) return
     if (e.button !== 0) return   // botón medio → deja pasar el pan del fondo
     e.preventDefault(); e.stopPropagation()
     // Modo estricto = arrastra esta fase y las SIGUIENTES de la cuenta (no las anteriores).
     // Shift invierte el modo puntualmente.
     const estricto = modoMovimiento === 'estricto'
     const enCascada = estricto ? !e.shiftKey : e.shiftKey
-    const cascadeMode = mode !== 'resize' && enCascada && !!a.proyecto_id
+    const cascadeMode = mode !== 'resize' && enCascada && !!a.proyecto_id && !esVacaciones
     let cascada: Set<string> | undefined
     let minDay: number | undefined
     if (cascadeMode) {
@@ -627,6 +650,7 @@ export function Timeline() {
       origInicio: a.inicio, origFin: a.fin, origDur: a.duracion_dias,
       origPersona: a.persona_id, minDay, dd: 0, persona: a.persona_id,
       cascada,
+      soloTiempo: esVacaciones,
     })
   }
 
@@ -892,6 +916,11 @@ export function Timeline() {
                   title="Horas planificadas contra la capacidad de cada persona. Verde: por debajo del 85 % de su capacidad. Ámbar: entre el 85 % y el 100 %. Rojo: se pasa. A nivel Mes, el número es el promedio de las semanas y el ⚠ avisa si alguna se pasó aunque el promedio no lo diga.">
                   Carga por {etiquetaZoom}
                 </div>
+                <div style={{ height: BANDA_ROW, background: 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}
+                  title={`Cuentas abiertas a la vez para todo el equipo: cuántas cuentas distintas tienen alguna tarea activa el mismo día. En semana y mes, el número es el máximo de un mismo día. Tope del equipo: ${topeEquipo} (se cambia en el JSON, reglas_calendario.max_cuentas_en_paralelo).`}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>En paralelo</span>
+                  <span className="num" style={{ fontSize: 9.5, color: 'var(--t2)' }}>tope {topeEquipo}</span>
+                </div>
                 {bandaFilas.map((f, i) => (
                   <div key={f.persona.id} style={{ height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>{f.persona.alias}</span>
@@ -901,9 +930,43 @@ export function Timeline() {
               </div>
               <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, width: bodyW - NAME_W, height: BANDA_HDR, background: 'var(--paper)', borderBottom: '1px solid var(--line-soft)' }} />
+                <div style={{ position: 'absolute', top: BANDA_HDR, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: 'var(--white)', borderBottom: '1px solid var(--line)' }} />
                 {bandaFilas.map((f, i) => (
-                  <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + i * BANDA_ROW, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
+                  <div key={f.persona.id} style={{ position: 'absolute', top: BANDA_HDR + (FILAS_EQUIPO + i) * BANDA_ROW, left: 0, width: bodyW - NAME_W, height: BANDA_ROW, background: i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
                 ))}
+                {/* Vacaciones en la fila de cada persona: el hueco sin círculos se explica solo. */}
+                {bandaFilas.map((f, i) => vacaciones.filter(v => v.persona_id === f.persona.id).map(v => {
+                  const x1 = dateToX(v.inicio) - NAME_W
+                  const w = dateToX(v.fin) + pxPerDay - dateToX(v.inicio)
+                  if (x1 + w < 0 || x1 > bodyW) return null
+                  return (
+                    <div key={`vac-${v.id}`} title={`${f.persona.alias} de vacaciones: ${formatFechaCorta(v.inicio)} → ${formatFechaCorta(v.fin)} · ${v.duracion_dias} días hábiles`}
+                      style={{ position: 'absolute', left: x1, width: w, top: BANDA_HDR + (FILAS_EQUIPO + i) * BANDA_ROW + 4, height: BANDA_ROW - 8, zIndex: 2,
+                        background: 'var(--vacaciones-tint)', border: '1px dashed var(--vacaciones)', borderRadius: 6,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {w > 64 && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--vacaciones)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>vacaciones</span>}
+                    </div>
+                  )
+                }))}
+                {/* Cuentas en paralelo del equipo: número adentro, color contra el tope. */}
+                {paraleloCeldas.map(c => {
+                  const x1 = dateToX(c.fecha) - NAME_W
+                  const w = anchoCelda(c.fecha)
+                  if (x1 + w < -1 || x1 > bodyW) return null
+                  const est = estadoParalelo(c.max, topeEquipo)
+                  const color = est === 'pasado' ? 'var(--error)' : est === 'tope' ? 'var(--warn)' : 'var(--celeste-dark)'
+                  const top = BANDA_HDR + (BANDA_ROW - BANDA_DOT) / 2
+                  const nombres = c.cuentas.map(id => proyectoPorId.get(id)?.nombre ?? id).join(', ')
+                  return (
+                    <div key={`par-${c.fecha}`}
+                      title={`${etiquetaCelda(c.fecha)}: ${c.max} cuenta${c.max !== 1 ? 's' : ''} abierta${c.max !== 1 ? 's' : ''} a la vez${zoom === 'dias' ? '' : ` (pico el ${formatFechaCorta(c.diaPico)})`}\n${nombres}\nTope del equipo: ${topeEquipo}`}
+                      style={{ position: 'absolute', left: x1 + w / 2 - BANDA_DOT / 2, top, width: BANDA_DOT, height: BANDA_DOT, borderRadius: 6, zIndex: 3,
+                        background: est === 'ok' ? 'var(--white)' : color, border: `1.5px solid ${color}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span className="num" style={{ fontSize: 10, lineHeight: 1, fontWeight: 800, color: est === 'ok' ? color : '#fff' }}>{c.max}</span>
+                    </div>
+                  )
+                })}
                 {gridLines.map((p, i) => (
                   <div key={i} style={{ position: 'absolute', top: 0, left: dateToXd(p) - NAME_W, height: bandaH, borderLeft: '1px solid var(--line-soft)', zIndex: 1, pointerEvents: 'none' }} />
                 ))}
@@ -915,7 +978,7 @@ export function Timeline() {
                   if (x1 + w < -1 || x1 > bodyW) return null
                   const pct = pctDeCarga(c.horas, c.capacidad)
                   const estado = estadoDeCarga(c.horas, c.capacidad)
-                  const top = BANDA_HDR + i * BANDA_ROW + (BANDA_ROW - BANDA_DOT) / 2
+                  const top = BANDA_HDR + (FILAS_EQUIPO + i) * BANDA_ROW + (BANDA_ROW - BANDA_DOT) / 2
                   const left = x1 + w / 2 - BANDA_DOT / 2
                   // Atribución por cuenta, a demanda: antes vivía solo en el title; ahora
                   // además un clic abre el detalle completo (Opción B del mockup, 22/09/2026).
@@ -985,6 +1048,28 @@ export function Timeline() {
           {filas.map((f, i) => (
             <div key={f.id} style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: bodyW, height: altoDeFila.get(f.id) ?? ROW_H, background: porCuenta && clienteSeleccionado === f.id ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
           ))}
+
+          {/* Vacaciones: franja de color sobre el Gantt para ver qué cuentas caen encima. En modo
+              cuenta cruza todas las filas; en modo persona, solo la fila de quien se va. */}
+          {vacaciones.map((v, k) => {
+            const x0 = dateToX(v.inicio), x1 = dateToX(v.fin) + pxPerDay
+            if (x1 <= NAME_W || x0 >= bodyW) return null
+            const enFila = !porCuenta && topDeFila.has(v.persona_id)
+            const top = enFila ? (topDeFila.get(v.persona_id) ?? 0) : 0
+            const alto = enFila ? (altoDeFila.get(v.persona_id) ?? ROW_H) : bodyH
+            const alias = aliasPorId.get(v.persona_id) ?? v.persona_id
+            const solapadas = vacaciones.slice(0, k).filter(o => o.inicio <= v.fin && o.fin >= v.inicio).length
+            return (
+              <div key={`vacfr-${v.id}`} style={{ position: 'absolute', top, left: Math.max(x0, NAME_W), width: Math.min(x1, bodyW) - Math.max(x0, NAME_W), height: alto, zIndex: 1, pointerEvents: 'none',
+                background: 'var(--vacaciones-tint)', borderLeft: '1.5px dashed var(--vacaciones)', borderRight: '1.5px dashed var(--vacaciones)' }}>
+                {porCuenta && (
+                  <span style={{ position: 'absolute', top: 3 + solapadas * 16, left: 2, maxWidth: 'calc(100% - 4px)', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 9.5, fontWeight: 700, color: '#fff', background: 'var(--vacaciones)', borderRadius: 4, padding: '1px 4px', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>
+                    {alias}
+                  </span>
+                )}
+              </div>
+            )
+          })}
 
           {/* blackout de configuración: contexto de por qué una barra de Configuración da roja */}
           {blackout && blackout.length === 2 && (() => {
@@ -1233,13 +1318,13 @@ export function Timeline() {
 
             const title = item.kind === 'fase'
               ? `${TIPO_LABEL[item.tipo]} de ${proyectoPorId.get(item.filaId)?.nombre ?? item.filaId} · ${item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')}\n${item.inicio} → ${item.fin} · clic para ver el detalle`
-              : `${item.esBloqueo ? (item.asig!._nombre ?? item.tipo) : nombreTarea(item.asig!)} · ${aliasPorId.get(item.asig!.persona_id) ?? item.asig!.persona_id}\n${item.asig!.inicio} → ${item.asig!.fin} · ${item.asig!.duracion_dias} días hábiles${item.esBloqueo ? '' : (modoMovimiento === 'estricto'
+              : `${item.esBloqueo ? (item.asig!._nombre ?? item.tipo) : nombreTarea(item.asig!)} · ${aliasPorId.get(item.asig!.persona_id) ?? item.asig!.persona_id}\n${item.asig!.inicio} → ${item.asig!.fin} · ${item.asig!.duracion_dias} días hábiles${item.esBloqueo ? (item.tipo === 'Vacaciones' ? '\nArrastrar mueve las vacaciones · borde derecho = estirar o achicar · también se editan en 👥 Equipo' : '') : (modoMovimiento === 'estricto'
                 ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
                 : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`
 
             return (
               <div key={item.id}
-                onMouseDown={item.kind === 'barra' && !item.esBloqueo ? e => onBarDown(e, item.asig!, 'phase') : porCuenta ? e => e.stopPropagation() : undefined}
+                onMouseDown={item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? e => onBarDown(e, item.asig!, 'phase') : porCuenta ? e => e.stopPropagation() : undefined}
                 onClick={item.kind === 'fase' ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
                 title={title}
                 style={{
@@ -1248,8 +1333,8 @@ export function Timeline() {
                   alignItems: 'center', justifyContent: angosta && !monograma ? 'center' : 'flex-start', gap: 5,
                   paddingLeft: padX, paddingRight: padX,
                   overflow: 'hidden', fontSize, color: '#fff', fontWeight: 600, whiteSpace: 'nowrap',
-                  boxShadow, cursor: item.kind === 'barra' && !item.esBloqueo ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
-                  opacity: item.esBloqueo ? (atenuada ? 0.25 : 0.55)
+                  boxShadow, cursor: item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
+                  opacity: item.tipo === 'Vacaciones' ? (atenuada ? 0.45 : 0.92) : item.esBloqueo ? (atenuada ? 0.25 : 0.55)
                     : enPrevisualizacion ? 0.22
                     : (atenuada ? 0.38 : 1),
                   zIndex: arrastrando ? 15 : item.kind === 'fase' ? 9 : 10,
@@ -1263,7 +1348,7 @@ export function Timeline() {
                   }}>{monograma}</span>
                 )}
                 {texto && <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{texto}</span>}
-                {item.kind === 'barra' && !item.esBloqueo && (
+                {item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') && (
                   <div onMouseDown={e => onBarDown(e, item.asig!, 'resize')}
                     style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
                 )}

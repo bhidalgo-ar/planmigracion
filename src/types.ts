@@ -1,7 +1,11 @@
 export type TipoFase = 'Relevamiento' | 'Configuracion' | 'Pruebas' | 'Cierre' | 'Vacaciones'
 
 /** Clasificación del recurso. Opcional: null/undefined = "sin clasificar" (se completa a mano). */
-export type RolPersona = 'relevamiento' | 'configuracion' | 'pruebas'
+/**
+ * `payroll` (23/10/2026): analistas de payroll que entran al plan con sus tareas con el cliente
+ * (previa, validación después del paralelo, primera liquidación en los dos sistemas).
+ */
+export type RolPersona = 'relevamiento' | 'configuracion' | 'pruebas' | 'payroll'
 
 export interface Persona {
   id: string
@@ -151,6 +155,11 @@ export interface Config {
      * Pruebas corren en paralelo con este desfasaje (v12, `_modelo_barras`). Default 2.
      */
     desfasaje_pruebas_habiles?: number
+    /**
+     * Máximo de cuentas abiertas a la vez para todo el equipo (Willy, 23/10/2026). Una cuenta
+     * está abierta un día si tiene alguna barra activa (no bloqueo). Default 4. Ver `src/paralelo.ts`.
+     */
+    max_cuentas_en_paralelo?: number
     _nota?: string
   }
   /** Modelo de capacidad (brief 10/09/2026 §2). Ver `src/capacidad.ts`. */
@@ -284,8 +293,9 @@ export type SeveridadViolacion = 'rojo' | 'ambar' | 'info'
  *  blackout      una Configuración toca el blackout de fin de año
  *  dependencia   Pruebas arranca antes de que cierre la Configuración de su cuenta
  *  vacaciones    una fase cae sobre las vacaciones de quien la hace (rojo)
+ *  paralelo      más cuentas abiertas a la vez que el tope del equipo (rojo)
  */
-export type TipoRegla = 'carga_mes' | 'carga_semana' | 'tope_salidas' | 'margen' | 'blackout' | 'dependencia' | 'vacaciones'
+export type TipoRegla = 'carga_mes' | 'carga_semana' | 'tope_salidas' | 'margen' | 'blackout' | 'dependencia' | 'vacaciones' | 'paralelo'
 
 export interface Violacion {
   tipo: TipoRegla

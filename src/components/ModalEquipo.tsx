@@ -11,11 +11,12 @@ const ROLES: { value: RolPersona | ''; label: string }[] = [
   { value: 'relevamiento', label: 'Relev.' },
   { value: 'configuracion', label: 'Config.' },
   { value: 'pruebas', label: 'Pruebas' },
+  { value: 'payroll', label: 'Payroll' },
 ]
-const ROL_LABEL: Record<string, string> = { relevamiento: 'Relevamiento', configuracion: 'Configuración', pruebas: 'Pruebas' }
+const ROL_LABEL: Record<string, string> = { relevamiento: 'Relevamiento', configuracion: 'Configuración', pruebas: 'Pruebas', payroll: 'Payroll' }
 
 export function ModalEquipo() {
-  const { personas, asignaciones, config, proyectos, addPersona, removePersona, renamePersona, addVacaciones, removeAsignacion, traspasarFases } = useSimuladorStore()
+  const { personas, asignaciones, config, proyectos, addPersona, removePersona, renamePersona, addVacaciones, updateVacaciones, removeAsignacion, traspasarFases } = useSimuladorStore()
   const cerrarModal = useUIStore(s => s.cerrarModal)
   // Traspaso en bloque: de quién, a quién, qué tipo de fase y desde qué mes.
   const [tr, setTr] = useState<{ origen: string; destino: string; tipo: TipoFase | ''; desdeMes: string }>({ origen: '', destino: '', tipo: '', desdeMes: '' })
@@ -39,6 +40,16 @@ export function ModalEquipo() {
   const [editAlias, setEditAlias] = useState('')
   // Formulario de vacaciones abierto (una persona a la vez).
   const [vacForm, setVacForm] = useState<{ personaId: string; desde: string; hasta: string } | null>(null)
+
+  // Vacaciones en edición (una a la vez): cambiar fechas sin borrar y volver a cargar.
+  const [vacEdit, setVacEdit] = useState<{ id: string; desde: string; hasta: string } | null>(null)
+  function guardarVacaciones() {
+    if (!vacEdit) return
+    const r = updateVacaciones(vacEdit.id, vacEdit.desde, vacEdit.hasta)
+    if (!r.ok) { setError(r.motivo ?? 'No se pudieron cambiar las vacaciones.'); return }
+    setError(null)
+    setVacEdit(null)
+  }
 
   function confirmarVacaciones() {
     if (!vacForm) return
@@ -169,12 +180,24 @@ export function ModalEquipo() {
             </div>
             {/* Vacaciones: bloqueos que restan capacidad y ponen en rojo la fase que las pise. */}
             <div style={{ padding: '0 10px 8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {vacs.map(v => (
+              {vacs.map(v => vacEdit?.id === v.id ? (
+                <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--vacaciones)', flexShrink: 0 }} />
+                  <input type="date" aria-label="Vacaciones desde" value={vacEdit.desde} onChange={e => setVacEdit({ ...vacEdit, desde: e.target.value })} style={{ ...inp, padding: '4px 7px', fontSize: 12 }} />
+                  <span style={{ fontSize: 11, color: 'var(--t3)' }}>→</span>
+                  <input type="date" aria-label="Vacaciones hasta" value={vacEdit.hasta} min={vacEdit.desde || undefined} onChange={e => setVacEdit({ ...vacEdit, hasta: e.target.value })} style={{ ...inp, padding: '4px 7px', fontSize: 12 }} />
+                  <button onClick={guardarVacaciones} disabled={!vacEdit.desde || !vacEdit.hasta}
+                    style={{ ...addBtn, padding: '5px 12px', fontSize: 11.5, opacity: vacEdit.desde && vacEdit.hasta ? 1 : 0.5 }}>Guardar</button>
+                  <button onClick={() => setVacEdit(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 11.5 }}>Cancelar</button>
+                </div>
+              ) : (
                 <div key={v.id} className="num" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--t2)' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--fase-bloqueo)', flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--vacaciones)', flexShrink: 0 }} />
                   <span>Vacaciones {formatFechaCorta(v.inicio)} → {formatFechaCorta(v.fin)} · {v.duracion_dias} hábil{v.duracion_dias !== 1 ? 'es' : ''}</span>
+                  <button onClick={() => setVacEdit({ id: v.id, desde: v.inicio, hasta: v.fin })} title="Cambiar las fechas"
+                    style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t2)', fontSize: 12 }}>✏️</button>
                   <button onClick={() => removeAsignacion(v.id)} title="Quitar estas vacaciones"
-                    style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 14 }}>×</button>
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--t3)', fontSize: 14 }}>×</button>
                 </div>
               ))}
               {abriendo && vacForm ? (

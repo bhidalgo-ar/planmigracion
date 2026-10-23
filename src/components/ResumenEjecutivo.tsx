@@ -27,9 +27,10 @@ const REGLA_NOMBRE: Record<TipoRegla, string> = {
   carga_mes: 'Personas por encima de su capacidad mensual',
   carga_semana: 'Semanas con carga concentrada (aviso)',
   vacaciones: 'Fases sobre las vacaciones de quien las hace',
+  paralelo: 'Más cuentas abiertas a la vez que el tope del equipo',
 }
 /** Motivos que ya tienen su propia tarjeta de decisión: el resto va al apéndice. */
-const RESTO_REGLAS: TipoRegla[] = ['vacaciones', 'dependencia', 'blackout', 'tope_salidas', 'carga_semana']
+const RESTO_REGLAS: TipoRegla[] = ['paralelo', 'vacaciones', 'dependencia', 'blackout', 'tope_salidas', 'carga_semana']
 const TOL_SEMANAL_DEFAULT = 1.15
 
 function mondaysInRange(desdeISO: string, hastaISO: string): string[] {

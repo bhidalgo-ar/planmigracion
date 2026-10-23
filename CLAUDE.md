@@ -28,7 +28,12 @@ Cuatro pestañas más una:
   avisa si alguna semana adentro llegó a rojo aunque el promedio no lo diga. Qué cuenta causa
   el pico se contesta al pasar el mouse (el tooltip lista las horas por cuenta), al hacer
   **clic** (abre el detalle con esas horas) o al seleccionar una cuenta, que le pone un anillo
-  celeste a los círculos donde participa. Geometría y agrupado en `src/vistaTimeline.ts`. El
+  celeste a los círculos donde participa. Geometría y agrupado en `src/vistaTimeline.ts`.
+  **Primera fila de la banda: "En paralelo"** (23/10/2026), cuántas cuentas distintas tiene
+  abiertas el EQUIPO el mismo día (en semana y mes, el máximo de un mismo día), con el tope
+  de `max_cuentas_en_paralelo` al lado: borde celeste por debajo, ámbar en el tope, rojo si
+  se pasa. Los analistas de payroll (`rol: 'payroll'`) no tienen fila en la banda: su
+  disponibilidad no está relevada; sus tareas sí cuentan para "En paralelo". El
   switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
   carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
@@ -159,13 +164,22 @@ en Sportline. `fechaCorteDe` la prefiere y cae a `cortes_novedades_dia` si el me
 **Vacaciones son bloqueos `tipo: 'Vacaciones'`** que se cargan desde 👥 Equipo. Restan capacidad
 del mes y de la semana (`diasDeVacaciones` en `capacidad.ts`) y una fase que las pise dispara la
 regla `vacaciones`. Otros bloqueos (corrida inicial, supervisión) son trabajo reservado y no
-restan capacidad.
+restan capacidad. **Desde el 23/10/2026 se editan** (Willy: "pueden no estar confirmadas"): en
+Equipo con el ✏️ de cada una (`updateVacaciones`), y en el Timeline arrastrando la barra o
+estirándola del borde derecho (es el único bloqueo arrastrable; no cambia de persona). Tienen
+color propio (`--vacaciones`) y se ven en tres lugares: la barra, un recuadro punteado en la
+fila de la persona en la banda de carga y una franja sobre el Gantt (en modo cuenta cruza todas
+las filas con el nombre de quien se va; en modo persona, solo su fila).
 
 **Barras del v12.** Configuración son cuatro barras encadenadas (alta y carga base de Moni →
 conceptos y fórmulas de Willy, en paralelo con salidas de Moni → imputación contable de Willy) y
 Pruebas dos (ejecución de Gaby, cruces de Willy dos hábiles después). El nombre de la tarea no
 viaja en el JSON (`_nombre` dice "cuenta - Tipo"): `nombreTarea` en `src/tareas.ts` lo toma de
 `_tarea` si existe y, si no, del sufijo del id (`config_base`, `prueba_willy`, `delta`, `aplica`…).
+
+**Analistas de payroll** (23/10/2026): entran como personas con `rol: 'payroll'` y sus tareas con
+el cliente (previa, validación después del paralelo, primera liquidación en los dos sistemas).
+Sin datos reales, nunca nombres en el seed: viven en el JSON local de Willy.
 
 **Quién hace qué.** El rol/skill de una persona es una señal, no una prohibición
 (`tieneRolPara`). Cada fase muestra a quién pasársela y qué pasaría (`simularReasignacion`,
@@ -183,12 +197,14 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config`. **En el seed es diciembre completo** (01/12 → 31/12) desde el 22/09/2026, por pedido de Willy; antes iba del 21/12 al 08/01 y dejaba hábil la primera quincena. Ojo: el rango sale del **plan importado**, así que un plan viejo sigue con su blackout hasta que se corrija ahí |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |
 | `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
+| `paralelo` | rojo | más cuentas abiertas el mismo día hábil que `reglas_calendario.max_cuentas_en_paralelo` (default 4). Es por **equipo**, no por persona (Willy, 23/10/2026): una cuenta está abierta si tiene alguna barra activa que no sea bloqueo. Una violación por mes con el día pico y sus cuentas (`src/paralelo.ts`) |
 
 Los mensajes son para un gerente: nombran cuenta, fase y fecha en `dd/mm`. Nunca un id.
 
 Con el plan v3 (`test/fixtures/plan-v3.json`) el resultado esperado es: 0 dependencia,
 0 margen, 0 blackout, 0 tope en rojo, 1 informativo (marzo 2027), 1 rojo de carga
-(enero 2027 de Willy) y algunos avisos semanales. Si cambia, algo se rompió.
+(enero 2027 de Willy), 1 rojo de `paralelo` (la corrida de relevamientos de septiembre abre
+muchas cuentas a la vez) y algunos avisos semanales. Si cambia, algo se rompió.
 
 ## 3.1 El video del resumen (`src/resumen/`)
 
