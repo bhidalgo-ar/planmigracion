@@ -29,6 +29,7 @@ import { validarPlan } from '../src/validacionPlan'
 import { checkPredecesoras, computeViolaciones, margenesPorCuenta } from '../src/rules'
 import { nombreTarea } from '../src/tareas'
 import { useSimuladorStore } from '../src/store'
+import { juntarPorFase } from '../src/fases'
 import planV3 from './fixtures/plan-v3.json'
 
 let fallos = 0
@@ -166,7 +167,10 @@ cerca('Willy, marzo: cruces 19 h', mes('guille', '2027-03').horas, 19)
 cerca('Willy, febrero: 19,5 h', mes('guille', '2027-02').horas, 19.5)
 
 // ── Criterio de aceptación: el JSON entra, sale y vuelve igual ─────────────────
+// Desde el 23/10/2026 el plan entra con las tareas de cada fase juntas (una barra por fase y
+// por persona, `src/fases.ts`): lo que sale es eso, y de ahí en adelante entra y sale igual.
 titulo('Importar y exportar — _horas y predecesoras intactos')
+const juntas = juntarPorFase(plan.asignaciones, personas, configV12)
 const canon = (v: unknown): string => JSON.stringify(v, (_k, x) =>
   x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x)
 const validado = validarPlan(JSON.stringify(plan))
@@ -176,7 +180,11 @@ const store = useSimuladorStore.getState()
 const r = store.importarJSON(JSON.stringify(plan))
 check('el store lo importa', r.ok, r.errores.join(' | '))
 const exportado = JSON.parse(useSimuladorStore.getState().exportarJSON())
-eq('las asignaciones vuelven idénticas (claves, _horas, predecesoras)', canon(exportado.asignaciones), canon(plan.asignaciones))
+eq('las asignaciones salen juntas por fase (claves, _horas, predecesoras)', canon(exportado.asignaciones), canon(juntas))
+check('exportar, importar y exportar de nuevo da lo mismo', (() => {
+  useSimuladorStore.getState().importarJSON(JSON.stringify(exportado))
+  return canon(JSON.parse(useSimuladorStore.getState().exportarJSON()).asignaciones) === canon(exportado.asignaciones)
+})())
 eq('las personas vuelven idénticas', canon(exportado.personas), canon(plan.personas))
 eq('los proyectos vuelven idénticos', canon(exportado.proyectos), canon(plan.proyectos))
 eq('el config vuelve idéntico', canon(exportado.config), canon(plan.config))
@@ -192,24 +200,33 @@ titulo('Recalcular duraciones — devuelve las mismas duraciones y no pisa la de
 useSimuladorStore.getState().importarJSON(JSON.stringify(plan))
 const reporte = useSimuladorStore.getState().recalcularDuraciones()
 const post = useSimuladorStore.getState().asignaciones
-eq('recalculó las 9 barras', reporte.recalculadas, 9)
+eq('recalculó las 7 barras (las 9 tareas juntas por fase)', reporte.recalculadas, 7)
 eq('ninguna cambió de duración', reporte.cambiadas.length, 0)
 check('fin y duración idénticos a los del plan', post.every(a => {
-  const o = asignaciones.find(x => x.id === a.id)!
+  const o = juntas.find(x => x.id === a.id)!
   return a.fin === o.fin && a.duracion_dias === o.duracion_dias
 }), post.map(a => `${a.id}:${a.duracion_dias}`).join(' '))
-check('la dedicación queda tal cual', post.every(a => a.dedicacion_pct === asignaciones.find(x => x.id === a.id)!.dedicacion_pct))
+check('la dedicación queda tal cual', post.every(a => a.dedicacion_pct === juntas.find(x => x.id === a.id)!.dedicacion_pct))
 check('_horas y predecesoras sobreviven al recálculo', post.every(a => {
-  const o = asignaciones.find(x => x.id === a.id)!
+  const o = juntas.find(x => x.id === a.id)!
   return a._horas === o._horas && a.predecesoras.join() === o.predecesoras.join()
 }))
 
-check('con jornada de 7 h las duraciones se estiran como dice la tabla (imputación 2 → 3, cruces 8 → 9)', (() => {
-  const con7 = { ...plan, config: { ...configV12, capacidad: { ...configV12.capacidad!, horas_dia_default: 7 } } }
+check('con jornada de 7 h las duraciones se estiran como dice la tabla (Moni y Willy sí; Gaby, con jornada propia, no)', (() => {
+  const con7 = { ...exportado, config: { ...configV12, capacidad: { ...configV12.capacidad!, horas_dia_default: 7 } } }
   useSimuladorStore.getState().importarJSON(JSON.stringify(con7))
   const rep = useSimuladorStore.getState().recalcularDuraciones()
   const d = (id: string) => useSimuladorStore.getState().asignaciones.find(a => a.id === id)!.duracion_dias
-  return rep.cambiadas.length === 2 && d('demo-imput') === 3 && d('demo-pr-cruces') === 9
+  return rep.cambiadas.length === 3 && d('demo-configuracion-moni') === 7 && d('demo-configuracion-guille') === 7
+    && d('demo-pr-cruces') === 11 && d('demo-pr-ejec') === 10
+})())
+
+check('una fase fijada a mano (📌) no se recalcula', (() => {
+  const con7 = { ...exportado, config: { ...configV12, capacidad: { ...configV12.capacidad!, horas_dia_default: 7 } } }
+  con7.asignaciones = con7.asignaciones.map((a: Asignacion) => a.id === 'demo-pr-cruces' ? { ...a, fijada: true } : a)
+  useSimuladorStore.getState().importarJSON(JSON.stringify(con7))
+  const rep = useSimuladorStore.getState().recalcularDuraciones()
+  return rep.cambiadas.length === 2 && useSimuladorStore.getState().asignaciones.find(a => a.id === 'demo-pr-cruces')!.duracion_dias === 10
 })())
 
 check('una barra sin _horas de un tipo sin fila en horas_por_fase (Cierre) queda intacta', (() => {
@@ -217,15 +234,17 @@ check('una barra sin _horas de un tipo sin fila en horas_por_fase (Cierre) queda
   delete sinHoras.asignaciones[7]._horas
   useSimuladorStore.getState().importarJSON(JSON.stringify(sinHoras))
   const rep = useSimuladorStore.getState().recalcularDuraciones()
-  return rep.recalculadas === 8 && rep.intactas === 1 && useSimuladorStore.getState().asignaciones[7].duracion_dias === 1
+  return rep.recalculadas === 6 && rep.intactas === 1 && useSimuladorStore.getState().asignaciones.find(a => a.id === 'demo-af-delta')!.duracion_dias === 1
 })())
 
 check('una barra sin _horas de un tipo con fila cae a horas_por_fase', (() => {
-  const sinHoras = JSON.parse(JSON.stringify(plan))
-  delete sinHoras.asignaciones[6]._horas   // cruces: Pruebas estándar = 88 h / (8 × 0,3) = 36,7 → 37 días
+  // Sobre el plan ya juntado (una fase juntada entra tal cual), sin las horas de los cruces de Willy.
+  const sinHoras = JSON.parse(JSON.stringify(exportado))
+  const cruces = sinHoras.asignaciones.find((a: Asignacion) => a.id === 'demo-pr-cruces')
+  delete cruces._horas   // Pruebas estándar = 88 h / (8 × 0,238) = 46,2 → 46 días
   useSimuladorStore.getState().importarJSON(JSON.stringify(sinHoras))
   useSimuladorStore.getState().recalcularDuraciones()
-  return useSimuladorStore.getState().asignaciones[6].duracion_dias === 37
+  return useSimuladorStore.getState().asignaciones.find(a => a.id === 'demo-pr-cruces')!.duracion_dias === 46
 })())
 
 // ── Predecesoras declaradas (v12) y margen desde el fin del cierre ─────────────

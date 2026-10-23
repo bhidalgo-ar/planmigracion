@@ -243,21 +243,36 @@ export function horasDeBarra(asig: Asignacion): number | null {
 }
 
 /**
- * Horas que una barra consume por cada día hábil que dura. Si trae `_horas` (las horas reales
- * de la plantilla v2), se reparten parejo entre sus días hábiles: así la suma de la barra da
+ * Cómo reparte una barra sus horas día por día. Si trae `_horas` (las horas reales de la
+ * plantilla v2), se reparten parejo entre sus días hábiles: así la suma de la barra da
  * exactamente sus horas, sin importar cuántos días se estiró. Si no las trae, la lectura
  * vieja: la fracción `dedicacion_pct` de la jornada de quien la hace.
+ *
+ * Vacaciones como hueco (23/10/2026, una barra por fase): si se pasan las `vacaciones` de quien
+ * la hace y la barra cae en parte sobre ellas, esos días no llevan horas y el total se reparte
+ * en los días que trabaja (`hueco`). Si cae entera sobre las vacaciones no hay dónde ponerlas:
+ * se reparten como siempre y la regla `vacaciones` lo marca en rojo.
  */
+export function repartoDeBarra(
+  asig: Asignacion, persona: Persona | undefined, config: Config, feriados: ReadonlySet<string>,
+  vacaciones?: ReadonlySet<string>,
+): { porDia: number; hueco: boolean } {
+  if (asig.es_bloqueo) return { porDia: 0, hueco: false }
+  const horas = horasDeBarra(asig)
+  if (!vacaciones?.size && horas === null) return { porDia: horasDiaDe(persona, config) * asig.dedicacion_pct, hueco: false }
+  const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados)
+  const trabaja = vacaciones?.size ? dias.filter(d => !vacaciones.has(toISO(d))).length : dias.length
+  const hueco = trabaja > 0 && trabaja < dias.length
+  const total = horas ?? horasDiaDe(persona, config) * asig.dedicacion_pct * dias.length
+  return { porDia: total / Math.max(1, hueco ? trabaja : dias.length), hueco }
+}
+
+/** Horas que una barra consume por cada día hábil en que se trabaja (ver `repartoDeBarra`). */
 export function horasPorDiaHabil(
   asig: Asignacion, persona: Persona | undefined, config: Config, feriados: ReadonlySet<string>,
+  vacaciones?: ReadonlySet<string>,
 ): number {
-  if (asig.es_bloqueo) return 0
-  const horas = horasDeBarra(asig)
-  if (horas !== null) {
-    const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).length
-    return horas / Math.max(1, dias)
-  }
-  return horasDiaDe(persona, config) * asig.dedicacion_pct
+  return repartoDeBarra(asig, persona, config, feriados, vacaciones).porDia
 }
 
 /**
@@ -272,13 +287,18 @@ export function duracionPorHoras(horas: number, horasDia: number, dedicacion: nu
   return Math.max(1, Math.round(horas / porDia))
 }
 
-/** Horas que una fase consume en un mes dado. Los bloqueos (vacaciones) no son carga. */
+/**
+ * Horas que una fase consume en un mes dado. Los bloqueos (vacaciones) no son carga. Con las
+ * `vacaciones` de quien la hace, los días de vacaciones adentro de la barra son hueco.
+ */
 export function horasFaseEnMes(
   asig: Asignacion, mesISO: string, persona: Persona | undefined, feriados: ReadonlySet<string>, config: Config,
+  vacaciones?: ReadonlySet<string>,
 ): number {
   if (asig.es_bloqueo) return 0
-  const porDia = horasPorDiaHabil(asig, persona, config, feriados)
-  const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados).filter(d => mesDe(toISO(d)) === mesISO).length
+  const { porDia, hueco } = repartoDeBarra(asig, persona, config, feriados, vacaciones)
+  const dias = diasHabilesEntre(asig.inicio, asig.fin, feriados)
+    .filter(d => mesDe(toISO(d)) === mesISO && !(hueco && vacaciones!.has(toISO(d)))).length
   return red(dias * porDia)
 }
 
@@ -355,7 +375,7 @@ export function cargaMensual(personas: Persona[], asignaciones: Asignacion[], co
       let horas = 0
       for (const a of propias) {
         if (mesDe(a.inicio) > mes || mesDe(a.fin) < mes) continue
-        const h = horasFaseEnMes(a, mes, p, feriados, config)
+        const h = horasFaseEnMes(a, mes, p, feriados, config, vacaciones)
         if (h <= 0) continue
         horas += h
         const k = a.proyecto_id ?? a._nombre ?? a.id
@@ -389,7 +409,7 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
       if (v === undefined) { v = disponibilidadMes(p.id, mes, config, undefined, p); dispCache.set(mes, v) }
       return v
     }
-    const porDiaDe = new Map(propias.map(a => [a.id, horasPorDiaHabil(a, p, config, feriados)]))
+    const repartoDe = new Map(propias.map(a => [a.id, repartoDeBarra(a, p, config, feriados, vacaciones)]))
     for (let lunes = primerLunes; lunes <= ultimo; lunes = addDays(lunes, 7)) {
       let horas = 0, capacidad = 0
       const porBarra: Record<string, number> = {}
@@ -397,12 +417,16 @@ export function cargaSemanal(personas: Persona[], asignaciones: Asignacion[], co
         const d = addDays(lunes, i)
         if (!esHabil(d, feriados)) continue
         const iso = toISO(d)
-        // Un día de vacaciones no aporta capacidad; las horas planificadas ese día sí cuentan
-        // (ese choque es justamente lo que marca la regla `vacaciones`).
-        if (!vacaciones.has(iso)) capacidad += hd * dispDe(mesDe(iso))
+        // Un día de vacaciones no aporta capacidad. Si la barra sigue después (o empezó antes),
+        // ese día es hueco y no lleva horas; si cae entera sobre las vacaciones, las horas sí
+        // cuentan (ese choque es justamente lo que marca la regla `vacaciones`).
+        const deVacaciones = vacaciones.has(iso)
+        if (!deVacaciones) capacidad += hd * dispDe(mesDe(iso))
         for (const a of propias) {
           if (a.inicio > iso || a.fin < iso) continue
-          const h = porDiaDe.get(a.id) ?? 0
+          const r = repartoDe.get(a.id)
+          if (!r || (r.hueco && deVacaciones)) continue
+          const h = r.porDia
           horas += h
           porBarra[a.id] = (porBarra[a.id] ?? 0) + h
         }
@@ -446,16 +470,19 @@ export function cargaDiaria(personas: Persona[], asignaciones: Asignacion[], con
       if (v === undefined) { v = disponibilidadMes(p.id, mes, config, undefined, p); dispCache.set(mes, v) }
       return v
     }
-    const porDiaDe = new Map(propias.map(a => [a.id, horasPorDiaHabil(a, p, config, feriados)]))
+    const repartoDe = new Map(propias.map(a => [a.id, repartoDeBarra(a, p, config, feriados, vacaciones)]))
     for (let d = parseISO(rango.desde); d <= ultimo; d = addDays(d, 1)) {
       if (!esHabil(d, feriados)) continue
       const iso = toISO(d)
-      const capacidad = vacaciones.has(iso) ? 0 : hd * dispDe(mesDe(iso))
+      const deVacaciones = vacaciones.has(iso)
+      const capacidad = deVacaciones ? 0 : hd * dispDe(mesDe(iso))
       let horas = 0
       const porBarra: Record<string, number> = {}
       for (const a of propias) {
         if (a.inicio > iso || a.fin < iso) continue
-        const h = porDiaDe.get(a.id) ?? 0
+        const r = repartoDe.get(a.id)
+        if (!r || (r.hueco && deVacaciones)) continue
+        const h = r.porDia
         if (h <= 0) continue
         horas += h
         porBarra[a.id] = red(h)

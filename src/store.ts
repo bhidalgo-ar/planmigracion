@@ -18,6 +18,7 @@ import { planificarCuentaNivelada, replanificarTodoNivelado, type ReporteReplanN
 import type { ReporteAdelantar } from './planificadorNivelado'
 import { conPalancas, rearmarConPalancas, type Palancas } from './escenario'
 import { duracionPorHoras, horasDeBarra, horasDiaDe, mesSalidaDe } from './capacidad'
+import { editarFase, juntarPorFase, moverFase, type CambioDeFase } from './fases'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
 import asignacionesRaw from '../data/asignaciones.json'
@@ -27,8 +28,9 @@ import configRaw from '../data/config.json'
 
 const seedPersonas = personasRaw.personas as Persona[]
 const seedProyectos = proyectosRaw.proyectos as Proyecto[]
-const seedAsignaciones = asignacionesRaw.asignaciones as Asignacion[]
 const seedConfig = configRaw as unknown as Config
+// Una barra por fase y por persona (23/10/2026): el seed trae las tareas partidas y se juntan al cargar.
+const seedAsignaciones = juntarPorFase(asignacionesRaw.asignaciones as Asignacion[], seedPersonas, seedConfig)
 
 /**
  * Completa con las del seed las claves de `config` que no existían todavía cuando
@@ -310,6 +312,10 @@ interface SimuladorState {
   rearmarConPalancas: (p: Palancas) => ReporteAdelantar
 
   updateAsignacion: (id: string, patch: Partial<Asignacion>) => void
+  /** Mueve una fase entera de una cuenta (todas sus barras) `dias` días corridos. No toca las demás fases. */
+  moverFaseCuenta: (proyectoId: string, tipo: TipoFase, dias: number) => void
+  /** Cambia fechas, horas por persona o el 📌 de una fase entera (el recuadro de la fase). */
+  editarFaseCuenta: (proyectoId: string, tipo: TipoFase, cambio: CambioDeFase) => void
   addFase: (proyectoId: string, tipo: TipoFase, personaId: string) => void
   seleccionarCliente: (proyectoId: string | null) => void
   shiftAccount: (proyectoId: string, semanas: number) => void
@@ -460,6 +466,22 @@ export const useSimuladorStore = create<SimuladorState>()(
             asignaciones,
             violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
           }
+        })
+      },
+
+      moverFaseCuenta(proyectoId, tipo, dias) {
+        set(state => {
+          const asignaciones = moverFase(state.asignaciones, proyectoId, tipo, dias, state.config)
+          if (asignaciones === state.asignaciones) return {}
+          return { ...conHistorial(state), asignaciones, violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos) }
+        })
+      },
+
+      editarFaseCuenta(proyectoId, tipo, cambio) {
+        set(state => {
+          const asignaciones = editarFase(state.asignaciones, proyectoId, tipo, cambio, state.personas, state.config)
+          if (asignaciones === state.asignaciones) return {}
+          return { ...conHistorial(state), asignaciones, violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos) }
         })
       },
 
@@ -1015,8 +1037,9 @@ export const useSimuladorStore = create<SimuladorState>()(
           const feriados = feriadosDeConfig(state.config)
           const proyectoPorId = new Map(state.proyectos.map(p => [p.id, p]))
           const personaPorId = new Map(state.personas.map(p => [p.id, p]))
+          // Una fase fijada a mano (📌) conserva su duración.
           const esRecalculable = (a: Asignacion) =>
-            !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial && a.dedicacion_pct > 0
+            !a.es_bloqueo && a.proyecto_id != null && !proyectoPorId.get(a.proyecto_id)?.especial && a.dedicacion_pct > 0 && !a.fijada
 
           const cambiadas: RecalculoReporte['cambiadas'] = []
           let recalculadas = 0
@@ -1104,13 +1127,15 @@ export const useSimuladorStore = create<SimuladorState>()(
         // horas y los insights sigan andando. Las asignaciones entran tal cual vienen
         // (misma cantidad, mismas personas).
         const config = data.config ? conFallbackDeSeed(data.config as Partial<Config>) : seedConfig
+        // Una barra por fase y por persona (23/10/2026): un plan con las tareas partidas se junta al entrar.
+        const juntas = juntarPorFase(asignacionesNorm, personas, config)
         set(state => ({
           ...conHistorial(state),
           personas,
           proyectos,
-          asignaciones: asignacionesNorm,
+          asignaciones: juntas,
           config,
-          violaciones: recompute(asignacionesNorm, personas, config, proyectos),
+          violaciones: recompute(juntas, personas, config, proyectos),
           clienteSeleccionado: null,
           escenarioBase: null,
         }))
@@ -1119,9 +1144,9 @@ export const useSimuladorStore = create<SimuladorState>()(
     }),
     {
       name: 'simulador-ha-v2',
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
-        const estado = persisted as { personas?: Persona[]; config?: Partial<Config> } | undefined
+        const estado = persisted as { personas?: Persona[]; config?: Partial<Config>; asignaciones?: Asignacion[]; escenarioBase?: HistorySnapshot | null } | undefined
         // Los planes ya guardados en localStorage no tienen la fila de Axton: se la
         // agregamos una sola vez (si después la borrás a mano, no vuelve a aparecer).
         if (estado && version < 3) {
@@ -1136,6 +1161,14 @@ export const useSimuladorStore = create<SimuladorState>()(
         // con las del seed, igual que hace importarJSON con un plan exportado viejo.
         if (estado?.config && version < 4) {
           estado.config = conFallbackDeSeed(estado.config)
+        }
+        // Una barra por fase y por persona (23/10/2026): el plan guardado y la base del escenario se juntan una vez.
+        if (estado && version < 5) {
+          const personas = estado.personas ?? seedPersonas
+          const config = conFallbackDeSeed(estado.config)
+          if (estado.asignaciones) estado.asignaciones = juntarPorFase(estado.asignaciones, personas, config)
+          const b = estado.escenarioBase
+          if (b) estado.escenarioBase = { ...b, asignaciones: juntarPorFase(b.asignaciones, b.personas, b.config) }
         }
         return persisted
       },

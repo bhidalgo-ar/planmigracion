@@ -19,7 +19,7 @@ import { cuentasPorDia, mesesPasadosDeTope, topeParalelo } from './paralelo'
  *  blackout      rojo   una Configuración toca el blackout de fin de año
  *  dependencia   rojo   Pruebas arranca antes de que cierre la Configuración de su cuenta, o una
  *                       barra arranca antes de lo que permite su predecesora declarada
- *  vacaciones    rojo   una fase cae sobre las vacaciones de quien la hace
+ *  vacaciones    rojo   una fase cae entera sobre las vacaciones de quien la hace (si no, es hueco)
  *  paralelo      rojo   más cuentas abiertas a la vez que el tope del equipo (`max_cuentas_en_paralelo`)
  *
  * Lo que NO es conflicto: dos personas configurando la misma cuenta a la vez, o una persona
@@ -483,28 +483,42 @@ const FASE_CON_ARTICULO: Record<string, string> = {
 }
 
 /**
- * Regla dura: una fase no puede caer sobre las vacaciones de quien la hace. Se cuelga de
- * la fase (no del bloqueo) para que el panel de la cuenta la muestre. No se resuelve sola:
+ * Regla dura: una fase no puede caer entera sobre las vacaciones de quien la hace. Se cuelga
+ * de la fase (no del bloqueo) para que el panel de la cuenta la muestre. No se resuelve sola:
  * mover la cuenta o reasignar la fase es decisión de quien planifica.
+ *
+ * Vacaciones como hueco (23/10/2026, una barra por fase): si la fase tiene algún día hábil en
+ * que la persona trabaja, sus horas se reparten en esos días (`repartoDeBarra`) y no es rojo;
+ * si la carga de esos días no da, lo dicen las reglas de carga.
  */
-export function checkVacaciones(asignaciones: Asignacion[], personas: Persona[], proyectos: Proyecto[]): Violacion[] {
+export function checkVacaciones(
+  asignaciones: Asignacion[], personas: Persona[], proyectos: Proyecto[], feriados: ReadonlySet<string> = new Set(),
+): Violacion[] {
   const out: Violacion[] = []
   const vacaciones = asignaciones.filter(a => a.tipo === 'Vacaciones')
   if (!vacaciones.length) return out
   for (const a of asignaciones) {
     if (a.es_bloqueo) continue
-    for (const v of vacaciones) {
-      if (v.persona_id !== a.persona_id || a.inicio > v.fin || a.fin < v.inicio) continue
-      const alias = personas.find(p => p.id === a.persona_id)?.alias ?? a.persona_id
-      out.push({
-        tipo: 'vacaciones',
-        asignacion_id: a.id,
-        persona_id: a.persona_id,
-        proyecto_id: a.proyecto_id ?? undefined,
-        severidad: 'rojo',
-        mensaje: `${alias} tiene ${FASE_CON_ARTICULO[a.tipo] ?? a.tipo} de ${nombreCuenta(a.proyecto_id, proyectos)} del ${ddmm(a.inicio)} al ${ddmm(a.fin)} y está de vacaciones del ${ddmm(v.inicio)} al ${ddmm(v.fin)}`,
-      })
+    const pisa = vacaciones.filter(v => v.persona_id === a.persona_id && a.inicio <= v.fin && a.fin >= v.inicio)
+    if (!pisa.length) continue
+    const enVacaciones = (iso: string) => pisa.some(v => iso >= v.inicio && iso <= v.fin)
+    let trabaja = false
+    for (let d = parseISO(a.inicio); toISO(d) <= a.fin; d = addDays(d, 1)) {
+      const iso = toISO(d), dow = d.getDay()
+      if (dow === 0 || dow === 6 || feriados.has(iso)) continue
+      if (!enVacaciones(iso)) { trabaja = true; break }
     }
+    if (trabaja) continue
+    const alias = personas.find(p => p.id === a.persona_id)?.alias ?? a.persona_id
+    const v = pisa[0]
+    out.push({
+      tipo: 'vacaciones',
+      asignacion_id: a.id,
+      persona_id: a.persona_id,
+      proyecto_id: a.proyecto_id ?? undefined,
+      severidad: 'rojo',
+      mensaje: `${alias} tiene ${FASE_CON_ARTICULO[a.tipo] ?? a.tipo} de ${nombreCuenta(a.proyecto_id, proyectos)} del ${ddmm(a.inicio)} al ${ddmm(a.fin)} y está de vacaciones del ${ddmm(v.inicio)} al ${ddmm(v.fin)}`,
+    })
   }
   return out
 }
@@ -544,7 +558,7 @@ export function computeViolaciones(
   proyectos: Proyecto[],
 ): Violacion[] {
   return [
-    ...checkVacaciones(asignaciones, personas, proyectos),
+    ...checkVacaciones(asignaciones, personas, proyectos, feriadosDeConfig(config)),
     ...checkDependenciaConfigPruebas(asignaciones, proyectos),
     ...checkPredecesoras(asignaciones, proyectos, config),
     ...checkMargenYBlackout(asignaciones, config, proyectos),
