@@ -69,10 +69,17 @@ Las vistas de antes del rediseño, que siguen igual salvo lo dicho arriba:
   payroll ya no estiran esas fases), **un rombo** para la actualización final (delta + aplica),
   **una franja gris rayada "En vivo"** para la primera liquidación (`_fase: 'Liquidacion en
   vivo'`, de implementación y del analista) y un **filete gris** debajo de la línea para la
-  previa y la validación (`_fase: 'Payroll …'`). Hacer clic en la cuenta abre el panel pero
-  **no** la abre en el timeline: el detalle por tarea se abre solo con el ▸ al lado del nombre
-  (`cuentaAbierta`, estado local del Timeline), y las flechas de dependencia solo se dibujan
-  con la cuenta abierta. El **tope de "En paralelo" se cambia con − y +** al lado del número
+  previa y la validación (`_fase: 'Payroll …'`).
+  **Una barra por fase, editable a mano (23/10/2026, Willy: "quiero que la configuración sea
+  una cosa, las pruebas otra y el relevamiento lo mismo")**: ya no hay detalle por tarea para
+  abrir (se sacó el ▸) ni flechas en modo cuenta. Cada fase de armado de la línea se **arrastra
+  entera** (`moverFaseCuenta`: mueve solo esa fase, las demás quedan y si choca sale en rojo),
+  se **estira o achica del borde derecho** (las horas quedan, cambian las horas por día, y queda
+  fijada con 📌) y con un **clic abre su recuadro** (`RecuadroFase.tsx`, `editarFaseCuenta`):
+  fechas de la fase, horas de cada persona y por día, reparto "Como la plantilla" / "Mitad y
+  mitad" / "A mano" (el total nunca cambia) y el 📌 "Mantener estos días". Las vacaciones de
+  quien hace la fase, adentro de su barra, son una raya rosa abajo de la fase: hueco, no rojo.
+  El **tope de "En paralelo" se cambia con − y +** al lado del número
   (`setTopeParalelo`: escribe `reglas_calendario.max_cuentas_en_paralelo`, recalcula y entra en
   el export y en Ctrl+Z).
   El switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
@@ -139,6 +146,22 @@ no maneja datos personales. TASA/Toyota y TPA están fuera del plan.
 **Tres fases por cuenta**: Relevamiento → Configuración → Pruebas. Nada de UAT, Paralelo ni
 gates. Una cuenta la trabajan varias personas a la vez (Willy y Moni configuran en paralelo;
 Gaby, Moni y Willy prueban): **el solapamiento es el diseño, no una falla**.
+
+**Una barra por fase y por persona** (`src/fases.ts`, 23/10/2026; tests en `test/fases.test.ts`).
+El plan v12 partía cada fase en tareas encadenadas y eso hacía imposible tocar algo a mano.
+`juntarPorFase` deja, en cada fase de armado de una cuenta, una barra por persona con las fechas
+de la fase y la suma de sus horas (`_horas`; `_horas_plantilla` guarda lo que traía, para volver
+a "Como la plantilla"). Las predecesoras pasan a ser de fase a fase. Corre al importar, sobre el
+seed y en la migración del persist (versión 5, también la base del escenario). **Se junta una
+sola vez**: una fase que ya está en una barra por persona y sin tareas que esperen a otras de la
+misma fase no se toca, aunque el planificador haya dejado que una persona termine antes que
+otra; así importar un plan exportado no lo cambia. Tareas de una fase a más de
+`SEPARACION_TRAMOS_HABILES` (15) hábiles son tramos distintos y no se juntan (la corrida de
+septiembre del v3 y su repaso de meses después). Con el v3 el resultado de las reglas es el mismo
+juntado que en tareas. Lo que se pierde es el orden de adentro de la fase.
+**📌 `Asignacion.fijada`**: la fase conserva su duración cuando se rearma el calendario o se mueve
+la cuenta de mes (el planificador nivelado solo busca dónde arrancarla; "Recalcular duraciones"
+no la toca). Se prende sola al estirarla o achicarla y se maneja en el recuadro.
 
 **Capacidad, todo en horas** (`src/capacidad.ts`, el único lugar con esta matemática):
 - Jornada: **8 h por día hábil** (`config.capacidad.horas_dia_default`; era 7 hasta el
@@ -234,11 +257,14 @@ reservada no sale en diciembre, las dos reglas no corren.
 tenga la inteligencia de la Mesa de salidas"). Es un segundo modo, **encendido por default**
 con el check "Respetar capacidad" del panel de la cuenta (`uiStore.respetarCapacidad`). Para el
 mes elegido busca dónde entra cada tarea: nadie de implementación por encima del 100 % de su
-disponibilidad en ningún día hábil (vacaciones = 0), el tope de cuentas en paralelo del equipo,
+disponibilidad en ningún día hábil (vacaciones = 0; desde el 23/10/2026 una tarea puede cruzar
+las vacaciones de quien la hace y esos días son hueco), el tope de cuentas en paralelo del equipo,
 el blackout de configuración y una cuenta abierta como máximo
 `reglas_calendario.max_meses_cuenta_abierta` meses (default 4). Las tareas de armado van hacia
 adelante por `predecesoras` y, si la persona no tiene lugar, se estiran con menos horas por día
-(nunca se suman horas); el cierre va pegado al límite antes del corte; la primera liquidación
+(nunca se suman horas; una fijada con 📌 no se estira); el cierre va pegado al límite antes del
+corte; la duración nominal de la cuenta es el camino más largo por predecesoras (las barras de
+una fase van en paralelo, ya no se suman); la primera liquidación
 (`_fase: 'Liquidacion en vivo'`) arranca en el corte y dura hasta el 5° hábil del mes siguiente
 (se recorta si hay vacaciones en la cola, nunca encima de la semana de la liquidación). Los
 analistas de payroll no tienen control de carga. Prueba el arranque más tarde que funcione y,
@@ -261,8 +287,10 @@ en Sportline. `fechaCorteDe` la prefiere y cae a `cortes_novedades_dia` si el me
 `origenCorteDe` dice de dónde salió (monday / estimado / día fijo) y el panel lo muestra.
 
 **Vacaciones son bloqueos `tipo: 'Vacaciones'`** que se cargan desde 👥 Equipo. Restan capacidad
-del mes y de la semana (`diasDeVacaciones` en `capacidad.ts`) y una fase que las pise dispara la
-regla `vacaciones`. Otros bloqueos (corrida inicial, supervisión) son trabajo reservado y no
+del mes y de la semana (`diasDeVacaciones` en `capacidad.ts`). **Son hueco** (23/10/2026, con la
+barra por fase): si una barra cae en parte sobre las vacaciones de quien la hace, esos días no
+llevan horas y el total se reparte en los que trabaja (`repartoDeBarra`); solo una fase que cae
+entera sobre ellas dispara la regla `vacaciones`. Otros bloqueos (corrida inicial, supervisión) son trabajo reservado y no
 restan capacidad. **Desde el 23/10/2026 se editan** (Willy: "pueden no estar confirmadas"): en
 Equipo con el ✏️ de cada una (`updateVacaciones`), y en el Timeline arrastrando la barra o
 estirándola del borde derecho (es el único bloqueo arrastrable; no cambia de persona). Tienen
@@ -272,7 +300,8 @@ las filas con el nombre de quien se va; en modo persona, solo su fila).
 
 **Barras del v12.** Configuración son cuatro barras encadenadas (alta y carga base de Moni →
 conceptos y fórmulas de Willy, en paralelo con salidas de Moni → imputación contable de Willy) y
-Pruebas dos (ejecución de Gaby, cruces de Willy dos hábiles después). El nombre de la tarea no
+Pruebas dos (ejecución de Gaby, cruces de Willy dos hábiles después). Desde el 23/10/2026 entran
+juntas en una barra por fase y por persona (ver arriba). El nombre de la tarea no
 viaja en el JSON (`_nombre` dice "cuenta - Tipo"): `nombreTarea` en `src/tareas.ts` lo toma de
 `_tarea` si existe y, si no, del sufijo del id (`config_base`, `prueba_willy`, `delta`, `aplica`…).
 
@@ -295,7 +324,7 @@ en bloque (`traspasarFases`): solo cambia `persona_id`, fechas y horas quedan ig
 | `margen` | rojo | menos de `margen_minimo_habiles` (2 en el seed y en el código desde el 22/09/2026; el v12 todavía trae 5) días hábiles entre el fin del **Cierre** (Actualización Final; si la cuenta no tiene Cierre, el fin de Pruebas) y el corte de novedades (el día del corte cuenta). Willy, 22/09/2026 |
 | `blackout` | rojo | una Configuración toca `tiers_v3.blackout_config`. **En el seed es diciembre completo** (01/12 → 31/12) desde el 22/09/2026, por pedido de Willy; antes iba del 21/12 al 08/01 y dejaba hábil la primera quincena. Ojo: el rango sale del **plan importado**, así que un plan viejo sigue con su blackout hasta que se corrija ahí |
 | `dependencia` | rojo | Pruebas arranca antes o el mismo día en que cierra la Configuración de su cuenta, sin importar la persona. Además, cada `predecesoras` declarada (v12): la sucesora no arranca hasta que termina la predecesora, salvo Pruebas → Pruebas (ejecución de Gaby → cruces de Willy), que arranca `reglas_calendario.desfasaje_pruebas_habiles` (default 2) hábiles después de que **arranca** la otra (`checkPredecesoras`) |
-| `vacaciones` | rojo | una fase cae sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. No se resuelve sola: mover la cuenta o reasignar la fase |
+| `vacaciones` | rojo | una fase cae **entera** sobre las vacaciones (bloqueo `tipo: 'Vacaciones'`) de quien la hace. Si la persona trabaja algún día de la fase, las vacaciones son hueco y no es rojo (23/10/2026). No se resuelve sola: mover la cuenta o reasignar la fase |
 | `paralelo` | rojo | más cuentas abiertas el mismo día hábil que `reglas_calendario.max_cuentas_en_paralelo` (default 4). Es por **equipo**, no por persona (Willy, 23/10/2026): una cuenta está abierta si tiene alguna barra activa que no sea bloqueo. Una violación por mes con el día pico y sus cuentas (`src/paralelo.ts`) |
 
 Los mensajes son para un gerente: nombran cuenta, fase y fecha en `dd/mm`. Nunca un id.

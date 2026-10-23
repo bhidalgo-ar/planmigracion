@@ -69,6 +69,16 @@ export interface Asignacion {
    */
   _fase?: string
   _nota?: string
+  /**
+   * Horas que la plantilla le daba a esta persona en la fase (23/10/2026, una barra por fase).
+   * Se guarda al juntar las tareas para poder volver a "Como la plantilla" después de repartir a mano.
+   */
+  _horas_plantilla?: number
+  /**
+   * 📌 Fase fijada a mano (23/10/2026): al rearmar el calendario o mover la cuenta de mes, el
+   * planificador la mueve pero conserva su duración. Se prende sola al estirarla o achicarla.
+   */
+  fijada?: boolean
 }
 
 /** Horas de esfuerzo por fase, por tipo de cuenta. Tabla de datos (`config.horas_por_fase`). */
