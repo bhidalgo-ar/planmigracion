@@ -194,9 +194,23 @@ export function fechaCorteDe(proyectoId: string, mesISO: string, config: Config,
   const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
   if (typeof exacta === 'string' && RE_FECHA.test(exacta)) return habilAnteriorOIgual(exacta, feriados)
   const dia = config.cortes_novedades_dia?.[proyectoId]
-  if (typeof dia !== 'number') return null
   const ultimo = ultimoDiaDelMes(mesISO).getDate()
-  return habilAnteriorOIgual(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`, feriados)
+  if (typeof dia === 'number') return habilAnteriorOIgual(`${mesISO}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`, feriados)
+  // Sin fecha del mes ni día fijo: se extrapola con la mediana del día del mes de los cortes que
+  // sí están cargados, corrida al hábil anterior (lo que pide `_cortes_nota` del plan: los
+  // cronogramas de monday llegan hasta 2027-06). Se muestra como "estimado".
+  const mediana = medianaDiaCorte(proyectoId, config)
+  if (mediana === null) return null
+  return habilAnteriorOIgual(`${mesISO}-${String(Math.min(mediana, ultimo)).padStart(2, '0')}`, feriados)
+}
+
+/** Mediana del día del mes de los cortes cargados de una cuenta; null si no hay ninguno. */
+export function medianaDiaCorte(proyectoId: string, config: Config): number | null {
+  const dias = Object.values(config.cortes_novedades_fechas?.[proyectoId] ?? {})
+    .filter(f => typeof f === 'string' && RE_FECHA.test(f)).map(f => parseInt(f.slice(8, 10), 10)).sort((a, b) => a - b)
+  if (!dias.length) return null
+  const m = Math.floor(dias.length / 2)
+  return dias.length % 2 ? dias[m] : Math.round((dias[m - 1] + dias[m]) / 2)
 }
 
 export interface OrigenCorte {
@@ -212,7 +226,11 @@ export function origenCorteDe(proyectoId: string, mesISO: string, config: Config
   const fecha = fechaCorteDe(proyectoId, mesISO, config, feriados)
   if (!fecha) return null
   const exacta = config.cortes_novedades_fechas?.[proyectoId]?.[mesISO]
-  if (typeof exacta !== 'string') return { fecha, origen: 'dia_fijo', ronda: null }
+  if (typeof exacta !== 'string') {
+    if (typeof config.cortes_novedades_dia?.[proyectoId] === 'number') return { fecha, origen: 'dia_fijo', ronda: null }
+    const det0 = config.cortes_novedades_detalle?.[proyectoId]
+    return { fecha, origen: 'estimado', ronda: typeof det0?.ancla === 'string' ? det0.ancla : null }
+  }
   const det = config.cortes_novedades_detalle?.[proyectoId]
   const ronda = typeof det?.ancla === 'string' ? det.ancla : null
   const txt = ronda ? det?.por_periodo?.[mesISO]?.[ronda] : undefined
@@ -265,7 +283,9 @@ export function margenesPorCuenta(asignaciones: Asignacion[], config: Config, pr
     if (!mes) continue
     const propias = asignaciones.filter(a => a.proyecto_id === p.id && !a.es_bloqueo)
     const finPruebas = finDe(propias.filter(a => a.tipo === 'Pruebas'))
-    const finCierre = finDe(propias.filter(a => a.tipo === 'Cierre'))
+    // El acompañamiento de la primera liquidación (`_fase: 'Liquidacion en vivo'`) es tipo Cierre
+    // en el plan pero pasa DESPUÉS del corte: no es la actualización final y no mide margen.
+    const finCierre = finDe(propias.filter(a => a.tipo === 'Cierre' && a._fase !== 'Liquidacion en vivo'))
     const finBarra = finCierre ?? finPruebas
     const fase: MargenCuenta['fase'] = finCierre ? 'Cierre' : finPruebas ? 'Pruebas' : null
     const corte = fechaCorteDe(p.id, mes, config, feriados)

@@ -87,11 +87,18 @@ interface UIState {
   previsualizacion: { proyectoId: string; asignaciones: Asignacion[] } | null
   /** Qué cambió con el último movimiento de cuenta, para mostrarlo en el panel. Transitorio. */
   ultimoMovimiento: ReporteMovimiento | null
+  /**
+   * Planificador que respeta capacidad (23/10/2026): al mover una cuenta de mes, busca dónde
+   * entra cada tarea sin pasar a nadie del 100 % ni del tope de cuentas en paralelo. Apagado,
+   * vuelve al clásico (hacia atrás desde el corte, duraciones fijas).
+   */
+  respetarCapacidad: boolean
 
   setVista: (v: Vista) => void
   setNombrePlan: (n: string | null) => void
   setPrevisualizacion: (p: { proyectoId: string; asignaciones: Asignacion[] } | null) => void
   setUltimoMovimiento: (r: ReporteMovimiento | null) => void
+  setRespetarCapacidad: (v: boolean) => void
   toggleCarga: () => void
   toggleDep: () => void
   toggleConflictos: () => void
@@ -145,11 +152,13 @@ export const useUIStore = create<UIState>((set) => ({
   personasOcultas: personasSinCarga(),
   nombrePlan: null,
   previsualizacion: null,
+  respetarCapacidad: true,
   ultimoMovimiento: null,
 
   setVista: (vista) => set({ vista }),
   setNombrePlan: (nombrePlan) => set({ nombrePlan }),
   setPrevisualizacion: (previsualizacion) => set({ previsualizacion }),
+  setRespetarCapacidad: (respetarCapacidad) => set({ respetarCapacidad }),
   setUltimoMovimiento: (ultimoMovimiento) => set({ ultimoMovimiento }),
   toggleCarga: () => set(s => ({ mostrarCarga: !s.mostrarCarga })),
   toggleDep: () => set(s => ({ mostrarDep: !s.mostrarDep })),
