@@ -57,7 +57,8 @@ const DED_MINIMA = 0.07
 
 /** Una barra es de la primera liquidación en vivo si su `_fase` lo dice. */
 export function esLiquidacionEnVivo(a: Asignacion): boolean {
-  return a._fase === 'Liquidacion en vivo'
+  // El v18 la marca como tipo Cierre + `_fase`; el PR #39 (borrador) la convierte a un tipo propio.
+  return a._fase === 'Liquidacion en vivo' || (a.tipo as string) === 'Liquidacion en vivo'
 }
 
 /** La cuenta ya arrancó: tiene alguna barra de armado que empezó antes de hoy. No se mueve sola. */
