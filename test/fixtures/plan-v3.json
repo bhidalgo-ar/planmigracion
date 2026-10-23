@@ -2063,105 +2063,105 @@
         "filas": [
           {
             "cliente": "TIM",
-            "analista": "Agustina R.",
+            "analista": "Analista A",
             "sistema": "Meta4",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 2,
             "pays": 165
           },
           {
             "cliente": "DLA",
-            "analista": "Agustina R.",
+            "analista": "Analista A",
             "sistema": "Meta4",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 3,
             "pays": 280
           },
           {
             "cliente": "Finadiet",
-            "analista": "Candela",
+            "analista": "Analista B",
             "sistema": "Meta4",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 3,
             "pays": 362
           },
           {
             "cliente": "Plastic Omnium Florida",
-            "analista": "Candela",
+            "analista": "Analista B",
             "sistema": "Meta4",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 4,
             "pays": 119
           },
           {
             "cliente": "Piano",
-            "analista": "Araceli",
+            "analista": "Analista C",
             "sistema": "Meta4",
-            "lider": "Melina",
+            "lider": "Analista D",
             "complejidad": 1,
             "pays": 23
           },
           {
             "cliente": "Marval",
-            "analista": "Araceli",
+            "analista": "Analista C",
             "sistema": "Meta4",
-            "lider": "Melina",
+            "lider": "Analista D",
             "complejidad": 3,
             "pays": 580
           },
           {
             "cliente": "Sportline",
-            "analista": "Florencia",
+            "analista": "Analista E",
             "sistema": "Meta4",
-            "lider": "Melina",
+            "lider": "Analista D",
             "complejidad": 5,
             "pays": 623
           },
           {
             "cliente": "Carrier",
-            "analista": "Melina",
+            "analista": "Analista D",
             "sistema": "Meta4",
-            "lider": "Melina",
+            "lider": "Analista D",
             "complejidad": 4,
             "pays": 424
           },
           {
             "cliente": "Lowsedo",
-            "analista": "Sergio",
+            "analista": "Analista F",
             "sistema": "Meta4",
-            "lider": "Matías",
+            "lider": "Analista G",
             "complejidad": 2,
             "pays": 72
           },
           {
             "cliente": "Bonafide",
-            "analista": "Sergio",
+            "analista": "Analista F",
             "sistema": "Meta4",
-            "lider": "Matías",
+            "lider": "Analista G",
             "complejidad": 1,
             "pays": 7
           },
           {
             "cliente": "Campari",
-            "analista": "Sergio",
+            "analista": "Analista F",
             "sistema": "Meta4",
-            "lider": "Matías",
+            "lider": "Analista G",
             "complejidad": 3,
             "pays": 135
           },
           {
             "cliente": "GSMA",
-            "analista": "Sergio",
+            "analista": "Analista F",
             "sistema": "Meta4",
-            "lider": "Matías",
+            "lider": "Analista G",
             "complejidad": 1,
             "pays": 9
           },
           {
             "cliente": "Copetro",
-            "analista": "Sergio",
+            "analista": "Analista F",
             "sistema": "Meta4",
-            "lider": "Matías",
+            "lider": "Analista G",
             "complejidad": 4,
             "pays": 120
           },
@@ -2169,7 +2169,7 @@
             "cliente": "TPA",
             "analista": "Team TASA",
             "sistema": "Meta4",
-            "lider": "Franco",
+            "lider": "Analista J",
             "complejidad": 3,
             "pays": 50
           },
@@ -2177,85 +2177,85 @@
             "cliente": "Toyota",
             "analista": "Team TASA",
             "sistema": "Meta4",
-            "lider": "Franco",
+            "lider": "Analista J",
             "complejidad": 5,
             "pays": 8000
           },
           {
             "cliente": "Siasa Logística",
-            "analista": "Celeste",
+            "analista": "Analista H",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 3,
             "pays": 130
           },
           {
             "cliente": "COELSA",
-            "analista": "Celeste",
+            "analista": "Analista H",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 2,
             "pays": 278
           },
           {
             "cliente": "Red Bull",
-            "analista": "Celeste",
+            "analista": "Analista H",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 1,
             "pays": 60
           },
           {
             "cliente": "Merz",
-            "analista": "Celeste",
+            "analista": "Analista H",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 1,
             "pays": 44
           },
           {
             "cliente": "Plastic Omnium Pilar",
-            "analista": "Micaela",
+            "analista": "Analista I",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 4,
             "pays": 370
           },
           {
             "cliente": "Epiroc",
-            "analista": "Micaela",
+            "analista": "Analista I",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 2,
             "pays": 46
           },
           {
             "cliente": "Coty",
-            "analista": "Micaela",
+            "analista": "Analista I",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 2,
             "pays": 116
           },
           {
             "cliente": "Geopagos",
-            "analista": "Agustina R.",
+            "analista": "Analista A",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 2,
             "pays": 220
           },
           {
             "cliente": "Poincenot",
-            "analista": "Agustina R.",
+            "analista": "Analista A",
             "sistema": "Axton",
-            "lider": "Candela",
+            "lider": "Analista B",
             "complejidad": 1,
             "pays": 84
           },
           {
             "cliente": "Internos",
-            "analista": "[FALTA: consultor actual; el board dice Natacha, etiqueta desactivada]",
+            "analista": "[FALTA: consultor actual; etiqueta desactivada en el board]",
             "sistema": "Axton",
             "lider": "[FALTA]",
             "complejidad": 1,
