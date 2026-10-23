@@ -3,6 +3,7 @@ import type { Asignacion, Config, Persona, Proyecto, TipoFase, Violacion } from 
 import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
 import { computeViolaciones, fechaCorteDe, habilesHasta, MARGEN_MINIMO_DEFAULT } from './rules'
 import { cargaMensual, mesSalidaDe } from './capacidad'
+import { planificarCuentaNivelada, type ResultadoNivelado } from './planificadorNivelado'
 
 /**
  * Planificador hacia atrás: el mismo algoritmo que armar_calendario_migracion.py, adentro
@@ -113,7 +114,9 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
   const pruebas = porTipo('Pruebas')
   const configs = porTipo('Configuracion')
   const relevs = porTipo('Relevamiento')
-  const cierres = porTipo('Cierre')
+  // La primera liquidación en vivo (tipo Cierre con `_fase`) no va antes del corte: arranca en él.
+  const liquidaciones = porTipo('Cierre').filter(a => a._fase === 'Liquidacion en vivo')
+  const cierres = porTipo('Cierre').filter(a => a._fase !== 'Liquidacion en vivo')
 
   const nuevas = new Map<string, Asignacion>()
   const fijarDesde = (a: Asignacion, inicio: string) => {
@@ -202,6 +205,8 @@ export function planificarCuenta(proyectoId: string, asignaciones: Asignacion[],
     }
   }
 
+  for (const a of liquidaciones) fijarDesde(a, corte)
+
   const resultado = propias.map(a => nuevas.get(a.id) ?? a)
   if (resultado.some(a => a.inicio < config.horizonte.desde)) return { ok: false, motivo: 'fuera_de_horizonte' }
   return { ok: true, asignaciones: resultado, corte, margen, cierrePisaPruebas }
@@ -289,6 +294,53 @@ export function simularDestinos(
   })
 }
 
+/**
+ * Lo mismo que `simularDestinos`, con el planificador que respeta capacidad
+ * (`planificadorNivelado.ts`): cada mes se arma buscando dónde entra cada tarea. Si la cuenta
+ * no entra, el mes queda en rojo con el motivo ("Willy no tiene lugar para los cruces") y,
+ * al elegirlo igual, se arma con el planificador clásico para que se vea con qué choca.
+ */
+export function simularDestinosNivelado(
+  proyectoId: string, meses: string[], asignaciones: Asignacion[], personas: Persona[], config: Config, proyectos: Proyecto[], hoyISO: string,
+): Destino[] {
+  const base = computeViolaciones(asignaciones, personas, config, proyectos)
+  const rojosBase = cuenta(base, 'rojo')
+  const ambaresBase = cuenta(base, 'ambar')
+  const mensajesBase = new Set(base.map(v => v.mensaje))
+  const actual = mesSalidaDe(proyectoId, config)
+  const feriados = feriadosDeConfig(config)
+  return meses.map(mes => {
+    const niv = planificarCuentaNivelada(proyectoId, asignaciones, mes, personas, config, proyectos, { hoyISO })
+    if (!niv.ok) {
+      const clasico = planificarCuenta(proyectoId, asignaciones, mes, config)
+      return {
+        mes, estado: clasico.ok ? 'rojo' : 'gris', actual: mes === actual, motivo: `No entra: ${niv.motivo}`,
+        rojos: rojosBase, ambares: ambaresBase, deltaRojos: 1, deltaAmbares: 0,
+        margen: clasico.ok ? clasico.margen : null, corte: clasico.ok ? clasico.corte : null,
+      }
+    }
+    const v = computeViolaciones(aplicarPlan(asignaciones, niv.asignaciones), personas, configConSalida(config, proyectoId, mes), proyectos)
+    const rojos = cuenta(v, 'rojo')
+    const ambares = cuenta(v, 'ambar')
+    const nuevas = v.filter(x => x.severidad !== 'info' && !mensajesBase.has(x.mensaje))
+    const motivo = (nuevas.find(x => x.severidad === 'rojo') ?? nuevas[0])?.mensaje ?? null
+    const deltaRojos = rojos - rojosBase
+    const deltaAmbares = ambares - ambaresBase
+    const estado: EstadoDestino = deltaRojos > 0 ? 'rojo' : deltaAmbares > 0 ? 'ambar' : 'verde'
+    const margen = niv.entrega < niv.corte ? habilesHasta(niv.entrega, niv.corte, feriados) : 0
+    return { mes, estado, actual: mes === actual, motivo, rojos, ambares, deltaRojos, deltaAmbares, margen, corte: niv.corte }
+  })
+}
+
+/** Un resultado del planificador nivelado con la forma que espera `describirMovimiento`. */
+export function planDesdeNivelado(niv: Extract<ResultadoNivelado, { ok: true }>, config: Config): Extract<ResultadoPlan, { ok: true }> {
+  const feriados = feriadosDeConfig(config)
+  return {
+    ok: true, asignaciones: niv.asignaciones, corte: niv.corte,
+    margen: niv.entrega < niv.corte ? habilesHasta(niv.entrega, niv.corte, feriados) : 0, cierrePisaPruebas: false,
+  }
+}
+
 // ── qué cambió después de mover ───────────────────────────────────────────────────
 
 export interface ReporteMovimiento {
@@ -309,6 +361,10 @@ export interface ReporteMovimiento {
   resueltas: string[]
   /** Carga mensual de las personas de la cuenta, solo en los meses donde cambió. */
   cargas: Array<{ alias: string; mes: string; antes: number; despues: number; capacidad: number }>
+  /** Con qué planificador se armó. */
+  modo?: 'capacidad' | 'clasico'
+  /** Si se pidió respetar capacidad y no entró: por qué (se armó con el clásico). */
+  noEntra?: string
 }
 
 export function describirMovimiento(args: {

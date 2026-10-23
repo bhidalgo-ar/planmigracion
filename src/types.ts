@@ -56,6 +56,11 @@ export interface Asignacion {
   _horas?: number
   /** Nombre de la tarea de la barra ("Alta y carga base"). Si falta se deriva del id (ver `src/tareas.ts`). */
   _tarea?: string
+  /**
+   * Marca de fase dentro del tipo. `'Liquidacion en vivo'` (plan v18) = acompañamiento de la
+   * primera liquidación: arranca en el corte del mes de salida, no se arma hacia atrás.
+   */
+  _fase?: string
   _nota?: string
 }
 
@@ -160,6 +165,11 @@ export interface Config {
      * está abierta un día si tiene alguna barra activa (no bloqueo). Default 4. Ver `src/paralelo.ts`.
      */
     max_cuentas_en_paralelo?: number
+    /**
+     * Meses máximos que una cuenta puede estar abierta (del relevamiento a la entrega) cuando el
+     * planificador respeta capacidad. Default 4; 0 = sin límite. Ver `src/planificadorNivelado.ts`.
+     */
+    max_meses_cuenta_abierta?: number
     _nota?: string
   }
   /** Modelo de capacidad (brief 10/09/2026 §2). Ver `src/capacidad.ts`. */

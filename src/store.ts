@@ -11,9 +11,10 @@ import { estaDesbloqueado } from './confidencial'
 import { validarPlan, type ResultadoValidacion } from './validacionPlan'
 import { ORDEN_FASES } from './theme/fases'
 import {
-  aplicarPlan, aplicarTraspaso, configConSalida, describirMovimiento, describirTraspaso, MOTIVO_TEXTO, planificarCuenta,
+  aplicarPlan, aplicarTraspaso, configConSalida, describirMovimiento, describirTraspaso, MOTIVO_TEXTO, planDesdeNivelado, planificarCuenta,
   type ReporteMovimiento, type ReporteTraspaso, type Traspaso,
 } from './planificador'
+import { planificarCuentaNivelada, replanificarTodoNivelado, type ReporteReplanNivelado } from './planificadorNivelado'
 import { duracionPorHoras, horasDeBarra, horasDiaDe, mesSalidaDe } from './capacidad'
 import personasRaw from '../data/personas.json'
 import proyectosRaw from '../data/proyectos.json'
@@ -300,9 +301,12 @@ interface SimuladorState {
    * `config.salidas_en_vivo_propuestas`, así el tope de salidas, el margen, la
    * disponibilidad de Moni, Insights, Equipo y el video ven el mes nuevo.
    */
-  moverCuentaAMes: (proyectoId: string, mes: string) => { ok: boolean; motivo?: string; reporte?: ReporteMovimiento }
+  /** `respetarCapacidad`: arma la cuenta con el planificador nivelado; si no entra, con el clásico y lo avisa. */
+  moverCuentaAMes: (proyectoId: string, mes: string, respetarCapacidad?: boolean) => { ok: boolean; motivo?: string; reporte?: ReporteMovimiento }
   /** Rearma TODAS las cuentas con mes de salida y corte desde su corte. Equivale a correr el script Python. */
   replanificarDesdeElCorte: () => { replanificadas: number; sinCorte: string[]; sinLugar: string[] }
+  /** Rearma todas las cuentas que no arrancaron, con su mes, respetando capacidad. */
+  replanificarRespetandoCapacidad: () => ReporteReplanNivelado
   addPersona: (alias: string, rol: RolPersona | null) => void
   /**
    * Carga vacaciones de una persona como bloqueo `tipo: 'Vacaciones'`: restan capacidad del
@@ -323,6 +327,8 @@ interface SimuladorState {
   addProyecto: (nombre: string, inicio: string) => string
   removeProyecto: (id: string) => void
   renameProyecto: (id: string, nombre: string) => void
+  /** Cambia el tope de cuentas abiertas a la vez del equipo (`reglas_calendario.max_cuentas_en_paralelo`) y recalcula. */
+  setTopeParalelo: (n: number) => void
   clearAsignaciones: () => void
   shiftAccountDias: (proyectoId: string, dias: number) => void
   shiftCascadaDias: (asignacionId: string, dias: number, nuevaPersona?: string) => void
@@ -483,11 +489,18 @@ export const useSimuladorStore = create<SimuladorState>()(
       // Mover una cuenta = cambiar su mes de salida. Las fechas de las fases se derivan del
       // corte de novedades de ese mes; el config guarda el mes nuevo para que todas las
       // vistas y reglas lo vean. Devuelve qué cambió (para mostrarlo en el panel).
-      moverCuentaAMes(proyectoId, mes) {
+      moverCuentaAMes(proyectoId, mes, respetarCapacidad = false) {
         let salida: { ok: boolean; motivo?: string; reporte?: ReporteMovimiento } = { ok: false }
         set(state => {
-          const plan = planificarCuenta(proyectoId, state.asignaciones, mes, state.config)
-          if (!plan.ok) { salida = { ok: false, motivo: MOTIVO_TEXTO[plan.motivo] }; return {} }
+          let noEntra: string | undefined
+          let plan: ReturnType<typeof planificarCuenta> | null = null
+          if (respetarCapacidad) {
+            const niv = planificarCuentaNivelada(proyectoId, state.asignaciones, mes, state.personas, state.config, state.proyectos, { hoyISO: toISO(new Date()) })
+            if (niv.ok) plan = planDesdeNivelado(niv, state.config)
+            else noEntra = niv.motivo
+          }
+          if (!plan) plan = planificarCuenta(proyectoId, state.asignaciones, mes, state.config)
+          if (!plan.ok) { salida = { ok: false, motivo: noEntra ?? MOTIVO_TEXTO[plan.motivo] }; return {} }
           const asignaciones = aplicarPlan(state.asignaciones, plan.asignaciones)
           const config = configConSalida(state.config, proyectoId, mes)
           const violaciones = recompute(asignaciones, state.personas, config, state.proyectos)
@@ -500,6 +513,7 @@ export const useSimuladorStore = create<SimuladorState>()(
               plan,
             }),
           }
+          if (salida.reporte) { salida.reporte.modo = respetarCapacidad && !noEntra ? 'capacidad' : 'clasico'; salida.reporte.noEntra = noEntra }
           return { ...conHistorial(state), asignaciones, config, violaciones }
         })
         return salida
@@ -529,6 +543,21 @@ export const useSimuladorStore = create<SimuladorState>()(
             ...conHistorial(state),
             asignaciones,
             violaciones: recompute(asignaciones, state.personas, state.config, state.proyectos),
+          }
+        })
+        return reporte
+      },
+
+      replanificarRespetandoCapacidad() {
+        let reporte: ReporteReplanNivelado = { replanificadas: [], noEntran: [], enCurso: [] }
+        set(state => {
+          const r = replanificarTodoNivelado(state.asignaciones, state.personas, state.config, state.proyectos, { hoyISO: toISO(new Date()) })
+          reporte = r.reporte
+          if (!r.reporte.replanificadas.length) return {}
+          return {
+            ...conHistorial(state),
+            asignaciones: r.asignaciones,
+            violaciones: recompute(r.asignaciones, state.personas, state.config, state.proyectos),
           }
         })
         return reporte
@@ -738,6 +767,21 @@ export const useSimuladorStore = create<SimuladorState>()(
       },
 
       // Renombra el nombre comercial de la cuenta. El id se mantiene estable.
+      setTopeParalelo(n) {
+        const tope = Math.max(1, Math.min(20, Math.round(n)))
+        set(state => {
+          const config: Config = {
+            ...state.config,
+            reglas_calendario: { ...state.config.reglas_calendario, max_cuentas_en_paralelo: tope },
+          }
+          return {
+            ...conHistorial(state),
+            config,
+            violaciones: recompute(state.asignaciones, state.personas, config, state.proyectos),
+          }
+        })
+      },
+
       renameProyecto(id, nombre) {
         const nombreLimpio = nombre.trim()
         if (!nombreLimpio) return

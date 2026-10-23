@@ -9,7 +9,8 @@ import { TIPO_COLOR, TIPO_LABEL, ORDEN_FASES } from '../theme/fases'
 import { feriadosDeConfig, formatFechaCorta, toISO } from '../utils/dates'
 import { ddmm, margenesPorCuenta, nombreMes, origenCorteDe } from '../rules'
 import { mesSalidaDe } from '../capacidad'
-import { mesesCandidatos, planificarCuenta, simularDestinos, simularReasignacion, type Destino } from '../planificador'
+import { mesesCandidatos, planificarCuenta, simularDestinos, simularDestinosNivelado, simularReasignacion, type Destino } from '../planificador'
+import { planificarCuentaNivelada } from '../planificadorNivelado'
 
 const COLOR_TIER: Record<Tier, string> = {
   chica: 'var(--ok)', std: 'var(--celeste-dark)', grande: 'var(--fase-relev)', xl: 'var(--fase-cierre)',
@@ -154,7 +155,7 @@ const ESTILO_DESTINO: Record<Destino['estado'], { bg: string; bd: string; tx: st
  */
 function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
   const { asignaciones, personas, config, proyectos, moverCuentaAMes } = useSimuladorStore()
-  const { setPrevisualizacion, ultimoMovimiento, setUltimoMovimiento } = useUIStore()
+  const { setPrevisualizacion, ultimoMovimiento, setUltimoMovimiento, respetarCapacidad, setRespetarCapacidad } = useUIStore()
   const [error, setError] = useState<string | null>(null)
   useEffect(() => { setError(null) }, [proyecto.id])
 
@@ -170,18 +171,30 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
   )
   const minimo = config.capacidad?.margen_minimo_habiles ?? 5
   const meses = useMemo(() => mesesCandidatos(config, toISO(new Date())), [config])
+  const hoyISO = toISO(new Date())
   const destinos = useMemo(
-    () => (tieneCorte ? simularDestinos(proyecto.id, meses, asignaciones, personas, config, proyectos) : []),
-    [tieneCorte, proyecto.id, meses, asignaciones, personas, config, proyectos],
+    () => (!tieneCorte ? []
+      : respetarCapacidad ? simularDestinosNivelado(proyecto.id, meses, asignaciones, personas, config, proyectos, hoyISO)
+        : simularDestinos(proyecto.id, meses, asignaciones, personas, config, proyectos)),
+    [tieneCorte, respetarCapacidad, proyecto.id, meses, asignaciones, personas, config, proyectos, hoyISO],
   )
+  // Última salida del plan: el mes más tarde entre las cuentas con mes (cuándo termina).
+  const ultimaSalida = useMemo(() => {
+    const ms = Object.entries(config.salidas_en_vivo_propuestas ?? {}).filter(([k, v]) => !k.startsWith('_') && typeof v === 'string').map(([, v]) => v as string)
+    return ms.sort().pop() ?? null
+  }, [config])
 
   function previsualizar(mes: string) {
+    if (respetarCapacidad) {
+      const niv = planificarCuentaNivelada(proyecto.id, asignaciones, mes, personas, config, proyectos, { hoyISO })
+      if (niv.ok) { setPrevisualizacion({ proyectoId: proyecto.id, asignaciones: niv.asignaciones }); return }
+    }
     const plan = planificarCuenta(proyecto.id, asignaciones, mes, config)
     setPrevisualizacion(plan.ok ? { proyectoId: proyecto.id, asignaciones: plan.asignaciones } : null)
   }
   function elegir(mes: string) {
     setPrevisualizacion(null)
-    const r = moverCuentaAMes(proyecto.id, mes)
+    const r = moverCuentaAMes(proyecto.id, mes, respetarCapacidad)
     if (!r.ok) { setError(r.motivo ?? 'No se pudo mover la cuenta.'); return }
     setError(null)
     setUltimoMovimiento(r.reporte ?? null)
@@ -194,7 +207,13 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', color: 'var(--celeste-dark)' }}>Sale en vivo</span>
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>{mesActual ? nombreMes(mesActual) : 'sin definir'}</span>
+        {ultimaSalida && <span className="num" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--t2)' }} title="El mes de salida más tarde entre todas las cuentas del plan">el plan termina en <b style={{ color: 'var(--ink)' }}>{nombreMes(ultimaSalida).toLowerCase()}</b></span>}
       </div>
+      <label style={{ marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 11.5, color: 'var(--t1)', cursor: 'pointer', lineHeight: 1.35 }}
+        title="Encendido: al elegir un mes, cada tarea se ubica donde la persona tiene lugar (nunca más del 100 % de su disponibilidad en un día, vacaciones, blackout, tope de cuentas en paralelo del equipo y una cuenta abierta como máximo los meses de reglas_calendario.max_meses_cuenta_abierta). Si no entra, el mes queda en rojo con el motivo. Apagado: el planificador clásico, hacia atrás desde el corte con duraciones fijas.">
+        <input type="checkbox" checked={respetarCapacidad} onChange={e => setRespetarCapacidad(e.target.checked)} style={{ marginTop: 2, accentColor: 'var(--celeste)' }} />
+        <span><b>Respetar capacidad</b> <span style={{ color: 'var(--t3)' }}>· busca dónde entra cada tarea y avisa si la cuenta no entra en ese mes</span></span>
+      </label>
       <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {corteInfo && (
           <span title={corteInfo.origen === 'monday' ? 'El ítem ya está cargado en el cronograma de monday' : corteInfo.origen === 'estimado' ? 'Proyectado desde los cortes reales de 2026, corrido al hábil anterior' : 'Regla vieja: día fijo del mes'}>
@@ -240,7 +259,7 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
             })}
           </div>
           <div style={{ marginTop: 8, fontSize: 10.5, color: 'var(--t3)', lineHeight: 1.4 }}>
-            Verde entra sin conflictos nuevos · ámbar suma avisos · rojo rompe una regla. Pasá el mouse para ver las fases en el timeline; hacé clic para moverla. Las fechas se arman hacia atrás desde el corte; si después editás una fase a mano, volvé a elegir el mes para rearmarlas.
+            Verde entra sin conflictos nuevos · ámbar suma avisos · rojo rompe una regla{respetarCapacidad ? ' o no entra (el motivo está al pasar el mouse)' : ''}. Pasá el mouse para ver las fases en el timeline; hacé clic para moverla. {respetarCapacidad ? 'Cada tarea se ubica donde la persona tiene lugar, antes del corte.' : 'Las fechas se arman hacia atrás desde el corte.'} Si después editás una fase a mano, volvé a elegir el mes para rearmarlas.
           </div>
         </>
       )}
@@ -255,7 +274,11 @@ function BloqueSalida({ proyecto }: { proyecto: Proyecto }) {
           <div style={{ marginTop: 4, fontSize: 12, color: 'var(--t1)', lineHeight: 1.5 }}>
             {reporte.nombre}: <b>{reporte.mesAntes ? nombreMes(reporte.mesAntes) : 'sin mes'} → {nombreMes(reporte.mesDespues)}</b>. Corte {ddmm(reporte.corte)}, {reporte.margen} hábil{reporte.margen !== 1 ? 'es' : ''} de margen.
             {reporte.cierrePisaPruebas && ' La actualización final se pisa con las pruebas.'}
+            {reporte.modo === 'capacidad' && ' Armada respetando la capacidad del equipo.'}
           </div>
+          {reporte.noEntra && (
+            <div style={{ marginTop: 4, fontSize: 11, padding: '5px 8px', background: 'var(--warn-bg)', borderRadius: 6, color: 'var(--warn-tx)' }}>No entra respetando capacidad: {reporte.noEntra} Se armó con el planificador clásico para que se vea con qué choca.</div>
+          )}
           <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--t2)' }}>
             Conflictos {reporte.rojosAntes} → <b style={{ color: reporte.rojosDespues > reporte.rojosAntes ? 'var(--error-tx)' : 'var(--ink)' }}>{reporte.rojosDespues}</b> · Avisos {reporte.ambaresAntes} → <b style={{ color: 'var(--ink)' }}>{reporte.ambaresDespues}</b>
           </div>

@@ -33,8 +33,20 @@ Cuatro pestañas más una:
   abiertas el EQUIPO el mismo día (en semana y mes, el máximo de un mismo día), con el tope
   de `max_cuentas_en_paralelo` al lado: borde celeste por debajo, ámbar en el tope, rojo si
   se pasa. Los analistas de payroll (`rol: 'payroll'`) no tienen fila en la banda: su
-  disponibilidad no está relevada; sus tareas sí cuentan para "En paralelo". El
-  switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
+  disponibilidad no está relevada; sus tareas sí cuentan para "En paralelo".
+  **Fila de cuenta en una línea (23/10/2026, Willy: "si no te pido aperturarlo, que no lo
+  apertures")**: cerrada, la cuenta es una sola línea con Relevamiento, Configuración y Pruebas
+  armadas **solo con las tareas de implementación** (la previa y la validación del analista de
+  payroll ya no estiran esas fases), **un rombo** para la actualización final (delta + aplica),
+  **una franja gris rayada "En vivo"** para la primera liquidación (`_fase: 'Liquidacion en
+  vivo'`, de implementación y del analista) y un **filete gris** debajo de la línea para la
+  previa y la validación (`_fase: 'Payroll …'`). Hacer clic en la cuenta abre el panel pero
+  **no** la abre en el timeline: el detalle por tarea se abre solo con el ▸ al lado del nombre
+  (`cuentaAbierta`, estado local del Timeline), y las flechas de dependencia solo se dibujan
+  con la cuenta abierta. El **tope de "En paralelo" se cambia con − y +** al lado del número
+  (`setTopeParalelo`: escribe `reglas_calendario.max_cuentas_en_paralelo`, recalcula y entra en
+  el export y en Ctrl+Z).
+  El switch "Por persona" vuelve a la vista original de una fila por persona con el tinte de
   carga en la fila.
 - **Insights**: para gerencia. Cuándo termina la migración y la foto trimestre a trimestre.
   (La ola por cuenta se sacó el 11/09/2026: era lo mismo que el Timeline por cuenta.)
@@ -153,6 +165,29 @@ pasaría (simula y corre las reglas), previsualiza en el timeline y, al aplicar,
 `salidas_en_vivo_propuestas` y resume qué cambió. "Más → Replanificar desde el corte" hace lo
 mismo para todas las cuentas. Lo que el planificador NO resuelve a propósito son los choques de
 carga: quedan en las reglas para decidirlos a mano. Tests en `test/planificador.test.ts`.
+
+**Planificador que respeta capacidad** (`src/planificadorNivelado.ts`, 23/10/2026, Willy: "que
+tenga la inteligencia de la Mesa de salidas"). Es un segundo modo, **encendido por default**
+con el check "Respetar capacidad" del panel de la cuenta (`uiStore.respetarCapacidad`). Para el
+mes elegido busca dónde entra cada tarea: nadie de implementación por encima del 100 % de su
+disponibilidad en ningún día hábil (vacaciones = 0), el tope de cuentas en paralelo del equipo,
+el blackout de configuración y una cuenta abierta como máximo
+`reglas_calendario.max_meses_cuenta_abierta` meses (default 4). Las tareas de armado van hacia
+adelante por `predecesoras` y, si la persona no tiene lugar, se estiran con menos horas por día
+(nunca se suman horas); el cierre va pegado al límite antes del corte; la primera liquidación
+(`_fase: 'Liquidacion en vivo'`) arranca en el corte y dura hasta el 5° hábil del mes siguiente
+(se recorta si hay vacaciones en la cola, nunca encima de la semana de la liquidación). Los
+analistas de payroll no tienen control de carga. Prueba el arranque más tarde que funcione y,
+si no hay ninguno, dice por qué ("Guille no tiene lugar para pruebas · cruces antes del corte").
+En la tira "Sale en vivo" ese mes queda en rojo con el motivo; si se elige igual, la cuenta se
+arma con el clásico y el panel avisa que no entra. "··· → 🧠 Replanificar respetando capacidad"
+rearma todas las cuentas que no arrancaron, por mes de salida (las que todavía no se rearmaron
+no cuentan como carga). **Una cuenta que ya arrancó** (alguna barra de armado empezó antes de
+hoy) no se mueve sola. Con este cambio se corrigieron dos cosas del clásico y de las reglas: la
+primera liquidación ya no se trata como Actualización final (el planificador clásico la deja en
+el corte y el margen no la mide), y `fechaCorteDe` extrapola el corte con la mediana del día del
+mes cuando el plan no trae la fecha de ese mes ni día fijo (se muestra como "estimado"). Tests en
+`test/nivelado.test.ts`.
 
 **El corte de novedades es una fecha por mes, no un día fijo.** `config.cortes_novedades_fechas`
 trae el corte de cada cuenta y período (leído de los cronogramas de monday, ítem "Recepción de
