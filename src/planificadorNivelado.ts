@@ -1,7 +1,7 @@
 import { addDays, parseISO } from 'date-fns'
-import type { Asignacion, Config, Persona, Proyecto } from './types'
+import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
 import { feriadosDeConfig, toISO } from './utils/dates'
-import { DESFASAJE_PRUEBAS_DEFAULT, fechaCorteDe, MARGEN_MINIMO_DEFAULT } from './rules'
+import { claveViolacion, computeViolaciones, DESFASAJE_PRUEBAS_DEFAULT, fechaCorteDe, MARGEN_MINIMO_DEFAULT, mesReservadoDiciembre } from './rules'
 import { cuentasEnAxton, disponibilidadMes, horasDeBarra, horasDiaDe, horasPorDiaHabil } from './capacidad'
 import { cuentasPorDia, topeParalelo } from './paralelo'
 import { nombreTarea } from './tareas'
@@ -127,6 +127,13 @@ export function planificarCuentaNivelada(
   if (!corteISO) return { ok: false, motivo: `[FALTA: corte de novedades de ${nombre} para ${mesSalida}]` }
 
   const cfg: Config = { ...config, salidas_en_vivo_propuestas: { ...(config.salidas_en_vivo_propuestas ?? {}), [proyectoId]: mesSalida } }
+  // Regla de diciembre del plan: ese diciembre es de una sola cuenta y, si lo pide, sin Moni para las demás.
+  const reservado = mesReservadoDiciembre(cfg)
+  if (reservado && reservado.id !== proyectoId && reservado.mes === mesSalida) {
+    const unica = proyectos.find(p => p.id === reservado.id)?.nombre ?? reservado.id
+    return { ok: false, motivo: `Ese diciembre el plan lo reserva para ${unica}.` }
+  }
+  const moniSinDiciembre = !!(reservado && reservado.id !== proyectoId && config.reglas_calendario?.diciembre_sin_moni)
   const hasta = `${addMes(mesSalida, 3)}-28`
   const cal = calendario(`${opciones.hoyISO.slice(0, 7)}-01`, hasta > config.horizonte.hasta ? hasta : config.horizonte.hasta, feriados)
   const N = cal.dias.length
@@ -175,7 +182,9 @@ export function planificarCuentaNivelada(
     let v = capMes.get(k)
     if (v === undefined) {
       const p = personaDe.get(pid)
-      v = horasDiaDe(p, config) * disponibilidadMes(pid, mes, cfg, cuentasEnAxton(mes, cfg), p)
+      // carga_maxima_pct: a quien se le permite pasar del 100 % (ej. 1,2) se le estira el tope del día.
+      v = horasDiaDe(p, config) * disponibilidadMes(pid, mes, cfg, cuentasEnAxton(mes, cfg), p) * (p?.carga_maxima_pct ?? 1)
+      if (moniSinDiciembre && pid === 'moni' && mes === reservado!.mes) v = 0
       capMes.set(k, v)
     }
     return v
@@ -324,7 +333,11 @@ export function planificarCuentaNivelada(
   }
 
   const sMin = Math.max(HOY, limiteCierre - (Number.isFinite(maxAbierta) ? maxAbierta : 200))
-  const sMax = Math.max(sMin, HOY, limiteCierre - nominal - 8)
+  // Al menos un arranque dentro de la ventana: arrancando justo en sMin, con el cierre pegado al
+  // límite, la cuenta queda abierta maxAbierta + 1 días. Antes, cuando la duración nominal
+  // ocupaba toda la ventana, era el único que se probaba y la cuenta entraba solo si alguna
+  // tarea se demoraba por falta de lugar (más capacidad hacía que dejara de entrar).
+  const sMax = Math.max(sMin + 1, HOY, limiteCierre - nominal - 8)
   let plan: Map<string, Asignacion> | null = null
   for (let s = sMax; s >= sMin && !plan; s--) plan = intentar(s)
   if (!plan) {
@@ -407,4 +420,87 @@ export function replanificarTodoNivelado(
   reporte.replanificadas = mejor.ok
   reporte.noEntran = mejor.no
   return { asignaciones: mejor.lista, reporte }
+}
+
+// ── rearmar adelantando ───────────────────────────────────────────────────────────
+
+export interface ReporteAdelantar {
+  /** Cuentas que cambiaron de mes de salida, con el mes de antes y el de ahora. */
+  movidas: Array<{ id: string; nombre: string; antes: string; despues: string }>
+  /** Cuentas que se rearmaron en el mismo mes que tenían. */
+  igual: string[]
+  /** Cuentas que no entran en ningún mes hasta el suyo: quedan como estaban. */
+  noEntran: Array<{ nombre: string; mes: string; motivo: string }>
+  /** Cuentas que ya arrancaron: no se tocan. */
+  enCurso: string[]
+}
+
+/** Las reglas que el rearmado no puede romper: todas las rojas menos las de carga (esas se miran a la vista). */
+const REGLAS_DE_CARGA = new Set(['carga_mes', 'carga_semana'])
+const rojosDuros = (vs: Violacion[]) => new Set(vs.filter(v => v.severidad === 'rojo' && !REGLAS_DE_CARGA.has(v.tipo)).map(claveViolacion))
+
+/**
+ * Rearma el calendario adelantando cada cuenta que no arrancó al primer mes donde entra
+ * (23/10/2026, escenarios de capacidad: "si subo el tope, ¿cómo quedaría?"). Va en el orden
+ * de salida del plan; las que todavía no se rearmaron no cuentan como carga. Para cada mes,
+ * desde hoy hasta el que la cuenta ya tenía, prueba con el planificador que respeta capacidad
+ * y acepta el primero que no agrega ningún conflicto rojo que no sea de carga (tope de
+ * salidas, margen, blackout, dependencias, vacaciones, cuentas en paralelo). Nunca atrasa una
+ * cuenta: si no entra antes, se rearma en su mes; si tampoco, queda como estaba.
+ *
+ * Es un acomodo posible, no el mejor: el orden de salida decide quién elige primero.
+ */
+export function adelantarTodoNivelado(
+  asignaciones: Asignacion[], personas: Persona[], config: Config, proyectos: Proyecto[], opciones: OpcionesNivelado,
+): { asignaciones: Asignacion[]; config: Config; reporte: ReporteAdelantar } {
+  const salidas = config.salidas_en_vivo_propuestas ?? {}
+  const mesDe = (id: string, cfg: Config) => {
+    const v = (cfg.salidas_en_vivo_propuestas ?? {})[id]
+    return typeof v === 'string' ? v : null
+  }
+  const reporte: ReporteAdelantar = { movidas: [], igual: [], noEntran: [], enCurso: [] }
+  const candidatas = proyectos.filter(p => typeof salidas[p.id] === 'string' && asignaciones.some(a => a.proyecto_id === p.id && !a.es_bloqueo))
+  const enCurso = candidatas.filter(p => cuentaArrancada(p.id, asignaciones, opciones.hoyISO))
+  reporte.enCurso = enCurso.map(p => p.nombre)
+  const primerInicio = (id: string) => asignaciones.filter(a => a.proyecto_id === id && !a.es_bloqueo).map(a => a.inicio).sort()[0] ?? ''
+  const orden = candidatas.filter(p => !enCurso.includes(p))
+    .sort((a, b) => mesDe(a.id, config)!.localeCompare(mesDe(b.id, config)!) || primerInicio(a.id).localeCompare(primerInicio(b.id)))
+
+  const meses: string[] = []
+  for (let m = opciones.hoyISO.slice(0, 7); m <= config.horizonte.hasta.slice(0, 7) && meses.length < 60; m = addMes(m, 1)) meses.push(m)
+
+  let lista = asignaciones
+  let cfg = config
+  const pendientes = new Set(orden.map(p => p.id))
+  const visibles = (A: Asignacion[]) => A.filter(a => !a.proyecto_id || !pendientes.has(a.proyecto_id))
+  for (const p of orden) {
+    pendientes.delete(p.id)
+    const actual = mesDe(p.id, cfg)!
+    const antes = rojosDuros(computeViolaciones(visibles(lista), personas, cfg, proyectos))
+    let puesta = false
+    let motivo = ''
+    for (const mes of meses) {
+      if (mes > actual) break
+      const r = planificarCuentaNivelada(p.id, lista, mes, personas, cfg, proyectos, { ...opciones, excluir: pendientes })
+      if (!r.ok) { motivo = r.motivo; continue }
+      const porId = new Map(r.asignaciones.map(a => [a.id, a]))
+      const nuevas = lista.map(a => porId.get(a.id) ?? a)
+      const cfg2: Config = { ...cfg, salidas_en_vivo_propuestas: { ...(cfg.salidas_en_vivo_propuestas ?? {}), [p.id]: mes } }
+      const despues = rojosDuros(computeViolaciones(visibles(nuevas), personas, cfg2, proyectos))
+      const nuevo = [...despues].find(k => !antes.has(k))
+      if (nuevo) {
+        const v = computeViolaciones(visibles(nuevas), personas, cfg2, proyectos).find(x => claveViolacion(x) === nuevo)
+        motivo = v?.mensaje ?? 'Agrega un conflicto.'
+        continue
+      }
+      lista = nuevas
+      cfg = cfg2
+      puesta = true
+      if (mes === actual) reporte.igual.push(p.nombre)
+      else reporte.movidas.push({ id: p.id, nombre: p.nombre, antes: actual, despues: mes })
+      break
+    }
+    if (!puesta) reporte.noEntran.push({ nombre: p.nombre, mes: actual, motivo })
+  }
+  return { asignaciones: lista, config: cfg, reporte }
 }

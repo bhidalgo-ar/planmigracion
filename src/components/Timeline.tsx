@@ -15,6 +15,7 @@ import { margenesPorCuenta, predecesoraViolada } from '../rules'
 import { nombreTarea } from '../tareas'
 import { getMondayOfWeek, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 import { celdasParalelo, cuentasPorDia, estadoParalelo, topeParalelo } from '../paralelo'
+import { TiraMoverA, TIRA_H } from './TiraMoverA'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -265,9 +266,11 @@ export function Timeline() {
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad,
-    ordenPersonas, personasOcultas, previsualizacion, modoFilas,
+    ordenPersonas, personasOcultas, previsualizacion, modoFilas, detalleCuenta, setDetalleCuenta,
   } = useUIStore()
   const porCuenta = modoFilas === 'cuenta'
+  /** Vista D: la cuenta elegida lleva debajo la tira "Mover a" (solo en modo cuenta). */
+  const tiraDe = porCuenta && clienteSeleccionado && proyectos.some(p => p.id === clienteSeleccionado) ? clienteSeleccionado : null
   /**
    * Cuenta abierta en detalle (una barra por tarea). Es aparte de la selección: hacer clic en
    * una cuenta abre su panel pero NO la abre en el timeline (Willy, 23/10/2026: "si no te pido
@@ -457,13 +460,13 @@ export function Timeline() {
     let acc = 0
     for (const f of filas) {
       const n = carrilesDeFila.get(f.id) ?? 1
-      const h = ROW_H + (n - 1) * (BAR_H + GAP_CARRIL)
+      const h = ROW_H + (n - 1) * (BAR_H + GAP_CARRIL) + (f.id === tiraDe ? TIRA_H : 0)
       topDeFila.set(f.id, acc)
       altoDeFila.set(f.id, h)
       acc += h
     }
     return { topDeFila, altoDeFila, bodyH: acc }
-  }, [filas, carrilesDeFila, ROW_H, BAR_H])
+  }, [filas, carrilesDeFila, ROW_H, BAR_H, tiraDe])
 
   /** Y de una barra: el arranque de su fila, centrada en su carril. */
   const topBarra = (filaId: string, carril: number) =>
@@ -1114,6 +1117,18 @@ export function Timeline() {
             <div key={f.id} style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: bodyW, height: altoDeFila.get(f.id) ?? ROW_H, background: porCuenta && clienteSeleccionado === f.id ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderBottom: '1px solid var(--line-soft)' }} />
           ))}
 
+          {/* Vista D: la tira "Mover a" de la cuenta elegida, alineada con los meses del eje. */}
+          {tiraDe && (
+            <TiraMoverA proyectoId={tiraDe}
+              top={(topDeFila.get(tiraDe) ?? 0) + (altoDeFila.get(tiraDe) ?? ROW_H) - TIRA_H}
+              posicion={mes => {
+                const ini = parseISO(`${mes}-01`), fin = addDays(ini, getDaysInMonth(ini))
+                if (fin <= horizonStart || ini > horizonEnd) return null
+                const x0 = Math.max(NAME_W, dateToXd(ini)), x1 = Math.min(bodyW, dateToXd(fin))
+                return { x: x0, w: x1 - x0 }
+              }} />
+          )}
+
           {/* Vacaciones: franja de color sobre el Gantt para ver qué cuentas caen encima. En modo
               cuenta cruza todas las filas; en modo persona, solo la fila de quien se va. */}
           {vacaciones.map((v, k) => {
@@ -1252,11 +1267,26 @@ export function Timeline() {
               const rojos = statsCuenta.get(f.id) ?? 0
               const compacta = densidad === 'compacta'
               const sel = clienteSeleccionado === f.id
+              const conTira = tiraDe === f.id
+              const alto = (altoDeFila.get(f.id) ?? ROW_H) - (conTira ? TIRA_H : 0)
               return (
-                <div key={f.id}
+                <div key={f.id}>
+                {conTira && (
+                  <div onMouseDown={e => e.stopPropagation()}
+                    style={{ position: 'absolute', top: (topDeFila.get(f.id) ?? 0) + alto, left: 0, width: NAME_W, height: TIRA_H, boxSizing: 'border-box', padding: '8px 10px 0 11px', background: 'linear-gradient(var(--celeste-dim), var(--celeste-dim)), var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: '3px solid var(--celeste)', pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--celeste-deeper)' }}>Mover {f.titulo} a</span>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" onClick={() => setDetalleCuenta(!detalleCuenta)} title="Panel de la cuenta: renombrar, tareas por persona y qué cambió con el último movimiento"
+                        style={{ font: 'inherit', fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, border: '1px solid var(--celeste-border)', background: detalleCuenta ? 'var(--celeste)' : 'var(--white)', color: detalleCuenta ? '#fff' : 'var(--celeste-dark)', cursor: 'pointer' }}>Detalle</button>
+                      <button type="button" onClick={() => seleccionarCliente(null)} title="Cerrar la tira"
+                        style={{ font: 'inherit', fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 9999, border: '1px solid var(--line)', background: 'var(--white)', color: 'var(--t2)', cursor: 'pointer' }}>Cerrar</button>
+                    </span>
+                  </div>
+                )}
+                <div
                   onMouseDown={e => e.stopPropagation()}
                   onClick={() => p && seleccionarCliente(sel ? null : p.id)}
-                  style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: NAME_W, height: altoDeFila.get(f.id) ?? ROW_H, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
+                  style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: NAME_W, height: alto, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     {p && (
                       <button type="button"
@@ -1283,6 +1313,7 @@ export function Timeline() {
                       {mes ? `sale ${mesCorto(mes)}` : p ? 'sin mes de salida' : 'corridas y vacaciones'}
                     </span>
                   )}
+                </div>
                 </div>
               )
             }) : personas.map((p, i) => {

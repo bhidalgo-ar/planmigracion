@@ -19,6 +19,13 @@ export interface Persona {
    * jornada de H&A). Gaby tiene 4: su jornada es fija, no una fracción de la estándar.
    */
   horas_dia?: number
+  /**
+   * Hasta cuánto de su capacidad se le permite cargar a esta persona, como fracción (1,2 = 120 %).
+   * El planificador que respeta capacidad lo usa como tope por día (así ninguna semana pasa de
+   * ese número) y el aviso semanal no salta hasta pasarlo. El control mensual no cambia: un mes
+   * por encima del 100 % sigue en rojo. Default 1 (23/10/2026, escenarios de capacidad).
+   */
+  carga_maxima_pct?: number
   custom?: boolean   // true si se agregó desde la UI (no viene del seed)
   _nota?: string
 }
@@ -170,6 +177,15 @@ export interface Config {
      * planificador respeta capacidad. Default 4; 0 = sin límite. Ver `src/planificadorNivelado.ts`.
      */
     max_meses_cuenta_abierta?: number
+    /**
+     * Id de la única cuenta que puede salir en vivo en diciembre (v20: 'gsma'). Reserva el
+     * diciembre en que sale esa cuenta: ninguna otra sale ese mes (regla `tope_salidas`) y el
+     * planificador que respeta capacidad no la ubica ahí. Si esa cuenta no sale en diciembre,
+     * la regla no corre.
+     */
+    diciembre_una_sola_salida?: string
+    /** Con `diciembre_una_sola_salida`: en ese diciembre Moni solo trabaja en esa cuenta (planificador). */
+    diciembre_sin_moni?: boolean
     _nota?: string
   }
   /** Modelo de capacidad (brief 10/09/2026 §2). Ver `src/capacidad.ts`. */

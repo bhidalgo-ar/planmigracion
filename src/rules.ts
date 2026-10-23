@@ -95,9 +95,11 @@ export function checkCargaMensual(
 export function checkCargaSemanal(
   asignaciones: Asignacion[], personas: Persona[], config: Config,
 ): Violacion[] {
-  const tol = config.capacidad?.aviso_semanal_tolerancia ?? 1.15
+  const tolPlan = config.capacidad?.aviso_semanal_tolerancia ?? 1.15
   const out: Violacion[] = []
   for (const c of cargaSemanal(personas, asignaciones, config)) {
+    // A quien se le permite cargar más (carga_maxima_pct, ej. 1,2) no se le avisa hasta pasarlo.
+    const tol = Math.max(tolPlan, personas.find(p => p.id === c.personaId)?.carga_maxima_pct ?? 0)
     if (c.capacidad <= 0 || c.horas <= c.capacidad * tol + 0.01) continue
     const alias = personas.find(p => p.id === c.personaId)?.alias ?? c.personaId
     const viernes = toISO(addDays(parseISO(c.semana), 4))
@@ -137,6 +139,17 @@ export function salidasPorMes(config: Config, proyectos: Proyecto[]): Map<string
 }
 
 /**
+ * El diciembre que reserva `reglas_calendario.diciembre_una_sola_salida`: el mes de salida de
+ * esa cuenta si cae en diciembre. Null si la regla no está o si la cuenta no sale en diciembre.
+ */
+export function mesReservadoDiciembre(config: Config): { id: string; mes: string } | null {
+  const id = config.reglas_calendario?.diciembre_una_sola_salida
+  if (typeof id !== 'string' || !id) return null
+  const mes = mesSalidaDe(id, config)
+  return mes && mes.endsWith('-12') ? { id, mes } : null
+}
+
+/**
  * Tope de salidas en vivo por mes (`reglas_calendario.tope_salidas_en_vivo_por_mes`).
  * Excepción: exactamente 3 salidas con al menos 2 de tier chica se permiten, y se informan.
  * Sin tope configurado, la regla no corre.
@@ -147,7 +160,20 @@ export function checkTopeSalidas(asignaciones: Asignacion[], config: Config, pro
   const chicas = new Set(config.tiers_v3?.chica ?? [])
   const out: Violacion[] = []
 
+  // Regla de diciembre del plan (v20): el diciembre en que sale esa cuenta es solo suyo.
+  const reservado = mesReservadoDiciembre(config)
   for (const [mes, salidas] of [...salidasPorMes(config, proyectos).entries()].sort()) {
+    if (reservado && mes === reservado.mes) {
+      const otras = salidas.filter(s => s.id !== reservado.id)
+      if (otras.length) {
+        const ref = asignaciones.filter(a => a.proyecto_id === otras[0].id && a.tipo === 'Pruebas').sort((a, b) => (a.fin < b.fin ? 1 : -1))[0]
+        const unica = proyectos.find(p => p.id === reservado.id)?.nombre ?? reservado.id
+        out.push({
+          tipo: 'tope_salidas', asignacion_id: ref?.id ?? '', proyecto_id: otras[0].id ?? undefined, mes, severidad: 'rojo',
+          mensaje: `${nombreMes(mes)}: el plan reserva el mes para ${unica} y también sale ${otras.map(s => s.nombre).join(', ')}`,
+        })
+      }
+    }
     if (salidas.length <= tope) continue
     const nombres = salidas.map(s => s.nombre).join(', ')
     const nChicas = salidas.filter(s => s.id && chicas.has(s.id)).length
@@ -500,6 +526,15 @@ export function checkParalelo(asignaciones: Asignacion[], config: Config, proyec
     mensaje: `${nombreMes(t.mes)}: ${t.max} cuentas abiertas a la vez el ${ddmm(t.diaPico)} (${t.cuentas.map(id => nombreCuenta(id, proyectos, id)).join(', ')}). El tope del equipo es ${tope}${t.dias > 1 ? `; se pasa ${t.dias} días hábiles del mes` : ''}.`,
     severidad: 'rojo' as const,
   }))
+}
+
+/**
+ * Identidad de una violación para comparar dos planes: la misma regla sobre lo mismo. El
+ * mensaje no sirve porque cambia con los números ("11 cuentas abiertas" → "12"): las reglas
+ * del mes (paralelo, tope de salidas) se identifican por mes; las demás, por su fase y su mes.
+ */
+export function claveViolacion(v: Violacion): string {
+  return v.tipo === 'paralelo' || v.tipo === 'tope_salidas' ? `${v.tipo}|${v.mes ?? ''}` : `${v.tipo}|${v.asignacion_id}|${v.mes ?? ''}|${v.semana ?? ''}`
 }
 
 export function computeViolaciones(

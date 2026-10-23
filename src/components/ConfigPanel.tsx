@@ -32,11 +32,13 @@ export function ConfigPanel() {
   const {
     violaciones, resetToSeed, exportarJSON, exportOmiteConfidencial, importarJSON,
     clearAsignaciones, asignaciones, historial, undo, autoPlanificarPendientes, replanificarDesdeElCorte, replanificarRespetandoCapacidad,
+    iniciarEscenario,
   } = useSimuladorStore()
   const {
     vista, mostrarCarga, mostrarDep, mostrarConflictos, toggleCarga, toggleDep, toggleConflictos,
     setResumen, timelineFull, toggleTimelineFull, zoom, setZoom, irHoy, modoMovimiento, setModoMovimiento, densidad, setDensidad,
     ocultarPersonasSinCarga, modoFilas, setModoFilas, abrirComoSeArmo, mostrarRail, toggleRail, abrirModal,
+    panelEscenario, setPanelEscenario, setVista,
   } = useUIStore()
   const [masAbierto, setMasAbierto] = useState(false)
   const [zoomAbierto, setZoomAbierto] = useState(false)
@@ -98,6 +100,8 @@ export function ConfigPanel() {
           // Se guarda el nombre del archivo para poder decir de qué plan es el video
           // del resumen ejecutivo ("Plan v3 · 10 de septiembre de 2026").
           useUIStore.getState().setNombrePlan(file.name.replace(/\.json$/i, ''))
+          // Un plan nuevo cierra el escenario (el store suelta la base): que el panel no abra otro solo.
+          useUIStore.getState().setPanelEscenario(false)
           L.push(`Importado "${file.name}": ${r.resumen.personas} personas, ${r.resumen.proyectos} cuentas, ${r.resumen.asignaciones} fases.`)
           if (r.resumen.sinAsignar) L.push(`${r.resumen.sinAsignar} fase${r.resumen.sinAsignar !== 1 ? 's' : ''} quedan en la fila "Sin asignar".`)
           if (r.avisos.length) { L.push('', 'Para mirar:'); for (const a of r.avisos.slice(0, 10)) L.push(`• ${a}`); if (r.avisos.length > 10) L.push(`• … y ${r.avisos.length - 10} más`) }
@@ -168,6 +172,14 @@ export function ConfigPanel() {
               ))}
             </Segmentos>
 
+            {/* Escenario (23/10/2026): abre el panel de palancas arriba del Timeline y guarda una
+                copia del plan para comparar. El plan no cambia hasta que se aplica. */}
+            <button onClick={() => { if (!panelEscenario) iniciarEscenario(); setPanelEscenario(!panelEscenario) }}
+              style={{ ...pillBtn, flexShrink: 0, ...(panelEscenario ? activePill : {}) }}
+              title="Probar un escenario: subir el tope de cuentas abiertas, darle más horas a alguien o dejarlo llegar al 120 %, rearmar el calendario y compararlo con el plan">
+              Escenario
+            </button>
+
             <button onClick={toggleTimelineFull} style={{ ...pillBtn, flexShrink: 0, padding: '4px 8px', ...(timelineFull ? activePill : {}) }}
               title={timelineFull ? 'Expandir timeline: volver a mostrar el panel de la cuenta' : 'Expandir timeline: usar todo el ancho para el calendario'}>
               ⛶
@@ -212,6 +224,10 @@ export function ConfigPanel() {
               <MenuItem onClick={() => { setMasAbierto(false); handleReplanificarCapacidad() }}
                 title="Rearma cada cuenta que todavía no arrancó con el mes que tiene, buscando dónde entra cada tarea: nadie por encima del 100 % en ningún día, vacaciones, blackout, tope de cuentas en paralelo y máximo de meses abierta. Las que salen antes eligen primero. Avisa cuáles no entran.">
                 🧠 Replanificar respetando capacidad
+              </MenuItem>
+              <MenuItem onClick={() => { setMasAbierto(false); iniciarEscenario(); setPanelEscenario(true); setVista('timeline') }}
+                title="Guarda una copia del plan y abre las palancas: tope de cuentas abiertas, jornada y hasta cuánto puede cargarse cada persona. Nada cambia en el plan hasta que lo aplicás.">
+                🧪 Probar un escenario
               </MenuItem>
               <MenuItem onClick={handleAutoPlanificar} title="Encadena Relevamiento → Configuración → Pruebas para las cuentas sin fases, buscando hueco libre.">🪄 Planificar pendientes</MenuItem>
               <MenuItem

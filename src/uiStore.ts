@@ -3,7 +3,12 @@ import { useSimuladorStore } from './store'
 import type { Asignacion } from './types'
 import type { ReporteMovimiento } from './planificador'
 
-export type Vista = 'timeline' | 'insights' | 'equipo' | 'resumen' | 'confidencial'
+/**
+ * Las vistas del tablero (23/10/2026, rediseño): Salidas (la mesa de meses), Hoy, Timeline (donde
+ * se trabaja moviendo cuentas), Reunión y Comparar (el escenario contra su base) en la barra;
+ * Insights, Equipo, Resumen y Disponibilidad en "Más".
+ */
+export type Vista = 'salidas' | 'hoy' | 'timeline' | 'reunion' | 'comparar' | 'insights' | 'equipo' | 'resumen' | 'confidencial'
 export type Modal = null | 'equipo' | 'cuenta'
 
 export type ZoomLevel = 'dias' | 'semanas' | 'meses' | 'trimestres'
@@ -93,8 +98,17 @@ interface UIState {
    * vuelve al clásico (hacia atrás desde el corte, duraciones fijas).
    */
   respetarCapacidad: boolean
+  /** Panel de palancas del escenario arriba del Timeline (tope, jornada, hasta cuánto carga cada uno). */
+  panelEscenario: boolean
+  /**
+   * Panel lateral de la cuenta en el Timeline por cuenta. Desde el rediseño (vista D) elegir una
+   * cuenta muestra la tira "Mover a" en su fila y el panel se abre solo con "Detalle".
+   */
+  detalleCuenta: boolean
 
   setVista: (v: Vista) => void
+  setPanelEscenario: (v: boolean) => void
+  setDetalleCuenta: (v: boolean) => void
   setNombrePlan: (n: string | null) => void
   setPrevisualizacion: (p: { proyectoId: string; asignaciones: Asignacion[] } | null) => void
   setUltimoMovimiento: (r: ReporteMovimiento | null) => void
@@ -127,7 +141,8 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  vista: 'timeline',
+  // Arranca en Salidas: es la vista que se entiende sin explicación (rediseño 23/10/2026).
+  vista: 'salidas',
   mostrarCarga: true,
   mostrarDep: true,
   mostrarConflictos: true,
@@ -140,12 +155,13 @@ export const useUIStore = create<UIState>((set) => ({
   sortCuentas: 'fecha',
   irHoyToken: 0,
   modoMovimiento: 'flexible',
-  // Amplia por default (pedido de Willy, 11/09/2026): con los carriles, una fila puede tener
-  // dos fases apiladas y en compacta el texto de la barra no se lee. Se scrollea más, pero se
-  // entiende quién hace qué; el alto se baja a S/M desde "··· → Alto de fila".
-  densidad: 'amplia',
+  // Compacta por default desde el rediseño (vista D, 23/10/2026): con la cuenta en una sola
+  // línea entran todas en una pantalla, que es lo que hace falta para mover cuentas. Antes era
+  // amplia (11/09/2026), cuando cada cuenta se abría en carriles; S/M/L sigue en la barra.
+  densidad: 'compacta',
   modoFilas: 'cuenta',
-  insightsAbierto: true,
+  // El panel de abajo arranca cerrado (rediseño 23/10/2026): lo mismo se lee en Hoy y en Reunión.
+  insightsAbierto: false,
   ordenPersonas: [],
   // Las filas sin ninguna fase arrancan ocultas: con el plan v3, Susi, Lau y Axton ocupaban
   // tres carriles vacíos. "Personas → Ver todas" las vuelve a mostrar.
@@ -153,9 +169,13 @@ export const useUIStore = create<UIState>((set) => ({
   nombrePlan: null,
   previsualizacion: null,
   respetarCapacidad: true,
+  panelEscenario: false,
+  detalleCuenta: false,
   ultimoMovimiento: null,
 
   setVista: (vista) => set({ vista }),
+  setPanelEscenario: (panelEscenario) => set({ panelEscenario }),
+  setDetalleCuenta: (detalleCuenta) => set({ detalleCuenta }),
   setNombrePlan: (nombrePlan) => set({ nombrePlan }),
   setPrevisualizacion: (previsualizacion) => set({ previsualizacion }),
   setRespetarCapacidad: (respetarCapacidad) => set({ respetarCapacidad }),
