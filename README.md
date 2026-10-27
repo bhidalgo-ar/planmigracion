@@ -35,6 +35,7 @@ src/
   insights*.ts     ← lógica de Insights y Equipo
   vistasPrograma.ts← lo que leen Salidas, Hoy y Reunión
   escenario.ts     ← escenarios de capacidad: palancas, rearmar, comparar
+  fases.ts         ← una barra por fase y por persona: juntar, editar, mover, repartir horas
   resumen/         ← el video del resumen ejecutivo (datos, guion, movimiento, vista)
   components/      ← UI
 test/              ← suites (esbuild + node) y el fixture del plan v3

@@ -197,7 +197,8 @@ bloquear()
 eq('bloqueado: el export avisa que lo omite', useSimuladorStore.getState().exportOmiteConfidencial(), true)
 const exportBloqueado = JSON.parse(useSimuladorStore.getState().exportarJSON()) as { config: Record<string, unknown>; asignaciones: unknown[] }
 eq('bloqueado: el export NO trae equipo_confidencial', 'equipo_confidencial' in exportBloqueado.config, false)
-eq('y el resto del plan va completo', exportBloqueado.asignaciones.length, planV3.asignaciones.length)
+// El plan entra con las tareas de cada fase juntas (una barra por fase y por persona): va completo lo que está en memoria.
+eq('y el resto del plan va completo', exportBloqueado.asignaciones.length, useSimuladorStore.getState().asignaciones.length)
 check('el resto del config va intacto', 'salidas_en_vivo_propuestas' in exportBloqueado.config && 'capacidad' in exportBloqueado.config)
 desbloquear()
 eq('desbloqueado: no avisa', useSimuladorStore.getState().exportOmiteConfidencial(), false)

@@ -66,11 +66,31 @@ const pisa = checkVacaciones([...asignaciones, vac('moni', '2026-09-22', '2026-0
 check('dispara para la configuración de Moni en TIM', pisa.some(v => v.asignacion_id === 'tim-config-m' && v.severidad === 'rojo'), pisa.map(v => v.asignacion_id).join(','))
 check('el mensaje nombra persona, fase, cuenta y fechas',
   pisa.some(v => v.mensaje === 'Moni tiene la configuración de TIM del 23/09 al 25/09 y está de vacaciones del 22/09 al 30/09'), pisa.map(v => v.mensaje).join(' | '))
-check('también pisa sus pruebas de TIM (29/09 → 01/10)', pisa.some(v => v.asignacion_id === 'tim-pruebas-m'))
+check('sus pruebas de TIM (29/09 → 01/10) no: el 01/10 trabaja, las vacaciones son hueco', !pisa.some(v => v.asignacion_id === 'tim-pruebas-m'))
 check('no dispara para Guille aunque trabaje esos días', !pisa.some(v => v.persona_id === 'guille'))
 eq('sin vacaciones cargadas no hay regla', checkVacaciones(asignaciones, personas, proyectos).length, 0)
 check('computeViolaciones la incluye', computeViolaciones([...asignaciones, vac('moni', '2026-09-22', '2026-09-30')], personas, config, proyectos).some(v => v.tipo === 'vacaciones'))
 check('el v3 sin vacaciones sigue dando lo mismo que antes', computeViolaciones(asignaciones, personas, config, proyectos).every(v => v.tipo !== 'vacaciones'))
+
+titulo('Vacaciones como hueco — una barra que cae en parte sobre ellas reparte sus horas en los días que trabaja')
+{
+  // Una barra de 10 hábiles con 20 h de Moni (05/10 → 16/10; el 12/10 es feriado, así que termina el 19/10)
+  // y vacaciones del 13 al 16/10: trabaja 05-09/10 y 19/10, 6 días.
+  const barra: Asignacion = { id: 'x-config-moni', proyecto_id: 'tim', tipo: 'Configuracion', persona_id: 'moni', inicio: '2026-10-05', fin: '2026-10-19',
+    duracion_dias: 10, dedicacion_pct: 0.3, predecesoras: [], es_bloqueo: false, _horas: 20 }
+  const solo = [barra, vac('moni', '2026-10-13', '2026-10-16')]
+  const sem1 = cargaSemanal(personas, solo, config).find(c => c.personaId === 'moni' && c.semana === '2026-10-05')!
+  const sem2 = cargaSemanal(personas, solo, config).find(c => c.personaId === 'moni' && c.semana === '2026-10-12')!
+  const sem3 = cargaSemanal(personas, solo, config).find(c => c.personaId === 'moni' && c.semana === '2026-10-19')!
+  cerca('la semana del 05/10 lleva 5 de los 6 días de trabajo: 20 × 5/6', sem1.horas, 20 * 5 / 6, 0.05)
+  eq('la semana de las vacaciones no lleva horas', sem2.horas, 0)
+  cerca('el 19/10 lleva el sexto día', sem3.horas, 20 / 6, 0.05)
+  cerca('el mes suma las 20 h', cargaMensual(personas, solo, config).find(c => c.personaId === 'moni' && c.mes === '2026-10')!.horas, 20, 0.05)
+  eq('no es rojo de vacaciones', checkVacaciones(solo, personas, proyectos, feriados).length, 0)
+  const entera = [barra, vac('moni', '2026-10-01', '2026-10-30')]
+  eq('si cae entera sobre las vacaciones, sí es rojo', checkVacaciones(entera, personas, proyectos, feriados).length, 1)
+  cerca('y las horas no se pierden: quedan donde estaban', cargaMensual(personas, entera, config).find(c => c.personaId === 'moni' && c.mes === '2026-10')!.horas, 20, 0.05)
+}
 
 titulo('Planificador y tira de meses — las vacaciones no se esquivan solas, se ven')
 const vacNov = [...asignaciones, vac('moni', '2026-11-02', '2026-11-30')]

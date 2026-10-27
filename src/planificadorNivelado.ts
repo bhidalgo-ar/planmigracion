@@ -2,7 +2,7 @@ import { addDays, parseISO } from 'date-fns'
 import type { Asignacion, Config, Persona, Proyecto, Violacion } from './types'
 import { feriadosDeConfig, toISO } from './utils/dates'
 import { claveViolacion, computeViolaciones, DESFASAJE_PRUEBAS_DEFAULT, fechaCorteDe, MARGEN_MINIMO_DEFAULT, mesReservadoDiciembre } from './rules'
-import { cuentasEnAxton, disponibilidadMes, horasDeBarra, horasDiaDe, horasPorDiaHabil } from './capacidad'
+import { cuentasEnAxton, diasDeVacaciones, disponibilidadMes, horasDeBarra, horasDiaDe, repartoDeBarra } from './capacidad'
 import { cuentasPorDia, topeParalelo } from './paralelo'
 import { nombreTarea } from './tareas'
 
@@ -20,7 +20,10 @@ import { nombreTarea } from './tareas'
  *  - Las tareas de armado (relevamiento, configuración, pruebas y las de payroll con el
  *    cliente) se ubican hacia adelante respetando las `predecesoras` (Pruebas → Pruebas
  *    arrancan N hábiles después de que arranca la otra). Si la persona no tiene lugar, la
- *    tarea se estira con menos horas por día; nunca se le suman horas.
+ *    tarea se estira con menos horas por día; nunca se le suman horas. Una tarea fijada a
+ *    mano (📌 `fijada`) conserva su duración: solo se busca dónde arrancarla.
+ *  - Las vacaciones adentro de una tarea son hueco (23/10/2026): esos días no llevan horas y
+ *    el total se reparte en los que la persona trabaja, igual que en `capacidad.ts`.
  *  - El cierre (Actualización final) va lo más cerca posible del corte, `margen_minimo_habiles`
  *    antes, después de todo lo anterior.
  *  - Reglas duras: capacidad diaria (con vacaciones = 0), tope de cuentas en paralelo del
@@ -161,17 +164,27 @@ export function planificarCuentaNivelada(
   }
   const vac = new Map<string, Set<number>>()
   for (const a of otras) {
-    if (a.tipo === 'Vacaciones') {
-      let s = vac.get(a.persona_id)
-      if (!s) { s = new Set(); vac.set(a.persona_id, s) }
-      for (let i = cal.alODespues(a.inicio); i <= cal.alOAntes(a.fin) && i < N; i++) if (i >= 0) s.add(i)
-      continue
-    }
+    if (a.tipo !== 'Vacaciones') continue
+    let s = vac.get(a.persona_id)
+    if (!s) { s = new Set(); vac.set(a.persona_id, s) }
+    for (let i = cal.alODespues(a.inicio); i <= cal.alOAntes(a.fin) && i < N; i++) if (i >= 0) s.add(i)
+  }
+  const vacISO = new Map<string, Set<string>>()
+  const vacISODe = (pid: string) => {
+    let s = vacISO.get(pid)
+    if (!s) { s = diasDeVacaciones(pid, otras, feriados); vacISO.set(pid, s) }
+    return s
+  }
+  const esVac = (pid: string, i: number) => !!vac.get(pid)?.has(i)
+  for (const a of otras) {
     if (a.es_bloqueo) continue
-    const h = horasPorDiaHabil(a, personaDe.get(a.persona_id), config, feriados)
-    if (!(h > 0)) continue
+    const r = repartoDeBarra(a, personaDe.get(a.persona_id), config, feriados, vacISODe(a.persona_id))
+    if (!(r.porDia > 0)) continue
     const c = cargaDe(a.persona_id)
-    for (let i = Math.max(0, cal.alODespues(a.inicio)); i <= cal.alOAntes(a.fin) && i < N; i++) c[i] += h
+    for (let i = Math.max(0, cal.alODespues(a.inicio)); i <= cal.alOAntes(a.fin) && i < N; i++) {
+      if (r.hueco && esVac(a.persona_id, i)) continue
+      c[i] += r.porDia
+    }
   }
   // Capacidad diaria en horas: jornada × disponibilidad del mes (con esta cuenta saliendo en su mes).
   const capMes = new Map<string, number>()
@@ -200,10 +213,18 @@ export function planificarCuentaNivelada(
     if (tipo === 'Configuracion' && enBlackout(i)) return 0
     return Math.max(0, capDe(pid, i) - cargaDe(pid)[i])
   }
+  /** Días de [s, e] en que la persona trabaja (sin sus vacaciones). */
+  const trabajados = (pid: string, s: number, e: number) => {
+    let w = 0
+    for (let i = s; i <= e; i++) if (!esVac(pid, i)) w++
+    return w
+  }
+  // Con hueco (la tarea tiene días de trabajo y de vacaciones), las vacaciones no llevan horas.
   const sumar = (pid: string, s: number, e: number, h: number, signo = 1) => {
     if (esPayroll(pid)) return
     const c = cargaDe(pid)
-    for (let i = s; i <= e; i++) c[i] += signo * h
+    const hueco = trabajados(pid, s, e) > 0
+    for (let i = s; i <= e; i++) if (!(hueco && esVac(pid, i))) c[i] += signo * h
   }
 
   /** Horas totales de una barra y horas por día de su versión original. */
@@ -212,11 +233,13 @@ export function planificarCuentaNivelada(
     const hd = horasDiaDe(personaDe.get(a.persona_id), config)
     return h !== null ? h : hd * a.dedicacion_pct * Math.max(1, a.duracion_dias)
   }
-  const salida = (a: Asignacion, s: number, e: number, horasDia: number): Asignacion => {
+  /** `diasConHoras`: los días que llevan horas (sin el hueco de vacaciones); por defecto, todos. */
+  const salida = (a: Asignacion, s: number, e: number, horasDia: number, diasConHoras = e - s + 1): Asignacion => {
     const hd = horasDiaDe(personaDe.get(a.persona_id), config)
     const dur = e - s + 1
-    const out: Asignacion = { ...a, inicio: cal.dias[s], fin: cal.dias[e], duracion_dias: dur, dedicacion_pct: Math.round((horasDia / hd) * 1000) / 1000 }
-    if (horasDeBarra(a) !== null) out._horas = Math.round(horasDia * dur * 10) / 10
+    // La dedicación es el promedio sobre toda la barra: así "Recalcular duraciones" devuelve los mismos días.
+    const out: Asignacion = { ...a, inicio: cal.dias[s], fin: cal.dias[e], duracion_dias: dur, dedicacion_pct: Math.round((horasDia * diasConHoras / dur / hd) * 1000) / 1000 }
+    if (horasDeBarra(a) !== null) out._horas = Math.round(horasDia * diasConHoras * 10) / 10
     return out
   }
 
@@ -265,12 +288,25 @@ export function planificarCuentaNivelada(
       orden.push(a); hechos.add(a.id)
     }
   }
-  const nominal = orden.reduce((s, a) => s + Math.max(1, a.duracion_dias), 0) + cierres.length + 6
+  // Duración nominal: el camino más largo por predecesoras (las barras de una fase van en paralelo).
+  const nominal = (() => {
+    const st = new Map<string, number>(), en = new Map<string, number>()
+    for (const a of orden) {
+      let s = 0
+      for (const p of predsDe(a)) {
+        if (!en.has(p)) continue
+        const pa = armado.find(x => x.id === p)!
+        s = Math.max(s, pa.tipo === 'Pruebas' && a.tipo === 'Pruebas' ? st.get(p)! + lag : en.get(p)!)
+      }
+      st.set(a.id, s); en.set(a.id, s + Math.max(1, a.duracion_dias))
+    }
+    return Math.max(0, ...en.values()) + cierres.length + 6
+  })()
   const fallas = new Map<string, number>()
   const falla = (k: string) => fallas.set(k, (fallas.get(k) ?? 0) + 1)
 
   function intentar(s0: number): Map<string, Asignacion> | null {
-    const puestas: Array<{ a: Asignacion; s: number; e: number; h: number }> = []
+    const puestas: Array<{ a: Asignacion; s: number; e: number; h: number; w?: number }> = []
     const deshacer = () => { for (const p of puestas) sumar(p.a.persona_id, p.s, p.e, p.h, -1) }
     const pos = new Map<string, { s: number; e: number }>()
     const temprano = (a: Asignacion) => {
@@ -285,26 +321,43 @@ export function planificarCuentaNivelada(
     for (const a of orden) {
       const desde = temprano(a), hTot = horasDe(a)
       const nom = Math.max(1, a.duracion_dias), hNom = hTot / nom
-      if (esPayroll(a.persona_id)) {
+      const pid = a.persona_id
+      if (esPayroll(pid)) {
         if (desde + nom - 1 >= limiteCierre) { falla(a.id); deshacer(); return null }
-        pos.set(a.id, { s: desde, e: desde + nom - 1 }); puestas.push({ a, s: desde, e: desde + nom - 1, h: hNom })
+        pos.set(a.id, { s: desde, e: desde + nom - 1 }); puestas.push({ a, s: desde, e: desde + nom - 1, h: hNom, w: nom })
         continue
       }
-      let mejor: { s: number; e: number; h: number } | null = null
+      const minimo = DED_MINIMA * horasDiaDe(personaDe.get(pid), config)
+      let mejor: { s: number; e: number; h: number; w: number } | null = null
       for (let x = desde; x < limiteCierre; x++) {
         if (mejor && x >= mejor.e) break
-        let mn = Infinity
-        for (let d = 1; d <= nom * 4; d++) {
+        if (esVac(pid, x)) continue   // no arranca de vacaciones
+        let mn = Infinity, w = 0
+        for (let d = 1; d <= nom * 4 + 30; d++) {
           const i = x + d - 1
           if (i >= limiteCierre) break
-          mn = Math.min(mn, libre(a.persona_id, i, a.tipo))
-          if (mn < DED_MINIMA * horasDiaDe(personaDe.get(a.persona_id), config)) break
-          const need = hTot / d
-          if (need <= Math.min(mn, hNom) + 1e-9) { if (!mejor || i < mejor.e) mejor = { s: x, e: i, h: need }; break }
+          // Un día de vacaciones es hueco: no lleva horas, pero la cuenta sigue abierta.
+          if (esVac(pid, i)) {
+            if (i < HOY || lleno(i) || (a.tipo === 'Configuracion' && enBlackout(i))) break
+            if (a.fijada && d === nom) break
+            continue
+          }
+          w++
+          mn = Math.min(mn, libre(pid, i, a.tipo))
+          if (mn < minimo) break
+          const need = hTot / w
+          if (a.fijada) {
+            // 📌 Conserva su duración: o entra en esos `nom` días o se prueba otro arranque.
+            if (d < nom) continue
+            if (need <= mn + 1e-9) mejor = !mejor || i < mejor.e ? { s: x, e: i, h: need, w } : mejor
+            break
+          }
+          if (w > nom * 4) break
+          if (need <= Math.min(mn, hNom) + 1e-9) { if (!mejor || i < mejor.e) mejor = { s: x, e: i, h: need, w }; break }
         }
       }
       if (!mejor) { falla(a.id); deshacer(); return null }
-      sumar(a.persona_id, mejor.s, mejor.e, mejor.h)
+      sumar(pid, mejor.s, mejor.e, mejor.h)
       pos.set(a.id, { s: mejor.s, e: mejor.e }); puestas.push({ a, ...mejor })
     }
     // Cierre: de atrás para adelante, pegado al límite.
@@ -327,7 +380,7 @@ export function planificarCuentaNivelada(
     const fin = Math.max(...[...pos.values()].map(p => p.e))
     if (fin - ini + 1 > maxAbierta) { falla('__abierta'); deshacer(); return null }
     const out = new Map<string, Asignacion>()
-    for (const p of puestas) out.set(p.a.id, salida(p.a, p.s, p.e, p.h))
+    for (const p of puestas) out.set(p.a.id, salida(p.a, p.s, p.e, p.h, p.w))
     deshacer()
     return out
   }

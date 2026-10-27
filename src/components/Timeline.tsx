@@ -16,6 +16,7 @@ import { nombreTarea } from '../tareas'
 import { getMondayOfWeek, toISO, diasHabiles, feriadosDeConfig, formatFechaCorta } from '../utils/dates'
 import { celdasParalelo, cuentasPorDia, estadoParalelo, topeParalelo } from '../paralelo'
 import { TiraMoverA, TIRA_H } from './TiraMoverA'
+import { RecuadroFase, type AnclaRecuadro } from './RecuadroFase'
 
 // Píxeles por día calendario según nivel de zoom
 const PX_PER_DAY: Record<ZoomLevel, number> = {
@@ -99,8 +100,11 @@ function textoDeBarra(variantes: string[], width: number, fontSize: number, conM
   return entra ?? ''
 }
 
-/** 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto). */
-type DragMode = 'phase' | 'cascade' | 'resize'
+/**
+ * 'cascade' = la fase arrastrada + las posteriores de la misma cuenta (modo estricto).
+ * 'fase' / 'faseResize' = una fase entera de una cuenta en modo cuenta (todas sus barras).
+ */
+type DragMode = 'phase' | 'cascade' | 'resize' | 'fase' | 'faseResize'
 interface DragState {
   id: string
   mode: DragMode
@@ -116,6 +120,9 @@ interface DragState {
   cascada?: Set<string>   // ids que se mueven en bloque (solo en mode 'cascade')
   /** Vacaciones: se mueven y se estiran en el tiempo, pero no cambian de persona. */
   soloTiempo?: boolean
+  /** Fase entera (modo 'fase' / 'faseResize'): su tipo y dónde abrir el recuadro si fue un clic. */
+  tipo?: TipoFase
+  ancla?: AnclaRecuadro
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -222,12 +229,12 @@ const FILA_SIN_ASIGNAR: Persona = {
 }
 
 /**
- * Lo que se dibuja en el timeline. En modo cuenta, mientras la cuenta no está seleccionada
- * ("colapsada"), Relevamiento, Configuración y Pruebas entran como un solo item por fase
- * (`kind: 'fase'`), en UNA sola línea, y solo al abrirla con el ▸ (`kind: 'barra'`, una por
- * tarea) se ve el detalle; seleccionarla no la abre. La actualización final es un rombo
- * (`kind: 'cierre'`): cerrada, uno solo para el delta y el aplica. `asig` viaja en los items de una sola barra real (barra/cierre); los
- * de fase agrupan varias (`asigIds`) y no son arrastrables.
+ * Lo que se dibuja en el timeline. En modo cuenta cada cuenta es UNA sola línea: Relevamiento,
+ * Configuración y Pruebas entran como un item por fase (`kind: 'fase'`) que agrupa las barras de
+ * quienes la hacen (`asigIds`, una por persona desde el 23/10/2026). La fase se arrastra entera,
+ * se estira del borde derecho y con un clic abre su recuadro (`RecuadroFase`). Ya no hay detalle
+ * por tarea para abrir. La actualización final es un rombo (`kind: 'cierre'`), uno solo para el
+ * delta y el aplica. `asig` viaja en los items de una sola barra real (barra/cierre).
  */
 interface ItemBarra {
   id: string
@@ -263,6 +270,7 @@ export function Timeline() {
   const {
     personas: personasTodas, proyectos, asignaciones, config, violaciones,
     clienteSeleccionado, updateAsignacion, shiftCascadaDias, seleccionarCliente, setTopeParalelo,
+    moverFaseCuenta, editarFaseCuenta,
   } = useSimuladorStore()
   const {
     mostrarCarga, mostrarDep, mostrarConflictos, zoom, irHoyToken, modoMovimiento, densidad,
@@ -271,12 +279,10 @@ export function Timeline() {
   const porCuenta = modoFilas === 'cuenta'
   /** Vista D: la cuenta elegida lleva debajo la tira "Mover a" (solo en modo cuenta). */
   const tiraDe = porCuenta && clienteSeleccionado && proyectos.some(p => p.id === clienteSeleccionado) ? clienteSeleccionado : null
-  /**
-   * Cuenta abierta en detalle (una barra por tarea). Es aparte de la selección: hacer clic en
-   * una cuenta abre su panel pero NO la abre en el timeline (Willy, 23/10/2026: "si no te pido
-   * aperturarlo, que no lo apertures"). Se abre solo con el ▸ al lado del nombre.
-   */
-  const [cuentaAbierta, setCuentaAbierta] = useState<string | null>(null)
+  /** Recuadro de una fase abierto (clic en la fase de una cuenta). */
+  const [recuadro, setRecuadro] = useState<{ proyectoId: string; tipo: TipoFase; ancla: AnclaRecuadro } | null>(null)
+  /** La próxima selección de cuenta viene de un clic en su fase: no hay que llevar el scroll a ella. */
+  const sinAutoScroll = useRef(false)
 
   // Filas que se ven, en el orden elegido por el usuario. Todo el render y la
   // matemática de arrastre vertical trabajan sobre esta lista, no sobre el store.
@@ -343,18 +349,24 @@ export function Timeline() {
     NAME_W + differenceInDays(d, horizonStart) * pxPerDay
 
   const proyectoPorId = useMemo(() => new Map(proyectos.map(p => [p.id, p])), [proyectos])
+  /** Barras fijadas a mano (📌) y vacaciones por persona: se marcan adentro de la fase de cada cuenta. */
+  const fijadas = useMemo(() => new Set(asignaciones.filter(a => a.fijada).map(a => a.id)), [asignaciones])
+  const asigPorId = useMemo(() => new Map(asignaciones.map(a => [a.id, a])), [asignaciones])
+  const vacacionesDe = useMemo(() => {
+    const m = new Map<string, Asignacion[]>()
+    for (const a of asignaciones) {
+      if (a.tipo !== 'Vacaciones') continue
+      const xs = m.get(a.persona_id)
+      if (xs) xs.push(a); else m.set(a.persona_id, [a])
+    }
+    return m
+  }, [asignaciones])
   const filaDe        = useMemo(() => new Map(filas.map((f, i) => [f.id, i])), [filas])
 
   /**
-   * Los items a dibujar por fila (`ItemBarra`, ver arriba) y sus carriles. En modo cuenta,
-   * la cuenta seleccionada se "expande" a una barra por tarea (Opción A); el resto queda
-   * compactada a una barra por fase (Opción D: menos densidad, un clic la abre). En modo
-   * persona y en la fila "Sin cuenta" siempre es una barra por asignación, como antes.
-   *
-   * Antes se empacaban SIEMPRE las asignaciones individuales de la cuenta entera, así que
-   * cada fila medía lo que pedía su peor solapamiento aunque estuviera colapsada; ahora la
-   * mayoría de las filas quedan en un carril (la fase-resumen rara vez se pisa con otra) y
-   * solo la fila expandida crece.
+   * Los items a dibujar por fila (`ItemBarra`, ver arriba) y sus carriles. En modo cuenta
+   * cada cuenta es una línea con una barra por fase (23/10/2026: ya no se abre en tareas).
+   * En modo persona y en la fila "Sin cuenta" siempre es una barra por asignación, como antes.
    */
   const { itemsPorFila, carrilDe, carrilesDeFila } = useMemo(() => {
     const itemsPorFila = new Map<string, ItemBarra[]>()
@@ -380,18 +392,6 @@ export function Timeline() {
         const propias = asignaciones.filter(a => a.proyecto_id === f.id && !a.es_bloqueo)
         const hitos = propias.filter(esHito)
         const items: ItemBarra[] = []
-        if (cuentaAbierta === f.id) {
-          for (const a of propias) {
-            if (esHito(a)) continue
-            items.push({ id: a.id, kind: 'barra', tipo: a.tipo, inicio: a.inicio, fin: a.fin, personaIds: [a.persona_id], asigIds: [a.id], filaId: f.id, asig: a, estilo: estiloDe(a) })
-          }
-          for (const c of hitos) {
-            items.push({ id: c.id, kind: 'cierre', tipo: 'Cierre', inicio: c.inicio, fin: c.fin, personaIds: [c.persona_id], asigIds: [c.id], filaId: f.id, asig: c })
-          }
-          itemsPorFila.set(f.id, items)
-          carrilesDeFila.set(f.id, empacar(items))
-          continue
-        }
         // Cerrada: una sola línea. Las fases de implementación sin las tareas de payroll (que
         // si no estiran el relevamiento y las pruebas), un rombo para la actualización final,
         // una franja gris rayada para la liquidación en vivo y un filete gris debajo para la
@@ -448,7 +448,7 @@ export function Timeline() {
       carrilesDeFila.set(filaId, empacar(items))
     }
     return { itemsPorFila, carrilDe, carrilesDeFila }
-  }, [porCuenta, filasCuenta, asignaciones, cuentaAbierta, idsPersonas])
+  }, [porCuenta, filasCuenta, asignaciones, idsPersonas])
 
   /**
    * Dónde empieza y cuánto mide cada fila. Con un solo carril el alto es ROW_H y todo queda
@@ -634,7 +634,13 @@ export function Timeline() {
         const idx = Math.max(0, Math.min(personas.length - 1, Math.floor((e.clientY - rect.top) / ROW_H)))
         persona = personas[idx]?.id ?? persona
       }
-      setDrag(d => (d && d.dd === rawDd && d.persona === persona) ? d : (d ? { ...d, dd: rawDd, persona } : d))
+      // El ref se actualiza acá mismo: si el mouse se suelta antes de que React vuelva a
+      // dibujar, `onUp` ya ve cuánto se movió (si no, un arrastre rápido parecía un clic).
+      const cur = dragRef.current
+      if (!cur) return
+      const next = cur.dd === rawDd && cur.persona === persona ? cur : { ...cur, dd: rawDd, persona }
+      dragRef.current = next
+      setDrag(next)
     }
 
     function onUp() {
@@ -655,6 +661,23 @@ export function Timeline() {
   }, [drag?.id, personas, pxPerDay, snapDays, ROW_H, porCuenta])
 
   function commitDrag(d: DragState) {
+    if (d.mode === 'fase' || d.mode === 'faseResize') {
+      if (!d.proyectoId || !d.tipo) return
+      if (d.dd === 0) {
+        // Fue un clic: selecciona la cuenta (tira "Mover a") y abre el recuadro de la fase.
+        if (clienteSeleccionado !== d.proyectoId) { sinAutoScroll.current = true; seleccionarCliente(d.proyectoId) }
+        setRecuadro({ proyectoId: d.proyectoId, tipo: d.tipo, ancla: d.ancla! })
+        return
+      }
+      if (d.mode === 'fase') moverFaseCuenta(d.proyectoId, d.tipo, d.dd)
+      else {
+        let fin = toISO(addDays(parseISO(d.origFin), d.dd))
+        if (fin < d.origInicio) fin = d.origInicio
+        // Estirarla o achicarla a mano la fija (📌): el planificador conserva esos días.
+        editarFaseCuenta(d.proyectoId, d.tipo, { fin, fijada: true })
+      }
+      return
+    }
     if (d.mode === 'cascade') {
       const ddc = Math.max(d.dd, -(d.minDay ?? 0))
       if (ddc === 0 && d.persona === d.origPersona) { seleccionarCliente(d.proyectoId); return }
@@ -677,6 +700,21 @@ export function Timeline() {
     if (inicio !== d.origInicio) patch.inicio = inicio
     if (d.persona !== d.origPersona) patch.persona_id = d.persona
     if (Object.keys(patch).length) updateAsignacion(d.id, patch)
+  }
+
+  /** Mousedown sobre una fase entera de una cuenta (modo cuenta): moverla, estirarla o, si no se mueve, abrir su recuadro. */
+  function onFaseDown(e: React.MouseEvent, item: ItemBarra, mode: 'fase' | 'faseResize') {
+    if (e.button !== 0) return
+    e.preventDefault(); e.stopPropagation()
+    // Dónde está la barra en la pantalla, por si fue un clic y hay que abrir el recuadro al lado.
+    const r = ((e.currentTarget as HTMLElement).closest('[data-fase]') ?? e.currentTarget).getBoundingClientRect()
+    const ancla: AnclaRecuadro = { left: r.left, arriba: r.top, abajo: r.bottom }
+    setRecuadro(null)
+    setDrag({
+      id: item.id, mode, proyectoId: item.filaId, startX: e.clientX,
+      origInicio: item.inicio, origFin: item.fin, origDur: 0, origPersona: '', dd: 0, persona: '',
+      tipo: item.tipo, ancla,
+    })
   }
 
   function onBarDown(e: React.MouseEvent, a: Asignacion, mode: DragMode) {
@@ -722,6 +760,7 @@ export function Timeline() {
     if (e.button !== 0 && e.button !== 1) return
     const el = scrollRef.current
     if (!el) return
+    setRecuadro(null)   // un clic afuera cierra el recuadro de la fase
     panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop }
     setPaneando(true)
     e.preventDefault()
@@ -770,8 +809,9 @@ export function Timeline() {
     if (sinVertical || e.shiftKey) el.scrollLeft += e.deltaY
   }
 
-  // scroll al seleccionar cuenta
+  // scroll al seleccionar cuenta (no si se eligió haciendo clic en una de sus fases: ya está a la vista)
   useEffect(() => {
+    if (sinAutoScroll.current) { sinAutoScroll.current = false; return }
     if (!clienteSeleccionado || !scrollRef.current) return
     const fases = asignaciones.filter(a => a.proyecto_id === clienteSeleccionado)
     if (!fases.length) return
@@ -836,8 +876,8 @@ export function Timeline() {
   // ── dependencias ────────────────────────────────────────────────────────────
 
   const depSegs = useMemo(() => {
-    // En modo cuenta las flechas solo tienen sentido con la cuenta abierta: cerrada no hay una barra por tarea.
-    const cuentaDep = porCuenta ? cuentaAbierta : clienteSeleccionado
+    // En modo cuenta no hay flechas: cada fase es una sola cosa y la dependencia es de fase a fase.
+    const cuentaDep = porCuenta ? null : clienteSeleccionado
     if (!mostrarDep || !cuentaDep) return []
     const segs: { x1: number; y1: number; x2: number; y2: number; viola: boolean }[] = []
     const fases = asignaciones.filter(a => a.proyecto_id === cuentaDep)
@@ -862,7 +902,7 @@ export function Timeline() {
     }
     return segs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarDep, clienteSeleccionado, cuentaAbierta, porCuenta, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
+  }, [mostrarDep, clienteSeleccionado, porCuenta, asignaciones, personas, pxPerDay, ROW_H, BAR_H, topDeFila, carrilDe, config, feriados])
 
   // ── períodos para header ─────────────────────────────────────────────────
 
@@ -1288,15 +1328,6 @@ export function Timeline() {
                   onClick={() => p && seleccionarCliente(sel ? null : p.id)}
                   style={{ position: 'absolute', top: topDeFila.get(f.id) ?? 0, left: 0, width: NAME_W, height: alto, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compacta ? 0 : 2, padding: compacta ? '0 10px 0 9px' : '0 10px 0 11px', background: sel ? 'var(--celeste-dim)' : i % 2 ? 'var(--paper)' : 'var(--white)', borderRight: '2px solid var(--line)', borderBottom: '1px solid var(--line-soft)', borderLeft: `3px solid ${sel ? 'var(--celeste)' : 'transparent'}`, pointerEvents: 'auto', cursor: p ? 'pointer' : 'default' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                    {p && (
-                      <button type="button"
-                        aria-label={cuentaAbierta === f.id ? 'Cerrar el detalle por tarea' : 'Abrir el detalle por tarea'}
-                        title={cuentaAbierta === f.id ? 'Cerrar el detalle por tarea' : 'Abrir el detalle: una barra por tarea'}
-                        onClick={e => { e.stopPropagation(); setCuentaAbierta(cuentaAbierta === f.id ? null : f.id) }}
-                        style={{ flexShrink: 0, width: 16, height: 16, padding: 0, border: 'none', background: 'transparent', color: 'var(--t2)', fontSize: 10, cursor: 'pointer', lineHeight: '16px' }}>
-                        {cuentaAbierta === f.id ? '▾' : '▸'}
-                      </button>
-                    )}
                     <span style={{ fontSize: compacta ? 13 : 14.5, fontWeight: 700, color: p ? 'var(--t1)' : 'var(--t3)', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.titulo}</span>
                     {tier && (
                       <span style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 700, color: 'var(--t2)', background: 'var(--line-soft)', borderRadius: 9999, padding: '1px 6px' }}>{TIER_LABEL[tier]}</span>
@@ -1385,12 +1416,18 @@ export function Timeline() {
               )
             }
 
-            // geometría real: para 'barra' usa geom() (soporta preview de drag); 'fase' es estática.
+            // geometría real: para 'barra' usa geom() (soporta preview de drag); 'fase' se corre o se estira mientras se arrastra.
+            const faseArr = item.kind === 'fase' && drag?.id === item.id ? drag : null
+            const iniG = faseArr?.mode === 'fase' ? toISO(addDays(parseISO(item.inicio), faseArr.dd)) : item.inicio
+            let finG = faseArr?.mode === 'fase' ? toISO(addDays(parseISO(item.fin), faseArr.dd)) : faseArr?.mode === 'faseResize' ? toISO(addDays(parseISO(item.fin), faseArr.dd)) : item.fin
+            if (finG < iniG) finG = iniG
             const g = item.kind === 'barra' ? geom(item.asig!) : {
-              left: dateToX(item.inicio),
-              width: Math.max(MIN_BAR_W, dateToX(item.fin) + pxPerDay - dateToX(item.inicio)),
+              left: dateToX(iniG),
+              width: Math.max(MIN_BAR_W, dateToX(finG) + pxPerDay - dateToX(iniG)),
               top: topBarra(item.filaId, carrilDe.get(item.id) ?? 0),
             }
+            // Una fase de armado (no la liquidación en vivo ni la tarea del analista) se edita entera.
+            const faseEditable = porCuenta && item.kind === 'fase' && !item.estilo
             const esRojoItem = item.asigIds.some(id => barRojo.has(id))
             const fill = esRojoItem ? 'var(--error)'
               : item.estilo === 'vivo' ? FONDO_VIVO
@@ -1407,7 +1444,7 @@ export function Timeline() {
               : 'none'
             const angosta = esBarraAngosta(g.width)
             const padX = padDeBarra(g.width)
-            const arrastrando = item.kind === 'barra' && drag?.id === item.id
+            const arrastrando = (item.kind === 'barra' || faseEditable) && drag?.id === item.id
             const enPrevisualizacion = item.kind === 'barra' && previsualizacion?.asignaciones.some(x => x.id === item.id)
 
             let texto = ''
@@ -1440,15 +1477,17 @@ export function Timeline() {
               : filete
               ? `${item.asig?._tarea ?? (item.asig?._fase === 'Payroll previa' ? 'Payroll: previa con el cliente' : 'Payroll: validación con el cliente')} · ${quienes}\n${item.inicio} → ${item.fin}`
               : item.kind === 'fase'
-              ? `${TIPO_LABEL[item.tipo]} de ${proyectoPorId.get(item.filaId)?.nombre ?? item.filaId} · ${item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')}\n${item.inicio} → ${item.fin} · clic para ver el detalle`
+              ? `${TIPO_LABEL[item.tipo]} de ${proyectoPorId.get(item.filaId)?.nombre ?? item.filaId} · ${item.personaIds.map(pid => aliasPorId.get(pid) ?? pid).join(', ')}\n${item.inicio} → ${item.fin}${item.asigIds.some(id => fijadas.has(id)) ? ' · 📌 fijada a mano' : ''}\nArrastrar = mover solo esta fase · borde derecho = estirar o achicar · clic = horas y reparto`
               : `${item.esBloqueo ? (item.asig!._nombre ?? item.tipo) : nombreTarea(item.asig!)} · ${aliasPorId.get(item.asig!.persona_id) ?? item.asig!.persona_id}\n${item.asig!.inicio} → ${item.asig!.fin} · ${item.asig!.duracion_dias} días hábiles${item.esBloqueo ? (item.tipo === 'Vacaciones' ? '\nArrastrar mueve las vacaciones · borde derecho = estirar o achicar · también se editan en 👥 Equipo' : '') : (modoMovimiento === 'estricto'
                 ? '\nModo estricto: arrastrar mueve esta fase y las siguientes de la cuenta (no las anteriores) · Shift = solo esta tarea · borde derecho = estirar'
                 : '\nModo flexible: arrastrar mueve solo esta tarea · Shift = esta fase y las siguientes · borde derecho = estirar')}`
 
             return (
-              <div key={item.id}
-                onMouseDown={item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? e => onBarDown(e, item.asig!, 'phase') : porCuenta ? e => e.stopPropagation() : undefined}
-                onClick={item.kind === 'fase' ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
+              <div key={item.id} data-fase={faseEditable ? item.id : undefined}
+                onMouseDown={item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? e => onBarDown(e, item.asig!, 'phase')
+                  : faseEditable ? e => onFaseDown(e, item, 'fase')
+                  : porCuenta ? e => e.stopPropagation() : undefined}
+                onClick={item.kind === 'fase' && !faseEditable ? () => seleccionarCliente(seleccionada ? null : item.filaId) : undefined}
                 title={title}
                 style={{
                   position: 'absolute', left: g.left, top: topItem, width: g.width, height: altoBarra,
@@ -1457,7 +1496,7 @@ export function Timeline() {
                   alignItems: 'center', justifyContent: angosta && !monograma ? 'center' : 'flex-start', gap: 5,
                   paddingLeft: padX, paddingRight: padX,
                   overflow: 'hidden', fontSize, color: item.estilo === 'vivo' && !esRojoItem ? 'var(--t1)' : '#fff', fontWeight: 600, whiteSpace: 'nowrap',
-                  boxShadow, cursor: item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
+                  boxShadow, cursor: (item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones')) || faseEditable ? 'grab' : item.kind === 'fase' ? 'pointer' : 'default',
                   opacity: item.tipo === 'Vacaciones' ? (atenuada ? 0.45 : 0.92) : item.esBloqueo ? (atenuada ? 0.25 : 0.55)
                     : enPrevisualizacion ? 0.22
                     : (atenuada ? 0.38 : 1),
@@ -1472,6 +1511,26 @@ export function Timeline() {
                   }}>{monograma}</span>
                 )}
                 {texto && <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>{texto}</span>}
+                {faseEditable && item.asigIds.some(id => fijadas.has(id)) && <span title="Fijada a mano: el planificador conserva estos días" style={{ flexShrink: 0, fontSize: 9 }}>📌</span>}
+                {/* Vacaciones de quien hace la fase, adentro de la fase: son hueco (esos días no lleva horas). */}
+                {faseEditable && !faseArr && item.asigIds.flatMap(id => {
+                  const b = asigPorId.get(id)
+                  if (!b) return []
+                  const pid = b.persona_id
+                  return (vacacionesDe.get(pid) ?? []).filter(v => v.inicio <= b.fin && v.fin >= b.inicio).map(v => {
+                    const x0 = dateToX(v.inicio > b.inicio ? v.inicio : b.inicio) - g.left
+                    const x1 = dateToX(v.fin < b.fin ? v.fin : b.fin) + pxPerDay - g.left
+                    return (
+                      <span key={`${id}-${v.id}`} title={`${aliasPorId.get(pid) ?? pid} de vacaciones del ${formatFechaCorta(v.inicio)} al ${formatFechaCorta(v.fin)}: esos días no lleva horas de esta fase`}
+                        style={{ position: 'absolute', left: x0, width: Math.max(2, x1 - x0), bottom: 0, height: 5, background: 'repeating-linear-gradient(135deg, var(--vacaciones) 0 3px, var(--vacaciones-tint) 3px 6px)' }} />
+                    )
+                  })
+                })}
+                {faseEditable && (
+                  <div onMouseDown={e => onFaseDown(e, item, 'faseResize')}
+                    title="Estirar o achicar la fase: las horas quedan, cambian las horas por día. Queda fijada (📌)."
+                    style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
+                )}
                 {item.kind === 'barra' && (!item.esBloqueo || item.tipo === 'Vacaciones') && (
                   <div onMouseDown={e => onBarDown(e, item.asig!, 'resize')}
                     style={{ position: 'absolute', right: 0, top: 0, width: BAR_H > 34 ? 10 : 8, height: '100%', cursor: 'ew-resize', background: 'rgba(255,255,255,0.18)', borderRadius: '0 6px 6px 0' }} />
@@ -1495,6 +1554,11 @@ export function Timeline() {
               }} />
             )
           })}
+
+          {recuadro && porCuenta && (
+            <RecuadroFase key={`${recuadro.proyectoId}-${recuadro.tipo}`} proyectoId={recuadro.proyectoId} tipo={recuadro.tipo}
+              ancla={recuadro.ancla} onClose={() => setRecuadro(null)} />
+          )}
         </div>
       </div>
     </div>
