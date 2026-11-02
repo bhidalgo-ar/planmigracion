@@ -6,7 +6,7 @@ import { tierDe, TIER_LABEL } from './insightsEquipo'
 import { cargaPorMes, paraleloPorMes, personasDeImplementacion, picoDe, ultimaSalida, type PlanDatos } from './escenario'
 import { topeParalelo } from './paralelo'
 import { feriadosDeConfig, getMondayOfWeek, toISO } from './utils/dates'
-import { cuentaArrancada, esLiquidacionEnVivo } from './planificadorNivelado'
+import { esLiquidacionEnVivo } from './planificadorNivelado'
 
 /**
  * Lo que leen las vistas del programa (23/10/2026): Salidas (la mesa de meses), Hoy (lo que
@@ -38,8 +38,6 @@ export interface EstadoCuenta {
   sigue: string
   /** Primer día con una tarea de implementación; null si no tiene. */
   arranca: string | null
-  /** No arrancó: se puede mover de mes. */
-  movible: boolean
 }
 
 /** Tareas del equipo de implementación: sin bloqueos, sin la primera liquidación y sin las del analista de payroll. */
@@ -76,8 +74,7 @@ export function estadoDeCuenta(proyectoId: string, plan: PlanDatos, hoyISO: stri
   const proximas = impl.filter(a => a.inicio > hoyISO).sort((a, b) => a.inicio.localeCompare(b.inicio))
   const sigueTxt = proximas.length ? `Sigue ${ETAPA_TXT[proximas[0].tipo] ?? proximas[0].tipo} ${ddmm(proximas[0].inicio)}` : ''
   const arranca = impl.map(a => a.inicio).sort()[0] ?? null
-  const movible = !cuentaArrancada(proyectoId, plan.asignaciones, hoyISO)
-  const base = { id: proyectoId, nombre, tier: t ? TIER_LABEL[t] : '', mes, corte, etapas, arranca, movible }
+  const base = { id: proyectoId, nombre, tier: t ? TIER_LABEL[t] : '', mes, corte, etapas, arranca }
 
   const liqIni = liq.map(a => a.inicio).sort()[0]
   const liqFin = finDe(liq)

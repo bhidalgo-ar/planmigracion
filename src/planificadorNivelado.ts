@@ -64,7 +64,7 @@ export function esLiquidacionEnVivo(a: Asignacion): boolean {
   return a._fase === 'Liquidacion en vivo' || (a.tipo as string) === 'Liquidacion en vivo'
 }
 
-/** La cuenta ya arrancó: tiene alguna barra de armado que empezó antes de hoy. No se mueve sola. */
+/** La cuenta ya arrancó: tiene alguna barra de armado que empezó antes de hoy. Los rearmados masivos no la tocan; moverla a mano sí se puede. */
 export function cuentaArrancada(proyectoId: string, asignaciones: Asignacion[], hoyISO: string): boolean {
   return asignaciones.some(a => a.proyecto_id === proyectoId && !a.es_bloqueo && !esLiquidacionEnVivo(a) && a.inicio < hoyISO)
 }
@@ -121,9 +121,9 @@ export function planificarCuentaNivelada(
   const nombre = proyectos.find(p => p.id === proyectoId)?.nombre ?? proyectoId
   const propias = asignaciones.filter(a => a.proyecto_id === proyectoId && !a.es_bloqueo)
   if (!propias.length) return { ok: false, motivo: 'La cuenta no tiene fases planificadas.' }
-  if (cuentaArrancada(proyectoId, asignaciones, opciones.hoyISO)) {
-    return { ok: false, motivo: `${nombre} ya arrancó: sus tareas en curso no se mueven solas. Ajustalas a mano o usá el planificador clásico.` }
-  }
+  // Una cuenta que ya arrancó también se puede mover (Willy, 02/11/2026: "tengo que poder mover todos"):
+  // se rearma entera desde hoy, y lo ya hecho figura de nuevo como pendiente. Los rearmados masivos
+  // (`replanificarTodoNivelado`, `adelantarTodoNivelado`) siguen salteando las en curso por su cuenta.
 
   const feriados = feriadosDeConfig(config)
   const corteISO = fechaCorteDe(proyectoId, mesSalida, config, feriados)

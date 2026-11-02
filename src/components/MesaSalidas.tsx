@@ -191,7 +191,7 @@ export function MesaSalidas() {
 function Tarjeta({ t, arrastrada, onDragStart, onDragEnd, onClick }: {
   t: TarjetaSalida; arrastrada: boolean; onDragStart: (e: DragEvent) => void; onDragEnd: () => void; onClick: () => void
 }) {
-  const movible = !t.fueraDelPlan && !!t.movible
+  const movible = !t.fueraDelPlan
   const estilo: CSSProperties = {
     padding: '8px 8px 9px', borderRadius: 10, background: 'var(--white)', textAlign: 'left', width: '100%', boxSizing: 'border-box',
     border: t.fueraDelPlan ? '1px dashed var(--t3)' : arrastrada ? '2px solid var(--celeste)' : '1px solid var(--line)',
@@ -199,8 +199,7 @@ function Tarjeta({ t, arrastrada, onDragStart, onDragEnd, onClick }: {
     cursor: movible ? 'grab' : t.fueraDelPlan ? 'default' : 'pointer', font: 'inherit', color: 'inherit',
   }
   const titulo = t.fueraDelPlan ? 'Fuera del plan: ya estaba configurada'
-    : movible ? 'Arrastrala a otro mes para cambiar su salida · clic para verla en el Timeline'
-      : 'Ya arrancó: no se mueve sola · clic para verla en el Timeline'
+    : 'Arrastrala a otro mes para cambiar su salida · clic para verla en el Timeline'
   return (
     <button type="button" draggable={movible} onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick} title={titulo} style={estilo}>
       <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.15 }}>{t.nombre}</div>

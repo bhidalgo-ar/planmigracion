@@ -272,8 +272,11 @@ si no hay ninguno, dice por qué ("Guille no tiene lugar para pruebas · cruces 
 En la tira "Sale en vivo" ese mes queda en rojo con el motivo; si se elige igual, la cuenta se
 arma con el clásico y el panel avisa que no entra. "··· → 🧠 Replanificar respetando capacidad"
 rearma todas las cuentas que no arrancaron, por mes de salida (las que todavía no se rearmaron
-no cuentan como carga). **Una cuenta que ya arrancó** (alguna barra de armado empezó antes de
-hoy) no se mueve sola. Con este cambio se corrigieron dos cosas del clásico y de las reglas: la
+no cuentan como carga). Los rearmados masivos no tocan **una cuenta que ya arrancó** (alguna barra de armado empezó
+antes de hoy), pero **moverla a mano sí se puede** (Willy, 02/11/2026: "tengo que poder mover
+todos"): la tarjeta de Salidas se arrastra y la tira "Mover a" la ofrece, y el planificador la
+rearma entera desde hoy (lo ya hecho figura de nuevo como pendiente; ninguna fase queda antes de
+hoy). Con este cambio se corrigieron dos cosas del clásico y de las reglas: la
 primera liquidación ya no se trata como Actualización final (el planificador clásico la deja en
 el corte y el margen no la mide), y `fechaCorteDe` extrapola el corte con la mediana del día del
 mes cuando el plan no trae la fecha de ese mes ni día fijo (se muestra como "estimado"). Tests en
