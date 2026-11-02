@@ -79,9 +79,17 @@ const vacTodo: Asignacion = { id: 'vac-guille-larga', proyecto_id: null, tipo: '
 const sinWilly = planificarCuentaNivelada('carrier', [...asignaciones, vacTodo], '2027-04', personas, config, proyectos, { hoyISO: HOY })
 check('Willy de vacaciones todo el año: no entra', !sinWilly.ok)
 check('y el motivo nombra a la persona', !sinWilly.ok && /Guille/.test(sinWilly.motivo), sinWilly.ok ? '' : sinWilly.motivo)
-eq('una cuenta que ya arrancó no se mueve sola', cuentaArrancada('tim', asignaciones, '2026-10-01'), true)
-const arrancada = planificarCuentaNivelada('tim', asignaciones, '2027-03', personas, config, proyectos, { hoyISO: '2026-10-01' })
-check('…y lo dice', !arrancada.ok && /ya arrancó/.test(arrancada.motivo), arrancada.ok ? '' : arrancada.motivo)
+eq('una cuenta que ya arrancó se detecta', cuentaArrancada('tim', asignaciones, '2026-10-01'), true)
+// Willy, 02/11/2026: "tengo que poder mover todos". Una cuenta en curso se rearma entera desde hoy.
+const arrancada = planificarCuentaNivelada('tim', asignaciones, '2027-06', personas, config, proyectos, { hoyISO: '2026-10-01' })
+check('…pero se puede mover igual', arrancada.ok, arrancada.ok ? '' : arrancada.motivo)
+if (arrancada.ok) {
+  const propiasTim = arrancada.asignaciones.filter(a => a.proyecto_id === 'tim' && !a.es_bloqueo)
+  check('y ninguna de sus fases queda antes de hoy', propiasTim.every(a => a.inicio >= '2026-10-01'), propiasTim.map(a => a.inicio).sort()[0])
+  const hAntes = asignaciones.filter(a => a.proyecto_id === 'tim').reduce((s, a) => s + (a._horas ?? 0), 0)
+  const hDesp = arrancada.asignaciones.filter(a => a.proyecto_id === 'tim').reduce((s, a) => s + (a._horas ?? 0), 0)
+  check('y no suma ni resta horas', Math.abs(hAntes - hDesp) < 1, `${hAntes} → ${hDesp}`)
+}
 
 // ── primera liquidación y analistas de payroll ───────────────────────────────
 titulo('primera liquidación en vivo y analista de payroll')
